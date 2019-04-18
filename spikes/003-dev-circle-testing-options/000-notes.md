@@ -104,7 +104,8 @@ See [the
 docs](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/SQLServer.Concepts.General.Licensing.html)
 for further information.
 
-Presumably this indicates successfully enabling CDC in RDS.
+Presumably this indicates successfully enabling CDC in RDS (against a
+'Standard Edition' database).
 
 ```
 vagrant@taps-tvisher1:~$ mssql-cli -U spike_tap_mssql -P spike_tap_mssql -S spike-tap-mssql-2.cqaqbfvfo67k.us-east-1.rds.amazonaws.com
