@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+logf() {
+  printf "$1\n" "${@:2}" >&2
+}
+
+warnf() {
+  logf "WARN: ${1}" "${@:2}"
+}
+
+infof() {
+  logf "INFO: ${1}" "${@:2}"
+}
+
+errorf() {
+  logf "ERROR: ${1}" "${@:2}"
+  exit 1
+}
+
+while :
+do
+  case $1 in
+    destroy)
+      command=destroy
+      ;;
+    create)
+      command=create
+      ;;
+    describe)
+      command=describe
+      ;;
+    -l)
+      long_output=true
+      ;;
+    -?*|--?*=?*)
+      warnf 'Unknown option (ignored): %s\n' "$1"
+      ;;
+    *)
+      break
+  esac
+  shift
+done
+
+identifier="$(hostname)-test-mssql"
+
+describe_instance() {
+  local jq_filter
+  jq_filter='.DBInstances[] 
+             | {address: .Endpoint.Address,
+                identifier: .DBInstanceIdentifier,
+                status: .DBInstanceStatus,
+                master_username: .MasterUsername,
+                master_password: .MasterUsername}'
+  if [[ $long_output == true ]] || [[ $1 == full ]]
+  then
+    jq_filter='.DBInstances[]'
+  fi
+  aws rds describe-db-instances --db-instance-identifier "${identifier}" \
+    | jq "$jq_filter"
+}
+
+test_db_not_online() {
+  db_instance_status=$(aws rds describe-db-instances --db-instance-identifier "${identifier}" \
+                         | jq -r '.DBInstances[].DBInstanceStatus')
+  if (( $? != 0 ))
+  then
+    errorf 'Failed to describe %s' "$identifier"
+  fi
+  [[ $db_instance_status != available ]]
+}
+
+instance_status() {
+  describe_instance full | jq -r '.DBInstanceStatus'
+}
+
+case $command in
+  destroy)
+    if describe_instance >/dev/null
+    then
+      infof 'Destroying %s' "$identifier"
+      if [[ $(instance_status) != deleting ]]
+      then
+        if ! aws --region us-east-1 \
+             rds delete-db-instance \
+             --db-instance-identifier "$identifier" \
+             --skip-final-snapshot
+        then
+          errorf "Failed to initiate destruction of %s" "$identifier"
+        fi
+      fi
+      while describe_instance >/dev/null
+      do
+        infof "Waiting for %s to be destroyed for %s seconds (current status: %s)" \
+              "$identifier" "$SECONDS" "$(instance_status)"
+        sleep 30
+      done
+    else
+      infof '%s is already offline' "$identifier"
+    fi
+    ;;
+  create)
+    if test_db_not_online
+    then
+      if ! describe_instance >/dev/null
+      then
+        logf "Creating db instance %s" "$identifier"
+        if ! aws --region us-east-1 \
+             rds create-db-instance \
+             --db-instance-identifier "$identifier" \
+             --db-instance-class db.m4.large \
+             --engine sqlserver-se \
+             --allocated-storage 100 \
+             --master-username spike_mssql \
+             --master-user-password spike_mssql \
+             --backup-retention-period 0 \
+             --license-model license-included
+        then
+          errorf  "Failed to initiate creation of %s" "$identifier"
+        fi
+      fi
+      while test_db_not_online
+      do
+        infof "Waiting for db instance to come up for %s seconds (current status: %s)" \
+              "$SECONDS" \
+              "$(instance_status)"
+        sleep 30
+      done
+    fi
+
+    infof 'DB instance %s created' "$identifier"
+    describe_instance
+    ;;
+  describe)
+    infof 'Describing instance %s' "$identifier"
+    describe_instance
+    ;;
+  *)
+    errorf "Unknown or no command passed"
+esac
+
