@@ -4,9 +4,11 @@
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
             [cheshire.core :as json]
-            )
+            [clojure.java.jdbc :as jdbc])
   (:gen-class))
 
+
+(def SQL-SERVER-2017-VERSION 14)
 
 (def cli-options
   [["-d" "--discover" "Discovery Mode"]
@@ -34,12 +36,23 @@
   (nrepl-server/start-server :bind "0.0.0.0"
                              :handler (nrepl-handler)))
 
-(defn do-discovery []
-  (log-infof "Starting discovery mode"))
+(defn config->conn-map
+  [{:keys [host user password]}]
+  {:dbtype "sqlserver"
+   :dbname ""
+   :host host
+   :password password
+   :user user})
+
+(defn do-discovery [{:as config}]
+  (log-infof "Starting discovery mode")
+  (with-open [conn (jdbc/get-connection (config->conn-map config))]
+    (let [metadata (.getMetaData conn)]
+      (= SQL-SERVER-2017-VERSION (.getDatabaseMajorVersion metadata)))))
 
 (defn do-sync [config catalog state]
   (log-infof "Starting sync mode")
-  (throw (ex-info "Sync mode not yet implemented." {})))
+  (throw (UnsupportedOperationException. "Sync mode not yet implemented.")))
 
 (defn -main [& args]
   (try
