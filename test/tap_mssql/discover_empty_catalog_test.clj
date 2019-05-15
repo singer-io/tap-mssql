@@ -18,5 +18,12 @@
        ~@body)))
 
 (deftest ^:integration verify-mssql-version
-  (is (with-out-and-err-to-dev-null
-        (do-discovery test-db-config))))
+  (is (nil?
+       (with-out-and-err-to-dev-null
+         (do-discovery test-db-config)))
+      "Discovery ran succesfully and did not throw an exception"))
+
+(deftest ^:integration verify-empty-catalog
+  (is (= "{}\n"
+         (with-out-str
+           (do-discovery test-db-config)))))

@@ -16,7 +16,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/tools.cli "0.4.1"]
-                 [cheshire "5.8.1"]
+                 [org.clojure/data.json "0.2.6"]
 
                  ;; jdbc
                  [org.clojure/java.jdbc "0.7.9"]
