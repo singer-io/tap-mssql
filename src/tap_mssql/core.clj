@@ -3,7 +3,7 @@
             [clojure.tools.nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
-            [cheshire.core :as json]
+            [clojure.data.json :as json]
             [clojure.java.jdbc :as jdbc])
   (:gen-class))
 
@@ -14,11 +14,11 @@
   [["-d" "--discover" "Discovery Mode"]
    [nil "--repl" "REPL Mode"]
    [nil "--config CONFIG" "Config File"
-    :parse-fn #(json/parse-stream (io/reader %) true)]
+    :parse-fn (comp json/read io/reader)]
    [nil "--catalog CATALOG" "Singer Catalog File"
-    :parse-fn #(json/parse-stream (io/reader %) true)]
+    :parse-fn (comp json/read io/reader)]
    [nil "--state STATE" "Singer State File"
-    :parse-fn #(json/parse-stream (io/reader %) true)]
+    :parse-fn (comp json/read io/reader)]
    ["-h" "--help"]])
 
 (defn nrepl-handler []
@@ -48,7 +48,8 @@
   (log-infof "Starting discovery mode")
   (with-open [conn (jdbc/get-connection (config->conn-map config))]
     (let [metadata (.getMetaData conn)]
-      (= SQL-SERVER-2017-VERSION (.getDatabaseMajorVersion metadata)))))
+      (= SQL-SERVER-2017-VERSION (.getDatabaseMajorVersion metadata)))
+    (println (json/write-str {}))))
 
 (defn do-sync [config catalog state]
   (log-infof "Starting sync mode")
