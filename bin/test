@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+if [[ -z $STITCH_TAP_MSSQL_TEST_DB_HOST ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DB_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DB_PASSWORD ]]
+then
+  cat <<EOF
+Missing required environment variables. Have you sourced
+/etc/default/tap-mssql?
+EOF
+  exit 1
+fi
+
+lein test
