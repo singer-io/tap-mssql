@@ -1,4 +1,4 @@
-version: 2.1
+version: 2
 jobs:
   build:
     docker:
@@ -10,7 +10,7 @@ jobs:
       - run:
           name: Test
           command: |
-            lein test
+            bin/test
       - save_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
           paths:
