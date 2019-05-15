@@ -1,0 +1,17 @@
+version: 2.1
+jobs:
+  build:
+    docker:
+      - image: clojure:lein-2.5.3
+    steps:
+      - checkout
+      - restore_cache:
+          key: dependency-cache-{{ checksum "project.clj" }}
+      - run:
+          name: Test
+          command: |
+            lein test
+      - save_cache:
+          key: dependency-cache-{{ checksum "project.clj" }}
+          paths:
+            - /root/.m2
