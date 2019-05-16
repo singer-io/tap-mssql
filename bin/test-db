@@ -69,7 +69,7 @@ describe_instance() {
                 identifier: .DBInstanceIdentifier,
                 status: .DBInstanceStatus,
                 master_username: .MasterUsername,
-                master_password: .MasterUsername}'
+                master_password: "'"$master_password"'"}'
   if [[ $long_output == true ]] || [[ $1 == full ]]
   then
     jq_filter='.DBInstances[]'

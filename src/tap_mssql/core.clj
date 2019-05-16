@@ -34,10 +34,6 @@
                     (str "INFO " message-format)
                     args))))
 
-(defonce the-nrepl-server
-  (nrepl-server/start-server :bind "0.0.0.0"
-                             :handler (nrepl-handler)))
-
 (defn config->conn-map
   [{:keys [host user password]}]
   {:dbtype "sqlserver"
@@ -108,9 +104,18 @@
   (try
     (let [opts (cli/parse-opts args cli-options)
           {{:keys [:discover :repl :config :catalog :state]} :options} opts]
-      (when repl (log-infof "Started nrepl server at %s"
-                            (.getLocalSocketAddress (:server-socket the-nrepl-server))))
-      (spit ".nrepl-port" (:port the-nrepl-server))
+      (when repl
+        ;; We do this here to avoid starting the nrepl server during `lein
+        ;; test` executions
+        (defonce the-nrepl-server
+          (nrepl-server/start-server :bind "0.0.0.0"
+                                     :handler (nrepl-handler)))
+        (.start (Thread. #((loop []
+                             (Thread/sleep 1000)
+                             (recur)))))
+        (log-infof "Started nrepl server at %s"
+                   (.getLocalSocketAddress (:server-socket the-nrepl-server)))
+        (spit ".nrepl-port" (:port the-nrepl-server)))
 
       (cond
         discover
@@ -121,13 +126,7 @@
 
         :else
         ;; FIXME: (show-help)?
-        nil)
-
-      (if repl
-        (.start (Thread. #((loop []
-                             (Thread/sleep 1000)
-                             (recur)))))
-        (nrepl-server/stop-server the-nrepl-server)))
+        nil))
     (catch Exception ex
       (dorun (map #(logger/fatal %)
                   (clojure.string/split (str ex) #"\n")))
