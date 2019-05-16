@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
+then
+  printf 'Missing required environment variables\n' >&2
+  exit 1
+fi
+
+circleci local execute \
+         -e "STITCH_TAP_MSSQL_TEST_DATABASE_USER=${STITCH_TAP_MSSQL_TEST_DATABASE_USER}" \
+         -e "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD=${STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD}"
