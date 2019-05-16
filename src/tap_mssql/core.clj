@@ -8,7 +8,9 @@
   (:gen-class))
 
 
-(def SQL-SERVER-2017-VERSION 14)
+(def sql-server-2017-version 14)
+
+(def empty-catalog {:streams []})
 
 (def cli-options
   [["-d" "--discover" "Discovery Mode"]
@@ -44,12 +46,59 @@
    :password password
    :user user})
 
+(defn table->catalog-entry
+  [table]
+  {:stream (:name table)
+   :tap-stream-id (:name table)
+   :table-name (:name table)
+   :schema {}
+   :metadata {}})
+
+(defn add-table
+  [catalog table]
+  (update catalog :streams conj (table->catalog-entry table)))
+
+(defn get-tables
+  [config database]
+  (let [conn-map (config->conn-map config)]
+    (jdbc/query (assoc conn-map :dbname (:name database))
+                ["select name from sys.tables"])))
+
+(defn non-system-database?
+  [database]
+  ((complement (comp #{"master" "tempdb" "model" "msdb" "rdsadmin"} :name))
+   database))
+
+(defn get-databases
+  [config]
+  (let [conn-map (config->conn-map config)]
+    (filter non-system-database?
+            (jdbc/query conn-map
+                        [(str "select name "
+                              "from sys.databases "
+                              "where has_dbaccess(name) = 1")]))))
+
+(defn discover-catalog
+  [config]
+  (jdbc/with-db-metadata [metadata (config->conn-map config)]
+    (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
+      (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
+  (->> (get-databases config)
+       (map (partial get-tables config))
+       flatten
+       (reduce add-table empty-catalog)))
+
 (defn do-discovery [{:as config}]
   (log-infof "Starting discovery mode")
-  (with-open [conn (jdbc/get-connection (config->conn-map config))]
-    (let [metadata (.getMetaData conn)]
-      (= SQL-SERVER-2017-VERSION (.getDatabaseMajorVersion metadata)))
-    (println (json/write-str {}))))
+  (println (json/write-str (discover-catalog config))))
+
+(comment
+  (let [config {:host (format "%s-test-mssql-2017.db.test.stitchdata.com"
+                              (.getHostName (java.net.InetAddress/getLocalHost)))
+                :user (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
+                :password (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")}]
+    (get-databases config))
+  )
 
 (defn do-sync [config catalog state]
   (log-infof "Starting sync mode")

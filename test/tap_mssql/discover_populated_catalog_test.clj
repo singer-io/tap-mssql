@@ -1,4 +1,4 @@
-(ns tap-mssql.discover-empty-catalog-test
+(ns tap-mssql.discover-populated-catalog-test
   (:require [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
@@ -34,7 +34,10 @@
 (defn create-test-db
   []
   (let [db-spec (config->conn-map test-db-config)]
-    (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
+    (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
+                                  "CREATE DATABASE database_with_a_table"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
+                         [(jdbc/create-table-ddl :empty_table [[:id "int"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -52,12 +55,7 @@
                *out* null-out#]
        ~@body)))
 
-(deftest ^:integration verify-mssql-version
-  (is (nil?
-       (with-out-and-err-to-dev-null
-         (do-discovery test-db-config)))
-      "Discovery ran succesfully and did not throw an exception"))
-
-(deftest ^:integration verify-empty-catalog
-  (is (= empty-catalog (discover-catalog test-db-config))
-      "Databases without any tables (like empty_database) do not show up in the catalog"))
+(deftest ^:integration verify-populated-catalog
+  (is (= #{"empty_table"}
+         (set/intersection #{"empty_table"}
+                           (set (map :stream (:streams (discover-catalog test-db-config))))))))

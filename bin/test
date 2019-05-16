@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-if [[ -z $STITCH_TAP_MSSQL_TEST_DB_HOST ]] \
-     || [[ -z $STITCH_TAP_MSSQL_TEST_DB_USER ]] \
-     || [[ -z $STITCH_TAP_MSSQL_TEST_DB_PASSWORD ]]
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
 then
   cat <<EOF
 Missing required environment variables. Have you sourced
@@ -11,4 +10,4 @@ EOF
   exit 1
 fi
 
-lein test
+exec lein test
