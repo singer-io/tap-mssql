@@ -54,7 +54,11 @@
                                                   [:tinyint "tinyint"]])
 
                           (jdbc/create-table-ddl :bits
-                                                 [[:bit "bit"]])])))
+                                                 [[:bit "bit"]])
+                          (jdbc/create-table-ddl :texts
+                                                 [[:char "char"]
+                                                  [:char_one "char(1)"]
+                                                  [:char_max "char(8000)"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -62,15 +66,6 @@
   (f))
 
 (use-fixtures :each test-db-fixture)
-
-(defmacro with-out-and-err-to-dev-null
-  [& body]
-  `(let [null-out# (io/writer
-                    (proxy [java.io.OutputStream] []
-                      (write [& args#])))]
-     (binding [*err* null-out#
-               *out* null-out#]
-       ~@body)))
 
 (deftest ^:integration verify-integers
   (is (= {:type "integer"
@@ -84,6 +79,7 @@
          (get-in (discover-catalog test-db-config)
                  [:streams "integers" :schema :properties "bigint"])))
   (is (= {:type "integer"
+
           :minimum -32768
           :maximum  32767}
          (get-in (discover-catalog test-db-config)
@@ -98,6 +94,23 @@
   (is (= {:type "boolean"}
          (get-in (discover-catalog test-db-config)
                  [:streams "bits" :schema :properties "bit"]))))
+
+(deftest ^:integration verify-text
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "char"])))
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "char_one"])))
+  (is (= {:type "string"
+          :minLength 8000
+          :maxLength 8000}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "char_max"]))))
 
 (comment
   (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))

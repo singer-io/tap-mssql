@@ -53,15 +53,6 @@
 
 (use-fixtures :each test-db-fixture)
 
-(defmacro with-out-and-err-to-dev-null
-  [& body]
-  `(let [null-out# (io/writer
-                    (proxy [java.io.OutputStream] []
-                      (write [& args#])))]
-     (binding [*err* null-out#
-               *out* null-out#]
-       ~@body)))
-
 (deftest ^:integration verify-populated-catalog
   (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
         (stream-names "empty_table")))
