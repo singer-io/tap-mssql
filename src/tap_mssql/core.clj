@@ -13,7 +13,7 @@
 ;;; Note: This is different than the serialized form of the the catalog.
 ;;; The catalog serialized is :streams → [stream1 … streamN]. This will be
 ;;; :streams → :streamName → stream definition and will be serialized like
-;;; {:streams (values (:streams catalog))}.
+;;; {:streams (vals (:streams catalog))}.
 (def empty-catalog {:streams {}})
 
 (def cli-options
@@ -80,7 +80,10 @@
     "tinyint"  {:type    "integer"
                 :minimum 0
                 :maximum 255}
-    "bit"      {:type "boolean"}}
+    "bit"      {:type "boolean"}
+    "char"     {:type      "string"
+                :minLength (:column_size column)
+                :maxLength (:column_size column)}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
