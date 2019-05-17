@@ -5,16 +5,20 @@
 (deftest add-int-column-to-catalog
   (is (= {:streams
           {"theologians"
-           {:stream "theologians",
-            :tap-stream-id "theologians",
-            :table-name "theologians",
-            :schema {},
-            :metadata {}},
+           {:stream "theologians"
+            :tap-stream-id "theologians"
+            :table-name "theologians"
+            :schema {:type "object"
+                     :properties {"name" {:type "integer"}
+                                  "year_of_death" {:type "integer"}}}
+            :metadata {}}
            "revivalists"
-           {:stream "revivalists",
-            :tap-stream-id "revivalists",
-            :table-name "revivalists",
-            :schema {},
+           {:stream "revivalists"
+            :tap-stream-id "revivalists"
+            :table-name "revivalists"
+            :schema {:type "object"
+                     :properties {"name" {:type "integer"}
+                                  "year_of_death" {:type "integer"}}}
             :metadata {}}}}
          (reduce add-column empty-catalog [{:table_name "theologians"
                                             :table_cat "test"
