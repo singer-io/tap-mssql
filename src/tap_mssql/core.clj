@@ -66,9 +66,27 @@
    :schema {:type "object"}
    :metadata {}})
 
+(defn column->schema
+  [{:keys [type_name] :as column}]
+  ({"int"      {:type    "integer"
+                :minimum -2147483648
+                :maximum  2147483647}
+    "bigint"   {:type    "integer"
+                :minimum -9223372036854775808
+                :maximum 9223372036854775807}
+    "smallint" {:type    "integer"
+                :minimum -32768
+                :maximum 32767}
+    "tinyint"  {:type    "integer"
+                :minimum 0
+                :maximum 255}}
+   type_name))
+
 (defn add-column-schema-to-catalog-stream-schema
   [catalog-stream-schema column]
-  (assoc-in catalog-stream-schema [:properties (:column_name column) :type] "integer"))
+  (update-in catalog-stream-schema [:properties (:column_name column)]
+             merge
+             (column->schema column)))
 
 (defn add-column-to-stream
   [catalog-stream column]
