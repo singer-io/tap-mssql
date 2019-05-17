@@ -58,7 +58,28 @@
                           (jdbc/create-table-ddl :texts
                                                  [[:char "char"]
                                                   [:char_one "char(1)"]
-                                                  [:char_max "char(8000)"]])])))
+                                                  [:char_max "char(8000)"]
+                                                  [:binary "binary"]
+                                                  [:binary_one "binary(1)"]
+                                                  ;; Values as small as
+                                                  ;; 100 here failed with
+                                                  ;; the following error:
+                                                  ;; `com.microsoft.sqlserver.jdbc.SQLServerException:
+                                                  ;; Creating or altering
+                                                  ;; table 'texts' failed
+                                                  ;; because the minimum
+                                                  ;; row size would be
+                                                  ;; 8111, including 7
+                                                  ;; bytes of internal
+                                                  ;; overhead. This
+                                                  ;; exceeds the maximum
+                                                  ;; allowable table row
+                                                  ;; size of 8060 bytes.`
+                                                  [:binary_max "binary(10)"]
+                                                  [:varbinary "varbinary"]
+                                                  [:varbinary_one "varbinary(1)"]
+                                                  [:varbinary_8000 "varbinary(8000)"]
+                                                  [:varbinary_max "varbinary(max)"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -110,7 +131,34 @@
           :minLength 8000
           :maxLength 8000}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "char_max"]))))
+                 [:streams "texts" :schema :properties "char_max"])))
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "binary"])))
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "binary_one"])))
+  (is (= {:type "string"
+          :minLength 10
+          :maxLength 10}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "binary_max"])))
+  (is (= {:type "string"
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varbinary"])))
+  (is (= {:type "string"
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varbinary_one"])))
+  (is (= {:type "string"
+          :maxLength 2147483647}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varbinary_max"]))))
 
 (comment
   (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))

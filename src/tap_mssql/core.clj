@@ -83,7 +83,12 @@
     "bit"      {:type "boolean"}
     "char"     {:type      "string"
                 :minLength (:column_size column)
-                :maxLength (:column_size column)}}
+                :maxLength (:column_size column)}
+    "binary"   {:type      "string"
+                :minLength (:column_size column)
+                :maxLength (:column_size column)}
+    "varbinary" {:type "string"
+                 :maxLength (:column_size column)}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
