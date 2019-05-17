@@ -63,14 +63,17 @@
   {:stream (:table_name column)
    :tap-stream-id (:table_name column)
    :table-name (:table_name column)
-   :schema {}
+   :schema {:type "object"}
    :metadata {}})
+
+(defn add-column-schema-to-catalog-stream-schema
+  [catalog-stream-schema column]
+  (assoc-in catalog-stream-schema [:properties (:column_name column) :type] "integer"))
 
 (defn add-column-to-stream
   [catalog-stream column]
-  ;; This will eventually need to update the schema associated with the
-  ;; catalog-stream entry.
-  (column->catalog-entry column))
+  (update (or catalog-stream (column->catalog-entry column))
+          :schema add-column-schema-to-catalog-stream-schema column))
 
 (defn add-column
   [catalog column]
