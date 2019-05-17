@@ -37,7 +37,11 @@
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
                                   "CREATE DATABASE database_with_a_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
-                         [(jdbc/create-table-ddl :empty_table [[:id "int"]])])))
+                         [(jdbc/create-table-ddl :empty_table [[:id "int"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
+                         ["CREATE VIEW empty_table_ids
+                           AS
+                           SELECT id FROM empty_table"])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -56,6 +60,7 @@
        ~@body)))
 
 (deftest ^:integration verify-populated-catalog
-  (is (= #{"empty_table"}
-         (set/intersection #{"empty_table"}
-                           (set (map :stream (:streams (discover-catalog test-db-config))))))))
+  (is (let [stream-names (set (map :stream (:streams (discover-catalog test-db-config))))]
+        (stream-names "empty_table")))
+  (is (let [stream-names (set (map :stream (:streams (discover-catalog test-db-config))))]
+        (stream-names "empty_table_ids"))))

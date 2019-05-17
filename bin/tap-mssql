@@ -1,3 +1,13 @@
 #!/usr/bin/env bash
 
+if [[ $HOSTNAME = taps-* ]]
+then
+  if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+       || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
+  then
+    printf 'Missing required environment variables. Have you source /etc/default/tap-mssql?\n' >&2
+    exit 1
+  fi
+fi
+
 lein run -m tap-mssql.core "$@"

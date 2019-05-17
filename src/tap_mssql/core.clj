@@ -42,24 +42,6 @@
    :password password
    :user user})
 
-(defn table->catalog-entry
-  [table]
-  {:stream (:name table)
-   :tap-stream-id (:name table)
-   :table-name (:name table)
-   :schema {}
-   :metadata {}})
-
-(defn add-table
-  [catalog table]
-  (update catalog :streams conj (table->catalog-entry table)))
-
-(defn get-tables
-  [config database]
-  (let [conn-map (config->conn-map config)]
-    (jdbc/query (assoc conn-map :dbname (:name database))
-                ["select name from sys.tables"])))
-
 (defn non-system-database?
   [database]
   ((complement (comp #{"master" "tempdb" "model" "msdb" "rdsadmin"} :name))
@@ -74,27 +56,62 @@
                               "from sys.databases "
                               "where has_dbaccess(name) = 1")]))))
 
+(defn table->catalog-entry
+  [table]
+  {:stream (:name table)
+   :tap-stream-id (:name table)
+   :table-name (:name table)
+   :schema {}
+   :metadata {}})
+
+(defn add-table
+  [catalog table]
+  (update (or catalog empty-catalog) :streams conj (table->catalog-entry table)))
+
+(defn get-database-tables
+  [config database]
+  (let [conn-map (config->conn-map config)]
+    (jdbc/query (assoc conn-map :dbname (:name database))
+                ["select name from sys.tables"])))
+
+(defn get-tables
+  [config]
+  (flatten (map (partial get-database-tables config) (get-databases config))))
+
+(defn get-database-views
+  [config database]
+  (let [conn-map (config->conn-map config)]
+    (jdbc/query (assoc conn-map :dbname (:name database))
+                ["select name from sys.views"])))
+
+(defn get-views
+  [config]
+  (flatten (map (partial get-database-views config) (get-databases config))))
+
+(defn view->catalog-entry
+  [view]
+  {:stream (:name view)
+   :tap-stream-id (:name view)
+   :table-name (:name view)
+   :schema {}
+   :metadata {}})
+
+(defn add-view
+  [catalog view]
+  (update (or catalog empty-catalog) :streams conj (view->catalog-entry view)))
+
 (defn discover-catalog
   [config]
   (jdbc/with-db-metadata [metadata (config->conn-map config)]
     (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
       (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
-  (->> (get-databases config)
-       (map (partial get-tables config))
-       flatten
-       (reduce add-table empty-catalog)))
+  (as-> empty-catalog catalog
+      (reduce add-table catalog (get-tables config))
+      (reduce add-view catalog (get-views config))))
 
 (defn do-discovery [{:as config}]
   (log-infof "Starting discovery mode")
   (println (json/write-str (discover-catalog config))))
-
-(comment
-  (let [config {:host (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                              (.getHostName (java.net.InetAddress/getLocalHost)))
-                :user (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-                :password (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")}]
-    (get-databases config))
-  )
 
 (defn do-sync [config catalog state]
   (log-infof "Starting sync mode")
