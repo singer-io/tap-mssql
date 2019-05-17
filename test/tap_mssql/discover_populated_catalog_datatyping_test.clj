@@ -51,7 +51,10 @@
                                                  [[:bigint "bigint"]
                                                   [:int "int"]
                                                   [:smallint "smallint"]
-                                                  [:tinyint "tinyint"]])])))
+                                                  [:tinyint "tinyint"]])
+
+                          (jdbc/create-table-ddl :bits
+                                                 [[:bit "bit"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -90,6 +93,11 @@
           :maximum 255}
          (get-in (discover-catalog test-db-config)
                  [:streams "integers" :schema :properties "tinyint"]))))
+
+(deftest ^:integration verify-bits
+  (is (= {:type "boolean"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "bits" :schema :properties "bit"]))))
 
 (comment
   (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))
