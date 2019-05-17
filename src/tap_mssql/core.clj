@@ -10,7 +10,11 @@
 
 (def sql-server-2017-version 14)
 
-(def empty-catalog {:streams []})
+;;; Note: This is different than the serialized form of the the catalog.
+;;; The catalog serialized is :streams → [stream1 … streamN]. This will be
+;;; :streams → :streamName → stream definition and will be serialized like
+;;; {:streams (values (:streams catalog))}.
+(def empty-catalog {:streams {}})
 
 (def cli-options
   [["-d" "--discover" "Discovery Mode"]
@@ -54,36 +58,44 @@
             (jdbc/with-db-metadata [md conn-map]
               (jdbc/metadata-result (.getCatalogs md))))))
 
-(defn table->catalog-entry
-  [table]
-  {:stream (:table_name table)
-   :tap-stream-id (:table_name table)
-   :table-name (:table_name table)
+(defn column->catalog-entry
+  [column]
+  {:stream (:table_name column)
+   :tap-stream-id (:table_name column)
+   :table-name (:table_name column)
    :schema {}
    :metadata {}})
 
-(defn add-table
-  [catalog table]
-  (update (or catalog empty-catalog) :streams conj (table->catalog-entry table)))
+(defn add-column-to-stream
+  [catalog-stream column]
+  ;; This will eventually need to update the schema associated with the
+  ;; catalog-stream entry.
+  (column->catalog-entry column))
 
-(defn get-database-tables
+(defn add-column
+  [catalog column]
+  (update-in catalog [:streams (:table_name column)]
+             add-column-to-stream
+             column))
+
+(defn get-database-columns
   [config database]
   (let [conn-map (assoc (config->conn-map config)
                         :dbname
                         (:table_cat database))]
     (jdbc/with-db-metadata [md conn-map]
-      (jdbc/metadata-result (.getTables md (:table_cat database) "dbo" nil nil)))))
+      (jdbc/metadata-result (.getColumns md (:table_cat database) "dbo" nil nil)))))
 
-(defn get-tables
+(defn get-columns
   [config]
-  (flatten (map (partial get-database-tables config) (get-databases config))))
+  (flatten (map (partial get-database-columns config) (get-databases config))))
 
 (defn discover-catalog
   [config]
   (jdbc/with-db-metadata [metadata (config->conn-map config)]
     (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
       (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
-  (reduce add-table empty-catalog (get-tables config)))
+  (reduce add-column empty-catalog (get-columns config)))
 
 (defn do-discovery [{:as config}]
   (log-infof "Starting discovery mode")

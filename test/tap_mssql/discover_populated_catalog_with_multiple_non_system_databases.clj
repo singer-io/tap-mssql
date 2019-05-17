@@ -1,4 +1,4 @@
-(ns tap-mssql.discover-populated-catalog-test
+(ns tap-mssql.discover-populated-catalog-with-multiple-non-system-databases
   (:require [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
@@ -35,13 +35,16 @@
   []
   (let [db-spec (config->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
-                                  "CREATE DATABASE database_with_a_table"])
+                                  "CREATE DATABASE database_with_a_table"
+                                  "CREATE DATABASE another_database_with_a_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
                          [(jdbc/create-table-ddl :empty_table [[:id "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
                          ["CREATE VIEW empty_table_ids
                            AS
-                           SELECT id FROM empty_table"])))
+                           SELECT id FROM empty_table"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "another_database_with_a_table")
+                         [(jdbc/create-table-ddl "another_empty_table" [[:id "int"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -63,4 +66,6 @@
   (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
         (stream-names "empty_table")))
   (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
-        (stream-names "empty_table_ids"))))
+        (stream-names "empty_table_ids")))
+  (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
+        (stream-names "another_empty_table"))))
