@@ -21,7 +21,7 @@
 
 (defn get-destroy-database-command
   [database]
-  (format "DROP DATABASE %s" (:name database)))
+  (format "DROP DATABASE %s" (:table_cat database)))
 
 (defn maybe-destroy-test-db
   []

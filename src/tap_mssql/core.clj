@@ -44,17 +44,15 @@
 
 (defn non-system-database?
   [database]
-  ((complement (comp #{"master" "tempdb" "model" "msdb" "rdsadmin"} :name))
+  ((complement (comp #{"master" "tempdb" "model" "msdb" "rdsadmin"} :table_cat))
    database))
 
 (defn get-databases
   [config]
   (let [conn-map (config->conn-map config)]
     (filter non-system-database?
-            (jdbc/query conn-map
-                        [(str "select name "
-                              "from sys.databases "
-                              "where has_dbaccess(name) = 1")]))))
+            (jdbc/with-db-metadata [md conn-map]
+              (jdbc/metadata-result (.getCatalogs md))))))
 
 (defn table->catalog-entry
   [table]
@@ -71,7 +69,7 @@
 (defn get-database-tables
   [config database]
   (let [conn-map (config->conn-map config)]
-    (jdbc/query (assoc conn-map :dbname (:name database))
+    (jdbc/query (assoc conn-map :dbname (:table_cat database))
                 ["select name from sys.tables"])))
 
 (defn get-tables
@@ -81,7 +79,7 @@
 (defn get-database-views
   [config database]
   (let [conn-map (config->conn-map config)]
-    (jdbc/query (assoc conn-map :dbname (:name database))
+    (jdbc/query (assoc conn-map :dbname (:table_cat database))
                 ["select name from sys.views"])))
 
 (defn get-views
