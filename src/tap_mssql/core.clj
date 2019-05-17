@@ -70,7 +70,7 @@
   [{:keys [type_name] :as column}]
   ({"int"      {:type    "integer"
                 :minimum -2147483648
-                :maximum  2147483647}
+                :maximum 2147483647}
     "bigint"   {:type    "integer"
                 :minimum -9223372036854775808
                 :maximum 9223372036854775807}
@@ -79,7 +79,8 @@
                 :maximum 32767}
     "tinyint"  {:type    "integer"
                 :minimum 0
-                :maximum 255}}
+                :maximum 255}
+    "bit"      {:type "boolean"}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
