@@ -56,9 +56,9 @@
 
 (defn table->catalog-entry
   [table]
-  {:stream (:name table)
-   :tap-stream-id (:name table)
-   :table-name (:name table)
+  {:stream (:table_name table)
+   :tap-stream-id (:table_name table)
+   :table-name (:table_name table)
    :schema {}
    :metadata {}})
 
@@ -68,44 +68,22 @@
 
 (defn get-database-tables
   [config database]
-  (let [conn-map (config->conn-map config)]
-    (jdbc/query (assoc conn-map :dbname (:table_cat database))
-                ["select name from sys.tables"])))
+  (let [conn-map (assoc (config->conn-map config)
+                        :dbname
+                        (:table_cat database))]
+    (jdbc/with-db-metadata [md conn-map]
+      (jdbc/metadata-result (.getTables md (:table_cat database) "dbo" nil nil)))))
 
 (defn get-tables
   [config]
   (flatten (map (partial get-database-tables config) (get-databases config))))
-
-(defn get-database-views
-  [config database]
-  (let [conn-map (config->conn-map config)]
-    (jdbc/query (assoc conn-map :dbname (:table_cat database))
-                ["select name from sys.views"])))
-
-(defn get-views
-  [config]
-  (flatten (map (partial get-database-views config) (get-databases config))))
-
-(defn view->catalog-entry
-  [view]
-  {:stream (:name view)
-   :tap-stream-id (:name view)
-   :table-name (:name view)
-   :schema {}
-   :metadata {}})
-
-(defn add-view
-  [catalog view]
-  (update (or catalog empty-catalog) :streams conj (view->catalog-entry view)))
 
 (defn discover-catalog
   [config]
   (jdbc/with-db-metadata [metadata (config->conn-map config)]
     (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
       (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
-  (as-> empty-catalog catalog
-      (reduce add-table catalog (get-tables config))
-      (reduce add-view catalog (get-views config))))
+  (reduce add-table empty-catalog (get-tables config)))
 
 (defn do-discovery [{:as config}]
   (log-infof "Starting discovery mode")
