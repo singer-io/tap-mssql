@@ -86,7 +86,13 @@
     "char"      {:type      "string"
                  :minLength (:column_size column)
                  :maxLength (:column_size column)}
+    "nchar"     {:type      "string"
+                 :minLength (:column_size column)
+                 :maxLength (:column_size column)}
     "varchar"   {:type      "string"
+                 :minLength 0
+                 :maxLength (:column_size column)}
+    "nvarchar"  {:type      "string"
                  :minLength 0
                  :maxLength (:column_size column)}
     "binary"    {:type      "string"

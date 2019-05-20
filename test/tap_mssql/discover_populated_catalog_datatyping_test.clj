@@ -47,13 +47,15 @@
     (jdbc/db-do-commands (assoc db-spec :dbname "another_database_with_a_table")
                          [(jdbc/create-table-ddl "another_empty_table" [[:id "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "datatyping")
-                         [(jdbc/create-table-ddl :integers
+                         [(jdbc/create-table-ddl :exact_numerics
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#exact-numerics
                                                  [[:bigint "bigint"]
                                                   [:int "int"]
                                                   [:smallint "smallint"]
-                                                  [:tinyint "tinyint"]])
+                                                  [:tinyint "tinyint"]
+                                                  [:bit "bit"]])
                           (jdbc/create-table-ddl :approximate_numerics
-                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-2017
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#approximate-numerics
                                                  [[:float "float"]
                                                   [:float_1 "float(1)"]
                                                   [:float_24 "float(24)"]
@@ -61,13 +63,27 @@
                                                   [:float_53 "float(53)"]
                                                   [:double_precision "double precision"]
                                                   [:real "real"]])
-                          (jdbc/create-table-ddl :bits
-                                                 [[:bit "bit"]])
-                          (jdbc/create-table-ddl :texts
+                          (jdbc/create-table-ddl :character_strings
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#character-strings
                                                  [[:char "char"]
                                                   [:char_one "char(1)"]
                                                   [:char_8000 "char(8000)"]
-                                                  [:binary "binary"]
+                                                  [:varchar "varchar"]
+                                                  [:varchar_one "varchar(1)"]
+                                                  [:varchar_8000 "varchar(8000)"]
+                                                  [:varchar_max "varchar(max)"]])
+                          (jdbc/create-table-ddl :unicode_character_strings
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#unicode-character-strings
+                                                 [[:nchar "nchar"]
+                                                  [:nchar_1 "nchar(1)"]
+                                                  [:nchar_4000 "nchar(4000)"]
+                                                  [:nvarchar "nvarchar"]
+                                                  [:nvarchar_1 "nvarchar(1)"]
+                                                  [:nvarchar_4000 "nvarchar(4000)"]
+                                                  [:nvarchar_max "nvarchar(max)"]])
+                          (jdbc/create-table-ddl :binary_strings
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#binary-strings
+                                                 [[:binary "binary"]
                                                   [:binary_one "binary(1)"]
                                                   ;; Values as small as
                                                   ;; 100 here failed with
@@ -87,11 +103,7 @@
                                                   [:varbinary "varbinary"]
                                                   [:varbinary_one "varbinary(1)"]
                                                   [:varbinary_8000 "varbinary(8000)"]
-                                                  [:varbinary_max "varbinary(max)"]
-                                                  [:varchar "varchar"]
-                                                  [:varchar_one "varchar(1)"]
-                                                  [:varchar_8000 "varchar(8000)"]
-                                                  [:varchar_max "varchar(max)"]])])))
+                                                  [:varbinary_max "varbinary(max)"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -99,29 +111,6 @@
   (f))
 
 (use-fixtures :each test-db-fixture)
-
-(deftest ^:integration verify-integers
-  (is (= {:type "integer"
-          :minimum -2147483648
-          :maximum  2147483647}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "integers" :schema :properties "int"])))
-  (is (= {:type "integer"
-          :minimum -9223372036854775808
-          :maximum  9223372036854775807}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "integers" :schema :properties "bigint"])))
-  (is (= {:type "integer"
-
-          :minimum -32768
-          :maximum  32767}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "integers" :schema :properties "smallint"])))
-  (is (= {:type "integer"
-          :minimum 0
-          :maximum 255}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "integers" :schema :properties "tinyint"]))))
 
 (deftest ^:integration verify-approximate-numerics
   (is (= {:type "number"}
@@ -146,74 +135,134 @@
          (get-in (discover-catalog test-db-config)
                  [:streams "approximate_numerics" :schema :properties "real"]))))
 
-(deftest ^:integration verify-bits
+(deftest ^:integration verify-unicode-strings
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nchar"])))
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nchar_1"])))
+  (is (= {:type "string"
+          :minLength 4000
+          :maxLength 4000}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nchar_4000"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nvarchar"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nvarchar_1"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 4000}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nvarchar_4000"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 2147483647}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unicode_character_strings" :schema :properties "nvarchar_max"]))))
+
+(deftest ^:integration verify-exact-numerics
+  (is (= {:type "integer"
+          :minimum -2147483648
+          :maximum  2147483647}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "int"])))
+  (is (= {:type "integer"
+          :minimum -9223372036854775808
+          :maximum  9223372036854775807}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "bigint"])))
+  (is (= {:type "integer"
+
+          :minimum -32768
+          :maximum  32767}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "smallint"])))
+  (is (= {:type "integer"
+          :minimum 0
+          :maximum 255}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "tinyint"])))
   (is (= {:type "boolean"}
          (get-in (discover-catalog test-db-config)
-                 [:streams "bits" :schema :properties "bit"]))))
+                 [:streams "exact_numerics" :schema :properties "bit"]))))
 
-(deftest ^:integration verify-text
+(deftest ^:integration verify-character-strings
   (is (= {:type "string"
           :minLength 1
           :maxLength 1}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "char"])))
+                 [:streams "character_strings" :schema :properties "char"])))
   (is (= {:type "string"
           :minLength 1
           :maxLength 1}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "char_one"])))
+                 [:streams "character_strings" :schema :properties "char_one"])))
   (is (= {:type "string"
           :minLength 8000
           :maxLength 8000}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "char_8000"])))
-  (is (= {:type "string"
-          :minLength 1
-          :maxLength 1}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "binary"])))
-  (is (= {:type "string"
-          :minLength 1
-          :maxLength 1}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "binary_one"])))
-  (is (= {:type "string"
-          :minLength 10
-          :maxLength 10}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "binary_10"])))
-  (is (= {:type "string"
-          :maxLength 1}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varbinary"])))
-  (is (= {:type "string"
-          :maxLength 1}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varbinary_one"])))
-  (is (= {:type "string"
-          :maxLength 2147483647}
-         (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varbinary_max"])))
+                 [:streams "character_strings" :schema :properties "char_8000"])))
   (is (= {:type "string"
           :minLength 0
           :maxLength 1}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varchar"])))
+                 [:streams "character_strings" :schema :properties "varchar"])))
   (is (= {:type "string"
           :minLength 0
           :maxLength 1}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varchar_one"])))
+                 [:streams "character_strings" :schema :properties "varchar_one"])))
   (is (= {:type "string"
           :minLength 0
           :maxLength 8000}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varchar_8000"])))
+                 [:streams "character_strings" :schema :properties "varchar_8000"])))
   (is (= {:type "string"
           :minLength 0
           :maxLength 2147483647}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varchar_max"]))))
+                 [:streams "character_strings" :schema :properties "varchar_max"]))))
+
+(deftest ^:integration verify-binary-strings
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "binary"])))
+  (is (= {:type "string"
+          :minLength 1
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "binary_one"])))
+  (is (= {:type "string"
+          :minLength 10
+          :maxLength 10}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "binary_10"])))
+  (is (= {:type "string"
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "varbinary"])))
+  (is (= {:type "string"
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "varbinary_one"])))
+  (is (= {:type "string"
+          :maxLength 2147483647}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "binary_strings" :schema :properties "varbinary_max"]))))
 
 (comment
   (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))
