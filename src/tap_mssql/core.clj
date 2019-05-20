@@ -116,10 +116,31 @@
              merge
              (column->schema column)))
 
+(defn column->table-primary-keys
+  [conn-map {:keys [table_cat table_schem table_name] :as column}]
+  (jdbc/with-db-metadata [md conn-map]
+    (->> (.getPrimaryKeys md table_cat table_schem table_name)
+         jdbc/metadata-result
+         (map :column_name)
+         (into #{}))))
+
+(defn column->metadata
+  [column]
+  {:inclusion (if (:primary-key? column)
+                "automatic"
+                "available")})
+
+(defn add-column-schema-to-catalog-stream-metadata
+  [catalog-stream-metadata column]
+  (update-in catalog-stream-metadata [:properties (:column_name column)]
+             merge
+             (column->metadata column)))
+
 (defn add-column-to-stream
   [catalog-stream column]
-  (update (or catalog-stream (column->catalog-entry column))
-          :schema add-column-schema-to-catalog-stream-schema column))
+  (-> (or catalog-stream (column->catalog-entry column))
+      (update :schema add-column-schema-to-catalog-stream-schema column)
+      (update :metadata add-column-schema-to-catalog-stream-metadata column)))
 
 (defn add-column
   [catalog column]
@@ -127,13 +148,23 @@
              add-column-to-stream
              column))
 
+(defn get-database-raw-columns
+  [conn-map database]
+  (jdbc/with-db-metadata [md conn-map]
+    (jdbc/metadata-result (.getColumns md (:table_cat database) "dbo" nil nil))))
+
+(defn add-primary-key?-data
+  [conn-map column]
+  (let [primary-keys (column->table-primary-keys conn-map column)]
+    (assoc column :primary-key? (primary-keys (:column_name column)))))
+
 (defn get-database-columns
   [config database]
   (let [conn-map (assoc (config->conn-map config)
                         :dbname
-                        (:table_cat database))]
-    (jdbc/with-db-metadata [md conn-map]
-      (jdbc/metadata-result (.getColumns md (:table_cat database) "dbo" nil nil)))))
+                        (:table_cat database))
+        raw-columns (get-database-raw-columns conn-map database)]
+    (map (partial add-primary-key?-data conn-map) raw-columns)))
 
 (defn get-columns
   [config]
@@ -144,6 +175,8 @@
   (jdbc/with-db-metadata [metadata (config->conn-map config)]
     (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
       (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
+  ;; It's important to keep add-column pure and keep all database
+  ;; interaction in get-columns for testability
   (reduce add-column empty-catalog (get-columns config)))
 
 (defn do-discovery [{:as config}]
