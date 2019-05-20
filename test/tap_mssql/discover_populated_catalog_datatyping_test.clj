@@ -53,7 +53,9 @@
                                                   [:int "int"]
                                                   [:smallint "smallint"]
                                                   [:tinyint "tinyint"]
-                                                  [:bit "bit"]])
+                                                  [:bit "bit"]
+                                                  [:decimal "decimal"]
+                                                  [:numeric "numeric"]])
                           (jdbc/create-table-ddl :approximate_numerics
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#approximate-numerics
                                                  [[:float "float"]
@@ -184,7 +186,6 @@
          (get-in (discover-catalog test-db-config)
                  [:streams "exact_numerics" :schema :properties "bigint"])))
   (is (= {:type "integer"
-
           :minimum -32768
           :maximum  32767}
          (get-in (discover-catalog test-db-config)
@@ -196,7 +197,13 @@
                  [:streams "exact_numerics" :schema :properties "tinyint"])))
   (is (= {:type "boolean"}
          (get-in (discover-catalog test-db-config)
-                 [:streams "exact_numerics" :schema :properties "bit"]))))
+                 [:streams "exact_numerics" :schema :properties "bit"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "decimal"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "exact_numerics" :schema :properties "numeric"]))))
 
 (deftest ^:integration verify-character-strings
   (is (= {:type "string"
