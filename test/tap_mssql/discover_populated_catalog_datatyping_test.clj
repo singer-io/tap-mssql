@@ -105,7 +105,11 @@
                                                   [:varbinary "varbinary"]
                                                   [:varbinary_one "varbinary(1)"]
                                                   [:varbinary_8000 "varbinary(8000)"]
-                                                  [:varbinary_max "varbinary(max)"]])])))
+                                                  [:varbinary_max "varbinary(max)"]])
+                          (jdbc/create-table-ddl :date_and_time
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#date-and-time
+                                                 [[:date "date"]
+                                                  [:time "time"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -113,6 +117,16 @@
   (f))
 
 (use-fixtures :each test-db-fixture)
+
+(deftest ^:integration verify-date-and-time
+  (is (= {:type "string"
+          :format "date-time"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "date_and_time" :schema :properties "date"])))
+  (is (= {:type "string"
+          :format "date-time"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "date_and_time" :schema :properties "time"]))))
 
 (deftest ^:integration verify-approximate-numerics
   (is (= {:type "number"}

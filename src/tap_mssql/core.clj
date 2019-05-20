@@ -87,6 +87,10 @@
     "bit"       {:type "boolean"}
     "decimal"   {:type "number"}
     "numeric"   {:type "number"}
+    "date"      {:type   "string"
+                 :format "date-time"}
+    "time"      {:type   "string"
+                 :format "date-time"}
     "char"      {:type      "string"
                  :minLength (:column_size column)
                  :maxLength (:column_size column)}
