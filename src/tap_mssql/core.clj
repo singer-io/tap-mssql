@@ -80,6 +80,8 @@
     "tinyint"   {:type    "integer"
                  :minimum 0
                  :maximum 255}
+    "float"     {:type "number"}
+    "real"      {:type "number"}
     "bit"       {:type "boolean"}
     "char"      {:type      "string"
                  :minLength (:column_size column)
