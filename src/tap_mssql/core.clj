@@ -48,8 +48,10 @@
 
 (defn non-system-database?
   [database]
-  ((complement (comp #{"master" "tempdb" "model" "msdb" "rdsadmin"} :table_cat))
-   database))
+  (-> database
+      :table_cat
+      #{"master" "tempdb" "model" "msdb" "rdsadmin"}
+      not))
 
 (defn get-databases
   [config]
@@ -83,6 +85,8 @@
     "float"     {:type "number"}
     "real"      {:type "number"}
     "bit"       {:type "boolean"}
+    "decimal"   {:type "number"}
+    "numeric"   {:type "number"}
     "char"      {:type      "string"
                  :minLength (:column_size column)
                  :maxLength (:column_size column)}
