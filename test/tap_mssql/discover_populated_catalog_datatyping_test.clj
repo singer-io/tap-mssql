@@ -52,7 +52,15 @@
                                                   [:int "int"]
                                                   [:smallint "smallint"]
                                                   [:tinyint "tinyint"]])
-
+                          (jdbc/create-table-ddl :approximate_numerics
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-2017
+                                                 [[:float "float"]
+                                                  [:float_1 "float(1)"]
+                                                  [:float_24 "float(24)"]
+                                                  [:float_25 "float(25)"]
+                                                  [:float_53 "float(53)"]
+                                                  [:double_precision "double precision"]
+                                                  [:real "real"]])
                           (jdbc/create-table-ddl :bits
                                                  [[:bit "bit"]])
                           (jdbc/create-table-ddl :texts
@@ -114,6 +122,29 @@
           :maximum 255}
          (get-in (discover-catalog test-db-config)
                  [:streams "integers" :schema :properties "tinyint"]))))
+
+(deftest ^:integration verify-approximate-numerics
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "float"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "float_1"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "float_24"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "float_25"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "float_53"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "double_precision"])))
+  (is (= {:type "number"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "approximate_numerics" :schema :properties "real"]))))
 
 (deftest ^:integration verify-bits
   (is (= {:type "boolean"}
