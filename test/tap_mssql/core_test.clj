@@ -49,6 +49,69 @@
                                             :column_name "year_of_death"
                                             :type_name   "int"}]))))
 
+(deftest catalog->serialized-catalog-test
+  (let [expected-catalog
+        {:streams [{:stream        "theologians"
+                    :tap-stream-id "theologians"
+                    :table-name    "theologians"
+                    :schema        {:type       "object"
+                                    :properties {"name"          {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}
+                                                 "year_of_death" {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}}}
+                    :metadata      [{:metadata   {:inclusion "available"}
+                                     :breadcrumb [:properties "name"]}
+                                    {:metadata   {:inclusion "available"}
+                                     :breadcrumb [:properties "year_of_death"]}]}
+                   {:stream        "revivalists"
+                    :tap-stream-id "revivalists"
+                    :table-name    "revivalists"
+                    :schema        {:type       "object"
+                                    :properties {"name"          {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}
+                                                 "year_of_death" {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}}}
+                    :metadata      [{:metadata   {:inclusion "available"}
+                                     :breadcrumb [:properties "name"]}
+                                    {:metadata   {:inclusion "available"}
+                                     :breadcrumb [:properties "year_of_death"]}]}]}]
+    (is (= expected-catalog
+           (let [catalog
+                 {:streams
+                  {"theologians"
+                   {:stream        "theologians"
+                    :tap-stream-id "theologians"
+                    :table-name    "theologians"
+                    :schema        {:type       "object"
+                                    :properties {"name"          {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}
+                                                 "year_of_death" {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}}}
+                    :metadata      {:properties
+                                    {"name"          {:inclusion "available"}
+                                     "year_of_death" {:inclusion "available"}}}}
+                   "revivalists"
+                   {:stream        "revivalists"
+                    :tap-stream-id "revivalists"
+                    :table-name    "revivalists"
+                    :schema        {:type       "object"
+                                    :properties {"name"          {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}
+                                                 "year_of_death" {:type    "integer"
+                                                                  :minimum -2147483648
+                                                                  :maximum 2147483647}}}
+                    :metadata      {:properties
+                                    {"name"          {:inclusion "available"}
+                                     "year_of_death" {:inclusion "available"}}}}}}]
+             (catalog->serialized-catalog catalog))))))
+
 (comment
   ;; Run all loaded tests
   (do
