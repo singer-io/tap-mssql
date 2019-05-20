@@ -68,26 +68,29 @@
 
 (defn column->schema
   [{:keys [type_name] :as column}]
-  ({"int"      {:type    "integer"
-                :minimum -2147483648
-                :maximum 2147483647}
-    "bigint"   {:type    "integer"
-                :minimum -9223372036854775808
-                :maximum 9223372036854775807}
-    "smallint" {:type    "integer"
-                :minimum -32768
-                :maximum 32767}
-    "tinyint"  {:type    "integer"
-                :minimum 0
-                :maximum 255}
-    "bit"      {:type "boolean"}
-    "char"     {:type      "string"
-                :minLength (:column_size column)
-                :maxLength (:column_size column)}
-    "binary"   {:type      "string"
-                :minLength (:column_size column)
-                :maxLength (:column_size column)}
-    "varbinary" {:type "string"
+  ({"int"       {:type    "integer"
+                 :minimum -2147483648
+                 :maximum 2147483647}
+    "bigint"    {:type    "integer"
+                 :minimum -9223372036854775808
+                 :maximum 9223372036854775807}
+    "smallint"  {:type    "integer"
+                 :minimum -32768
+                 :maximum 32767}
+    "tinyint"   {:type    "integer"
+                 :minimum 0
+                 :maximum 255}
+    "bit"       {:type "boolean"}
+    "char"      {:type      "string"
+                 :minLength (:column_size column)
+                 :maxLength (:column_size column)}
+    "varchar"   {:type      "string"
+                 :minLength 0
+                 :maxLength (:column_size column)}
+    "binary"    {:type      "string"
+                 :minLength (:column_size column)
+                 :maxLength (:column_size column)}
+    "varbinary" {:type      "string"
                  :maxLength (:column_size column)}}
    type_name))
 

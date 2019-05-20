@@ -58,7 +58,7 @@
                           (jdbc/create-table-ddl :texts
                                                  [[:char "char"]
                                                   [:char_one "char(1)"]
-                                                  [:char_max "char(8000)"]
+                                                  [:char_8000 "char(8000)"]
                                                   [:binary "binary"]
                                                   [:binary_one "binary(1)"]
                                                   ;; Values as small as
@@ -75,11 +75,15 @@
                                                   ;; exceeds the maximum
                                                   ;; allowable table row
                                                   ;; size of 8060 bytes.`
-                                                  [:binary_max "binary(10)"]
+                                                  [:binary_10 "binary(10)"]
                                                   [:varbinary "varbinary"]
                                                   [:varbinary_one "varbinary(1)"]
                                                   [:varbinary_8000 "varbinary(8000)"]
-                                                  [:varbinary_max "varbinary(max)"]])])))
+                                                  [:varbinary_max "varbinary(max)"]
+                                                  [:varchar "varchar"]
+                                                  [:varchar_one "varchar(1)"]
+                                                  [:varchar_8000 "varchar(8000)"]
+                                                  [:varchar_max "varchar(max)"]])])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -131,7 +135,7 @@
           :minLength 8000
           :maxLength 8000}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "char_max"])))
+                 [:streams "texts" :schema :properties "char_8000"])))
   (is (= {:type "string"
           :minLength 1
           :maxLength 1}
@@ -146,7 +150,7 @@
           :minLength 10
           :maxLength 10}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "binary_max"])))
+                 [:streams "texts" :schema :properties "binary_10"])))
   (is (= {:type "string"
           :maxLength 1}
          (get-in (discover-catalog test-db-config)
@@ -158,7 +162,27 @@
   (is (= {:type "string"
           :maxLength 2147483647}
          (get-in (discover-catalog test-db-config)
-                 [:streams "texts" :schema :properties "varbinary_max"]))))
+                 [:streams "texts" :schema :properties "varbinary_max"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varchar"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 1}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varchar_one"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 8000}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varchar_8000"])))
+  (is (= {:type "string"
+          :minLength 0
+          :maxLength 2147483647}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "texts" :schema :properties "varchar_max"]))))
 
 (comment
   (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))
