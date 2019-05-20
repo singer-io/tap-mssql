@@ -15,7 +15,9 @@
                                          "year_of_death" {:type    "integer"
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
-            :metadata      {}}
+            :metadata      {:properties
+                            {"name"          {:inclusion "available"}
+                             "year_of_death" {:inclusion "available"}}}}
            "revivalists"
            {:stream        "revivalists"
             :tap-stream-id "revivalists"
@@ -27,23 +29,25 @@
                                          "year_of_death" {:type    "integer"
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
-            :metadata      {}}}}
+            :metadata      {:properties
+                            {"name"          {:inclusion "available"}
+                             "year_of_death" {:inclusion "available"}}}}}}
          (reduce add-column empty-catalog [{:table_name  "theologians"
                                             :table_cat   "test"
                                             :column_name "name"
-                                            :type_name "int"}
+                                            :type_name   "int"}
                                            {:table_name  "theologians"
                                             :table_cat   "test"
                                             :column_name "year_of_death"
-                                            :type_name "int"}
+                                            :type_name   "int"}
                                            {:table_name  "revivalists"
                                             :table_cat   "test"
                                             :column_name "name"
-                                            :type_name "int"}
+                                            :type_name   "int"}
                                            {:table_name  "revivalists"
                                             :table_cat   "test"
                                             :column_name "year_of_death"
-                                            :type_name "int"}]))))
+                                            :type_name   "int"}]))))
 
 (comment
   ;; Run all loaded tests
