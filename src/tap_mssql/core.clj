@@ -179,9 +179,39 @@
   ;; interaction in get-columns for testability
   (reduce add-column empty-catalog (get-columns config)))
 
+(defn serialize-stream-metadata-property
+  [[stream-metadata-property-name stream-metadata-property-metadata :as stream-metadata-property]]
+  {:metadata stream-metadata-property-metadata
+   :breadcrumb [:properties stream-metadata-property-name]})
+
+(defn serialize-stream-metadata-properties
+  [stream-metadata-properties]
+  (map serialize-stream-metadata-property (:properties stream-metadata-properties)))
+
+(defn serialize-stream-matadata
+  [{:keys [metadata] :as stream}]
+  (update stream :metadata serialize-stream-metadata-properties))
+
+(defn serialize-metadata
+  [catalog]
+  (update catalog :streams (partial map serialize-stream-matadata)))
+
+(defn serialize-streams
+  [catalog]
+  (update catalog :streams vals))
+
+(defn catalog->serialized-catalog
+  [catalog]
+  (-> catalog
+      serialize-streams
+      serialize-metadata))
+
 (defn do-discovery [{:as config}]
   (log-infof "Starting discovery mode")
-  (println (json/write-str (discover-catalog config))))
+  (-> (discover-catalog config)
+      catalog->serialized-catalog
+      json/write-str
+      println))
 
 (defn do-sync [config catalog state]
   (log-infof "Starting sync mode")
