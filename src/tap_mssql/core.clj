@@ -66,7 +66,10 @@
    :tap_stream_id (:table_name column)
    :table_name (:table_name column)
    :schema {:type "object"}
-   :metadata {}})
+   :metadata {:database-name (:table_cat column)
+              :schema-name (:table_name column)
+              :table-key-properties #{}
+              :is-view (:is-view? column)}})
 
 (defn column->schema
   [{:keys [type_name] :as column}]
@@ -116,19 +119,25 @@
              merge
              (column->schema column)))
 
-(defn column->table-primary-keys
-  [conn-map {:keys [table_cat table_schem table_name] :as column}]
+(defn column->table-primary-keys*
+  [conn-map table_cat table_schem table_name]
   (jdbc/with-db-metadata [md conn-map]
     (->> (.getPrimaryKeys md table_cat table_schem table_name)
          jdbc/metadata-result
          (map :column_name)
          (into #{}))))
 
+;;; Not memoizing this proves to have prohibitively bad performance
+;;; characteristics.
+(def column->table-primary-keys (memoize column->table-primary-keys*))
+
 (defn column->metadata
   [column]
-  {:inclusion (if (:primary-key? column)
-                "automatic"
-                "available")})
+  {:inclusion           (if (:primary-key? column)
+                          "automatic"
+                          "available")
+   :sql-datatype        (:type_name column)
+   :selected-by-default true})
 
 (defn add-column-schema-to-catalog-stream-metadata
   [catalog-stream-metadata column]
@@ -136,9 +145,16 @@
              merge
              (column->metadata column)))
 
+(defn add-column-to-primary-keys
+  [catalog-stream column]
+  (if (:primary-key? column)
+    (update-in catalog-stream [:metadata :table-key-properties] conj (:column_name column))
+    catalog-stream))
+
 (defn add-column-to-stream
   [catalog-stream column]
   (-> (or catalog-stream (column->catalog-entry column))
+      (add-column-to-primary-keys column)
       (update :schema add-column-schema-to-catalog-stream-schema column)
       (update :metadata add-column-schema-to-catalog-stream-metadata column)))
 
@@ -155,8 +171,33 @@
 
 (defn add-primary-key?-data
   [conn-map column]
-  (let [primary-keys (column->table-primary-keys conn-map column)]
+  (let [primary-keys (column->table-primary-keys conn-map
+                                                 (:table_cat column)
+                                                 (:table_schem column)
+                                                 (:table_name column))]
     (assoc column :primary-key? (primary-keys (:column_name column)))))
+
+(defn get-column-database-view-names*
+  [conn-map table_cat]
+  (jdbc/with-db-metadata [md conn-map]
+    (->> (.getTables md table_cat "dbo" nil (into-array ["VIEW"]))
+         jdbc/metadata-result
+         (map :table_name)
+         (into #{}))))
+
+;;; Not memoizing this proves to have prohibitively bad performance
+;;; characteristics.
+(def get-column-database-view-names (memoize get-column-database-view-names*))
+
+(defn add-is-view?-data
+  [conn-map column]
+  (let [view-names (get-column-database-view-names conn-map (:table_cat column))]
+    (assoc column :is-view? (if (view-names (:table_name column))
+                              ;; Want to be explicit rather than punning
+                              ;; here so that we're sure we serialize
+                              ;; properly
+                              true
+                              false))))
 
 (defn get-database-columns
   [config database]
@@ -164,7 +205,9 @@
                         :dbname
                         (:table_cat database))
         raw-columns (get-database-raw-columns conn-map database)]
-    (map (partial add-primary-key?-data conn-map) raw-columns)))
+    (->> raw-columns
+         (map (partial add-primary-key?-data conn-map))
+         (map (partial add-is-view?-data conn-map)))))
 
 (defn get-columns
   [config]
@@ -186,15 +229,18 @@
 
 (defn serialize-stream-metadata-properties
   [stream-metadata-properties]
-  (map serialize-stream-metadata-property (:properties stream-metadata-properties)))
+  (let [properties (:properties stream-metadata-properties)]
+    (concat [{:metadata (dissoc stream-metadata-properties :properties)
+              :breadcrumb []}]
+            (map serialize-stream-metadata-property properties))))
 
-(defn serialize-stream-matadata
+(defn serialize-stream-metadata
   [{:keys [metadata] :as stream}]
   (update stream :metadata serialize-stream-metadata-properties))
 
 (defn serialize-metadata
   [catalog]
-  (update catalog :streams (partial map serialize-stream-matadata)))
+  (update catalog :streams (partial map serialize-stream-metadata)))
 
 (defn serialize-streams
   [catalog]

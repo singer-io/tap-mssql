@@ -15,9 +15,19 @@
                                          "year_of_death" {:type    "integer"
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
-            :metadata      {:properties
-                            {"name"          {:inclusion "available"}
-                             "year_of_death" {:inclusion "available"}}}}
+            :metadata      {:database-name        "test",
+                            :schema-name          "theologians",
+                            :table-key-properties #{},
+                            :is-view              false,
+                            :properties
+                            {"name"
+                             {:inclusion           "available",
+                              :sql-datatype        "int",
+                              :selected-by-default true},
+                             "year_of_death"
+                             {:inclusion           "available",
+                              :sql-datatype        "int",
+                              :selected-by-default true}}}}
            "revivalists"
            {:stream        "revivalists"
             :tap_stream_id "revivalists"
@@ -29,25 +39,43 @@
                                          "year_of_death" {:type    "integer"
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
-            :metadata      {:properties
-                            {"name"          {:inclusion "available"}
-                             "year_of_death" {:inclusion "available"}}}}}}
-         (reduce add-column empty-catalog [{:table_name  "theologians"
-                                            :table_cat   "test"
-                                            :column_name "name"
-                                            :type_name   "int"}
-                                           {:table_name  "theologians"
-                                            :table_cat   "test"
-                                            :column_name "year_of_death"
-                                            :type_name   "int"}
-                                           {:table_name  "revivalists"
-                                            :table_cat   "test"
-                                            :column_name "name"
-                                            :type_name   "int"}
-                                           {:table_name  "revivalists"
-                                            :table_cat   "test"
-                                            :column_name "year_of_death"
-                                            :type_name   "int"}]))))
+            :metadata      {:database-name        "test",
+                            :schema-name          "revivalists",
+                            :table-key-properties #{},
+                            :is-view              false,
+                            :properties
+                            {"name"
+                             {:inclusion           "available",
+                              :sql-datatype        "int",
+                              :selected-by-default true},
+                             "year_of_death"
+                             {:inclusion           "available",
+                              :sql-datatype        "int",
+                              :selected-by-default true}}}}}}
+         (reduce add-column nil [{:table_name   "theologians"
+                                  :table_cat    "test"
+                                  :column_name  "name"
+                                  :type_name    "int"
+                                  :primary-key? false
+                                  :is-view?     false}
+                                 {:table_name   "theologians"
+                                  :table_cat    "test"
+                                  :column_name  "year_of_death"
+                                  :type_name    "int"
+                                  :primary-key? false
+                                  :is-view?     false}
+                                 {:table_name   "revivalists"
+                                  :table_cat    "test"
+                                  :column_name  "name"
+                                  :type_name    "int"
+                                  :primary-key? false
+                                  :is-view?     false}
+                                 {:table_name   "revivalists"
+                                  :table_cat    "test"
+                                  :column_name  "year_of_death"
+                                  :type_name    "int"
+                                  :primary-key? false
+                                  :is-view?     false}]))))
 
 (deftest catalog->serialized-catalog-test
   (let [expected-catalog
@@ -61,9 +89,18 @@
                                                  "year_of_death" {:type    "integer"
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
-                    :metadata      [{:metadata   {:inclusion "available"}
+                    :metadata      [{:metadata   {:database-name        "foo"
+                                                  :schema-name          "foo"
+                                                  :table-key-properties #{}
+                                                  :is-view              false}
+                                     :breadcrumb []}
+                                    {:metadata   {:inclusion           "available"
+                                                  :selected-by-default true
+                                                  :sql-datatype        "int"}
                                      :breadcrumb [:properties "name"]}
-                                    {:metadata   {:inclusion "available"}
+                                    {:metadata   {:inclusion           "available"
+                                                  :selected-by-default true
+                                                  :sql-datatype        "int"}
                                      :breadcrumb [:properties "year_of_death"]}]}
                    {:stream        "revivalists"
                     :tap_stream_id "revivalists"
@@ -75,9 +112,18 @@
                                                  "year_of_death" {:type    "integer"
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
-                    :metadata      [{:metadata   {:inclusion "available"}
+                    :metadata      [{:metadata   {:database-name        "foo"
+                                                  :schema-name          "foo"
+                                                  :table-key-properties #{}
+                                                  :is-view              false}
+                                     :breadcrumb []}
+                                    {:metadata   {:inclusion           "available"
+                                                  :selected-by-default true
+                                                  :sql-datatype        "int"}
                                      :breadcrumb [:properties "name"]}
-                                    {:metadata   {:inclusion "available"}
+                                    {:metadata   {:inclusion           "available"
+                                                  :selected-by-default true
+                                                  :sql-datatype        "int"}
                                      :breadcrumb [:properties "year_of_death"]}]}]}]
     (is (= expected-catalog
            (let [catalog
@@ -93,9 +139,17 @@
                                                  "year_of_death" {:type    "integer"
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
-                    :metadata      {:properties
-                                    {"name"          {:inclusion "available"}
-                                     "year_of_death" {:inclusion "available"}}}}
+                    :metadata      {:database-name        "foo"
+                                    :schema-name          "foo"
+                                    :table-key-properties #{}
+                                    :is-view              false
+                                    :properties
+                                    {"name"          {:inclusion           "available"
+                                                      :selected-by-default true
+                                                      :sql-datatype        "int"}
+                                     "year_of_death" {:inclusion           "available"
+                                                      :selected-by-default true
+                                                      :sql-datatype        "int"}}}}
                    "revivalists"
                    {:stream        "revivalists"
                     :tap_stream_id "revivalists"
@@ -107,9 +161,17 @@
                                                  "year_of_death" {:type    "integer"
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
-                    :metadata      {:properties
-                                    {"name"          {:inclusion "available"}
-                                     "year_of_death" {:inclusion "available"}}}}}}]
+                    :metadata      {:database-name        "foo"
+                                    :schema-name          "foo"
+                                    :table-key-properties #{}
+                                    :is-view              false
+                                    :properties
+                                    {"name"          {:inclusion           "available"
+                                                      :selected-by-default true
+                                                      :sql-datatype        "int"}
+                                     "year_of_death" {:inclusion           "available"
+                                                      :selected-by-default true
+                                                      :sql-datatype        "int"}}}}}}]
              (catalog->serialized-catalog catalog))))))
 
 (comment
