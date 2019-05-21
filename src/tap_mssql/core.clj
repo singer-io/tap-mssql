@@ -39,12 +39,12 @@
                     args))))
 
 (defn config->conn-map
-  [{:keys [host user password]}]
+  [config]
   {:dbtype "sqlserver"
    :dbname ""
-   :host host
-   :password password
-   :user user})
+   :host (config "host")
+   :password (config "password")
+   :user (config "user")})
 
 (defn non-system-database?
   [database]
@@ -220,7 +220,7 @@
 (defn -main [& args]
   (try
     (let [opts (cli/parse-opts args cli-options)
-          {{:keys [:discover :repl :config :catalog :state]} :options} opts]
+          {{:keys [discover repl config catalog state]} :options} opts]
       (when repl
         ;; We do this here to avoid starting the nrepl server during `lein
         ;; test` executions
@@ -236,7 +236,7 @@
 
       (cond
         discover
-        (do-discovery)
+        (do-discovery config)
 
         catalog
         (do-sync config catalog state)
