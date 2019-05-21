@@ -14,10 +14,10 @@
       "circleci")))
 
 (def test-db-config
-  {:host (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                 (get-test-hostname))
-   :user (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   :password (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")})
+  {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
+                  (get-test-hostname))
+   "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
+   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")})
 
 (defn get-destroy-database-command
   [database]

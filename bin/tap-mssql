@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [[ $HOSTNAME = taps-* ]]
+if [[ $HOSTNAME = taps-* ]] && [[ $1 == --repl ]]
 then
   if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
        || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
@@ -9,5 +9,7 @@ then
     exit 1
   fi
 fi
+
+cd "${0%/*}"
 
 lein run -m tap-mssql.core "$@"
