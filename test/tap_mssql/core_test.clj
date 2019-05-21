@@ -6,8 +6,8 @@
   (is (= {:streams
           {"theologians"
            {:stream        "theologians"
-            :tap-stream-id "theologians"
-            :table-name    "theologians"
+            :tap_stream_id "theologians"
+            :table_name    "theologians"
             :schema        {:type       "object"
                             :properties {"name"          {:type    "integer"
                                                           :minimum -2147483648
@@ -20,8 +20,8 @@
                              "year_of_death" {:inclusion "available"}}}}
            "revivalists"
            {:stream        "revivalists"
-            :tap-stream-id "revivalists"
-            :table-name    "revivalists"
+            :tap_stream_id "revivalists"
+            :table_name    "revivalists"
             :schema        {:type       "object"
                             :properties {"name"          {:type    "integer"
                                                           :minimum -2147483648
@@ -52,8 +52,8 @@
 (deftest catalog->serialized-catalog-test
   (let [expected-catalog
         {:streams [{:stream        "theologians"
-                    :tap-stream-id "theologians"
-                    :table-name    "theologians"
+                    :tap_stream_id "theologians"
+                    :table_name    "theologians"
                     :schema        {:type       "object"
                                     :properties {"name"          {:type    "integer"
                                                                   :minimum -2147483648
@@ -66,8 +66,8 @@
                                     {:metadata   {:inclusion "available"}
                                      :breadcrumb [:properties "year_of_death"]}]}
                    {:stream        "revivalists"
-                    :tap-stream-id "revivalists"
-                    :table-name    "revivalists"
+                    :tap_stream_id "revivalists"
+                    :table_name    "revivalists"
                     :schema        {:type       "object"
                                     :properties {"name"          {:type    "integer"
                                                                   :minimum -2147483648
@@ -84,8 +84,8 @@
                  {:streams
                   {"theologians"
                    {:stream        "theologians"
-                    :tap-stream-id "theologians"
-                    :table-name    "theologians"
+                    :tap_stream_id "theologians"
+                    :table_name    "theologians"
                     :schema        {:type       "object"
                                     :properties {"name"          {:type    "integer"
                                                                   :minimum -2147483648
@@ -98,8 +98,8 @@
                                      "year_of_death" {:inclusion "available"}}}}
                    "revivalists"
                    {:stream        "revivalists"
-                    :tap-stream-id "revivalists"
-                    :table-name    "revivalists"
+                    :tap_stream_id "revivalists"
+                    :table_name    "revivalists"
                     :schema        {:type       "object"
                                     :properties {"name"          {:type    "integer"
                                                                   :minimum -2147483648

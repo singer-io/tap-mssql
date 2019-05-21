@@ -63,8 +63,8 @@
 (defn column->catalog-entry
   [column]
   {:stream (:table_name column)
-   :tap-stream-id (:table_name column)
-   :table-name (:table_name column)
+   :tap_stream_id (:table_name column)
+   :table_name (:table_name column)
    :schema {:type "object"}
    :metadata {}})
 
