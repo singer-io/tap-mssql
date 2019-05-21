@@ -37,7 +37,11 @@
     (jdbc/db-do-commands db-spec ["CREATE DATABASE database_for_metadata"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_for_metadata")
                          [(jdbc/create-table-ddl :table_with_a_primary_key [[:id "int primary key"]
-                                                                            [:name "varchar"]])])))
+                                                                            [:name "varchar"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "database_for_metadata")
+                         ["CREATE VIEW view_of_table_with_a_primary_key_id
+                           AS
+                           SELECT id FROM table_with_a_primary_key"])))
 
 (defn test-db-fixture [f]
   (maybe-destroy-test-db)
@@ -46,10 +50,41 @@
 
 (use-fixtures :each test-db-fixture)
 
-(deftest ^:integration verify-primary-key-metadata
+(comment
+  (get-columns test-db-config)
+  )
+
+(deftest ^:integration verify-metadata
   (is (= "automatic"
          (get-in (discover-catalog test-db-config)
                  [:streams "table_with_a_primary_key" :metadata :properties "id" :inclusion])))
+  (is (= "int"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata :properties "id" :sql-datatype])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata :properties "id" :selected-by-default])))
   (is (= "available"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "name" :inclusion]))))
+                 [:streams "table_with_a_primary_key" :metadata :properties "name" :inclusion])))
+  (is (= "varchar"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata :properties "name" :sql-datatype])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata :properties "name" :selected-by-default])))
+  (is (= "database_for_metadata"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata  :database-name])))
+  (is (= "table_with_a_primary_key"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata  :schema-name])))
+  (is (= false
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata  :is-view])))
+  (is (= #{"id"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "table_with_a_primary_key" :metadata  :table-key-properties])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 [:streams "view_of_table_with_a_primary_key_id" :metadata :is-view]))))
