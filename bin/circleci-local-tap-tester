@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]] \
+     || [[ -z $AWS_ACCESS_KEY_ID ]] \
+     || [[ -z $AWS_SECRET_ACCESS_KEY ]] \
+     || [[ -z $AWS_SESSION_TOKEN ]]
+then
+  printf 'Missing required environment variables\n' >&2
+  exit 1
+fi
+
+circleci local execute \
+         --job tap_tester \
+         -e "SANDBOX_PASSWORD=$(aws s3 cp s3://com-stitchdata-dev-deployment-assets/circleci/SANDBOX_PASSWORD - | cut -d ' ' -f2)" \
+         -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+         -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+         -e "AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}"
