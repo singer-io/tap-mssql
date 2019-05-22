@@ -1,5 +1,5 @@
 (ns tap-mssql.core
-  (:require [clojure.tools.logging :as logger]
+  (:require [clojure.tools.logging :as log]
             [clojure.tools.nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
@@ -30,13 +30,6 @@
 (defn nrepl-handler []
   (require 'cider.nrepl)
   (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
-
-(defn log-infof
-  [message-format & args]
-  (binding [*out* *err*]
-    (println (apply format
-                    (str "INFO " message-format)
-                    args))))
 
 (defn config->conn-map
   [config]
@@ -253,14 +246,14 @@
       serialize-metadata))
 
 (defn do-discovery [{:as config}]
-  (log-infof "Starting discovery mode")
+  (log/info "Starting discovery mode")
   (-> (discover-catalog config)
       catalog->serialized-catalog
       json/write-str
       println))
 
 (defn do-sync [config catalog state]
-  (log-infof "Starting sync mode")
+  (log/info "Starting sync mode")
   (throw (UnsupportedOperationException. "Sync mode not yet implemented.")))
 
 (defn -main [& args]
@@ -276,7 +269,7 @@
         (.start (Thread. #((loop []
                              (Thread/sleep 1000)
                              (recur)))))
-        (log-infof "Started nrepl server at %s"
+        (log/info "Started nrepl server at %s"
                    (.getLocalSocketAddress (:server-socket the-nrepl-server)))
         (spit ".nrepl-port" (:port the-nrepl-server)))
 
@@ -291,6 +284,6 @@
         ;; FIXME: (show-help)?
         nil))
     (catch Exception ex
-      (dorun (map #(logger/fatal %)
+      (dorun (map #(log/fatal %)
                   (clojure.string/split (str ex) #"\n")))
       (throw ex))))
