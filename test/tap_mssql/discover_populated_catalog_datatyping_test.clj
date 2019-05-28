@@ -4,7 +4,8 @@
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
             [clojure.string :as string]
-            [tap-mssql.core :refer :all]))
+            [tap-mssql.core :refer :all]
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
 
 (defn get-test-hostname
   []
@@ -17,7 +18,8 @@
   {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
                   (get-test-hostname))
    "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")})
+   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
+   "port" "1433"})
 
 (defn get-destroy-database-command
   [database]
@@ -38,6 +40,8 @@
                                   "CREATE DATABASE database_with_a_table"
                                   "CREATE DATABASE another_database_with_a_table"
                                   "CREATE DATABASE datatyping"])
+    ;; assoc db-spec :dbname … is essentially USE database_with_a_table
+    ;; for the enclosed commands
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
                          [(jdbc/create-table-ddl :empty_table [[:id "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
@@ -109,12 +113,24 @@
                           (jdbc/create-table-ddl :date_and_time
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#date-and-time
                                                  [[:date "date"]
-                                                  [:time "time"]])])))
+                                                  [:time "time"]])
+                          (jdbc/create-table-ddl :unsupported_data_types
+                                                 [[:rowversion "rowversion"]])
+                          ;; timestamp is a synonym for rowversion,
+                          ;; neither of which are analogous to the ISO
+                          ;; Standard timestamp type.
+                          ;;
+                          ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
+                          (jdbc/create-table-ddl :unsupported_data_type_synonyms
+                                                 [[:timestamp "timestamp"]])
+                          (jdbc/create-table-ddl :uniqueidentifiers
+                                                 [[:uniqueidentifier "uniqueidentifier"]])])))
 
 (defn test-db-fixture [f]
-  (maybe-destroy-test-db)
-  (create-test-db)
-  (f))
+  (with-out-and-err-to-dev-null
+    (maybe-destroy-test-db)
+    (create-test-db)
+    (f)))
 
 (use-fixtures :each test-db-fixture)
 
@@ -285,8 +301,49 @@
          (get-in (discover-catalog test-db-config)
                  [:streams "binary_strings" :schema :properties "varbinary_max"]))))
 
+(deftest ^:integration verify-unsupported-columns
+  (is (nil? (get-in (discover-catalog test-db-config)
+                    [:streams "unsupported_data_types" :schema :properties
+                     "rowversion"])))
+  (is (= "unsupported"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unsupported_data_types" :metadata :properties
+                  "rowversion" :inclusion])))
+  (is (= false
+         (get-in (discover-catalog test-db-config)
+                 [:streams "unsupported_data_types" :metadata :properties
+                  "rowversion" :selected-by-default])))
+  (is (= {}
+         (->> (discover-catalog test-db-config)
+              catalog->serialized-catalog
+              :streams
+              (filter (comp (partial = "unsupported_data_types")
+                            :stream))
+              first
+              (#(get-in % [:schema :properties "rowversion"]))))))
+
+(deftest ^:integration verify-uniqueidentifiers-are-supported
+  (is (= {:type "string"
+          :pattern "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}
+       (get-in (discover-catalog test-db-config)
+               [:streams "uniqueidentifiers" :schema :properties "uniqueidentifier"])))
+  (is (= "uniqueidentifier"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "uniqueidentifiers" :metadata :properties
+                  "uniqueidentifier" :sql-datatype])))
+  (is (= "available"
+         (get-in (discover-catalog test-db-config)
+                 [:streams "uniqueidentifiers" :metadata :properties
+                  "uniqueidentifier" :inclusion])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 [:streams "uniqueidentifiers" :metadata :properties
+                  "uniqueidentifier" :selected-by-default]))))
+
 (comment
-  (map select-keys (get-columns test-db-config) (repeat [:column_name :type_name :sql_data_type]))
+  (map select-keys
+       (get-columns test-db-config)
+       (repeat [:column_name :type_name :sql_data_type]))
   (jdbc/with-db-metadata [md (assoc (config->conn-map test-db-config)
                                     :dbname "another_database_with_a_table")]
     (jdbc/metadata-result (.getColumns md nil "dbo" nil nil)))

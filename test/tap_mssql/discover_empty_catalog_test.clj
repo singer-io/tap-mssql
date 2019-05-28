@@ -4,7 +4,8 @@
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
             [clojure.string :as string]
-            [tap-mssql.core :refer :all]))
+            [tap-mssql.core :refer :all]
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
 
 (defn get-test-hostname
   []
@@ -17,7 +18,8 @@
   {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
                   (get-test-hostname))
    "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")})
+   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
+   "port" "1433"})
 
 (defn get-destroy-database-command
   [database]
@@ -37,25 +39,16 @@
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
 
 (defn test-db-fixture [f]
-  (maybe-destroy-test-db)
-  (create-test-db)
-  (f))
+  (with-out-and-err-to-dev-null
+    (maybe-destroy-test-db)
+    (create-test-db)
+    (f)))
 
 (use-fixtures :each test-db-fixture)
 
-(defmacro with-out-and-err-to-dev-null
-  [& body]
-  `(let [null-out# (io/writer
-                    (proxy [java.io.OutputStream] []
-                      (write [& args#])))]
-     (binding [*err* null-out#
-               *out* null-out#]
-       ~@body)))
-
 (deftest ^:integration verify-mssql-version
   (is (nil?
-       (with-out-and-err-to-dev-null
-         (do-discovery test-db-config)))
+       (do-discovery test-db-config))
       "Discovery ran succesfully and did not throw an exception"))
 
 (deftest ^:integration verify-empty-catalog

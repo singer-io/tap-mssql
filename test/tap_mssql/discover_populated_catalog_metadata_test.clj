@@ -4,7 +4,8 @@
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
             [clojure.string :as string]
-            [tap-mssql.core :refer :all]))
+            [tap-mssql.core :refer :all]
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
 
 (defn get-test-hostname
   []
@@ -17,7 +18,8 @@
   {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
                   (get-test-hostname))
    "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")})
+   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
+   "port" "1433"})
 
 (defn get-destroy-database-command
   [database]
@@ -44,9 +46,10 @@
                            SELECT id FROM table_with_a_primary_key"])))
 
 (defn test-db-fixture [f]
-  (maybe-destroy-test-db)
-  (create-test-db)
-  (f))
+  (with-out-and-err-to-dev-null
+    (maybe-destroy-test-db)
+    (create-test-db)
+    (f)))
 
 (use-fixtures :each test-db-fixture)
 
@@ -76,7 +79,7 @@
   (is (= "database_for_metadata"
          (get-in (discover-catalog test-db-config)
                  [:streams "table_with_a_primary_key" :metadata  :database-name])))
-  (is (= "table_with_a_primary_key"
+  (is (= "dbo"
          (get-in (discover-catalog test-db-config)
                  [:streams "table_with_a_primary_key" :metadata  :schema-name])))
   (is (= false

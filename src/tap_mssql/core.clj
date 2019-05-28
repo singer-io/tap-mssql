@@ -3,12 +3,12 @@
             [clojure.tools.nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.data.json :as json]
             [clojure.java.jdbc :as jdbc])
+  (:import [com.microsoft.sqlserver.jdbc SQLServerException])
   (:gen-class))
 
-
-(def sql-server-2017-version 14)
 
 ;;; Note: This is different than the serialized form of the the catalog.
 ;;; The catalog serialized is :streams → [stream1 … streamN]. This will be
@@ -16,94 +16,108 @@
 ;;; {:streams (vals (:streams catalog))}.
 (def empty-catalog {:streams {}})
 
-(def cli-options
-  [["-d" "--discover" "Discovery Mode"]
-   [nil "--repl" "REPL Mode"]
-   [nil "--config CONFIG" "Config File"
-    :parse-fn (comp json/read io/reader)]
-   [nil "--catalog CATALOG" "Singer Catalog File"
-    :parse-fn (comp json/read io/reader)]
-   [nil "--state STATE" "Singer State File"
-    :parse-fn (comp json/read io/reader)]
-   ["-h" "--help"]])
-
-(defn nrepl-handler []
-  (require 'cider.nrepl)
-  (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
-
-(defn config->conn-map
+(defn config->conn-map*
   [config]
-  {:dbtype "sqlserver"
-   :dbname ""
-   :host (config "host")
-   :password (config "password")
-   :user (config "user")})
+  (let [basic-conn-map {:dbtype "sqlserver"
+                        :dbname (config "database" "")
+                        :host (config "host")
+                        :port (config "port")
+                        :password (config "password")
+                        :user (config "user")}]
+    (do (jdbc/with-db-metadata [md basic-conn-map]
+          (jdbc/metadata-result (.getCatalogs md)))
+        (log/info "Successfully connected to the instance")
+        basic-conn-map)))
+
+(def config->conn-map (memoize config->conn-map*))
+
+(def system-database-names #{"master" "tempdb" "model" "msdb" "rdsadmin"})
 
 (defn non-system-database?
   [database]
   (-> database
       :table_cat
-      #{"master" "tempdb" "model" "msdb" "rdsadmin"}
+      system-database-names
       not))
+
+(defn config-specific-database?
+  [config database]
+  (if (config "database")
+    (= (config "database") (:table_cat database))
+    true))
 
 (defn get-databases
   [config]
   (let [conn-map (config->conn-map config)]
-    (filter non-system-database?
+    (filter (every-pred non-system-database?
+                        (partial config-specific-database? config))
             (jdbc/with-db-metadata [md conn-map]
               (jdbc/metadata-result (.getCatalogs md))))))
 
 (defn column->catalog-entry
   [column]
   {:stream (:table_name column)
-   :tap_stream_id (:table_name column)
+   :tap_stream_id (format "%s-%s-%s"
+                          (:table_cat column)
+                          (:table_schem column)
+                          (:table_name column))
    :table_name (:table_name column)
    :schema {:type "object"}
    :metadata {:database-name (:table_cat column)
-              :schema-name (:table_name column)
+              :schema-name (:table_schem column)
               :table-key-properties #{}
               :is-view (:is-view? column)}})
 
 (defn column->schema
   [{:keys [type_name] :as column}]
-  ({"int"       {:type    "integer"
-                 :minimum -2147483648
-                 :maximum 2147483647}
-    "bigint"    {:type    "integer"
-                 :minimum -9223372036854775808
-                 :maximum 9223372036854775807}
-    "smallint"  {:type    "integer"
-                 :minimum -32768
-                 :maximum 32767}
-    "tinyint"   {:type    "integer"
-                 :minimum 0
-                 :maximum 255}
-    "float"     {:type "number"}
-    "real"      {:type "number"}
-    "bit"       {:type "boolean"}
-    "decimal"   {:type "number"}
-    "numeric"   {:type "number"}
-    "date"      {:type   "string"
-                 :format "date-time"}
-    "time"      {:type   "string"
-                 :format "date-time"}
-    "char"      {:type      "string"
-                 :minLength (:column_size column)
-                 :maxLength (:column_size column)}
-    "nchar"     {:type      "string"
-                 :minLength (:column_size column)
-                 :maxLength (:column_size column)}
-    "varchar"   {:type      "string"
-                 :minLength 0
-                 :maxLength (:column_size column)}
-    "nvarchar"  {:type      "string"
-                 :minLength 0
-                 :maxLength (:column_size column)}
-    "binary"    {:type      "string"
-                 :minLength (:column_size column)
-                 :maxLength (:column_size column)}
-    "varbinary" {:type      "string"
-                 :maxLength (:column_size column)}}
+  ({"int"              {:type    "integer"
+                        :minimum -2147483648
+                        :maximum 2147483647}
+    "bigint"           {:type    "integer"
+                        :minimum -9223372036854775808
+                        :maximum 9223372036854775807}
+    "smallint"         {:type    "integer"
+                        :minimum -32768
+                        :maximum 32767}
+    "tinyint"          {:type    "integer"
+                        :minimum 0
+                        :maximum 255}
+    "float"            {:type "number"}
+    "real"             {:type "number"}
+    "bit"              {:type "boolean"}
+    "decimal"          {:type "number"}
+    "numeric"          {:type "number"}
+    "date"             {:type   "string"
+                        :format "date-time"}
+    "time"             {:type   "string"
+                        :format "date-time"}
+    "char"             {:type      "string"
+                        :minLength (:column_size column)
+                        :maxLength (:column_size column)}
+    "nchar"            {:type      "string"
+                        :minLength (:column_size column)
+                        :maxLength (:column_size column)}
+    "varchar"          {:type      "string"
+                        :minLength 0
+                        :maxLength (:column_size column)}
+    "nvarchar"         {:type      "string"
+                        :minLength 0
+                        :maxLength (:column_size column)}
+    "binary"           {:type      "string"
+                        :minLength (:column_size column)
+                        :maxLength (:column_size column)}
+    "varbinary"        {:type      "string"
+                        :maxLength (:column_size column)}
+    "uniqueidentifier" {:type    "string"
+                        ;; a string constant in the form
+                        ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
+                        ;; each x is a hexadecimal digit in the range 0-9
+                        ;; or a-f. For example,
+                        ;; 6F9619FF-8B86-D011-B42D-00C04FC964FF is a valid
+                        ;; uniqueidentifier value.
+                        ;;
+                        ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
+                        :pattern "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
@@ -126,11 +140,13 @@
 
 (defn column->metadata
   [column]
-  {:inclusion           (if (:primary-key? column)
-                          "automatic"
-                          "available")
+  {:inclusion           (if (:unsupported? column)
+                          "unsupported"
+                          (if (:primary-key? column)
+                            "automatic"
+                            "available"))
    :sql-datatype        (:type_name column)
-   :selected-by-default true})
+   :selected-by-default (not (:unsupported? column))})
 
 (defn add-column-schema-to-catalog-stream-metadata
   [catalog-stream-metadata column]
@@ -192,6 +208,12 @@
                               true
                               false))))
 
+(defn add-unsupported?-data
+  [column]
+  (if (nil? (column->schema column))
+    (assoc column :unsupported? true)
+    column))
+
 (defn get-database-columns
   [config database]
   (let [conn-map (assoc (config->conn-map config)
@@ -200,7 +222,8 @@
         raw-columns (get-database-raw-columns conn-map database)]
     (->> raw-columns
          (map (partial add-primary-key?-data conn-map))
-         (map (partial add-is-view?-data conn-map)))))
+         (map (partial add-is-view?-data conn-map))
+         (map add-unsupported?-data))))
 
 (defn get-columns
   [config]
@@ -209,8 +232,9 @@
 (defn discover-catalog
   [config]
   (jdbc/with-db-metadata [metadata (config->conn-map config)]
-    (when (not= sql-server-2017-version (.getDatabaseMajorVersion metadata))
-      (throw (IllegalStateException. "SQL Server database is not SQL Server 2017"))))
+    (log/infof "Connecting to %s version %s"
+               (.getDatabaseProductName metadata)
+               (.getDatabaseProductVersion metadata)))
   ;; It's important to keep add-column pure and keep all database
   ;; interaction in get-columns for testability
   (reduce add-column empty-catalog (get-columns config)))
@@ -235,9 +259,34 @@
   [catalog]
   (update catalog :streams (partial map serialize-stream-metadata)))
 
+(defn serialize-stream-schema-property
+  [[k v]]
+  (if (nil? v)
+    [k {}]
+    [k v]))
+
+(defn serialize-stream-schema-properties
+  [stream-schema-properties]
+  (into {} (map serialize-stream-schema-property
+                stream-schema-properties)))
+
+(defn serialize-stream-schema
+  [stream-schema]
+  (update stream-schema
+          :properties
+          serialize-stream-schema-properties))
+
+(defn serialize-stream
+  [stream-catalog-entry]
+  (update stream-catalog-entry :schema
+          serialize-stream-schema))
+
 (defn serialize-streams
   [catalog]
-  (update catalog :streams vals))
+  (update catalog
+          :streams
+          (comp (partial map serialize-stream)
+                vals)))
 
 (defn catalog->serialized-catalog
   [catalog]
@@ -256,34 +305,94 @@
   (log/info "Starting sync mode")
   (throw (UnsupportedOperationException. "Sync mode not yet implemented.")))
 
+(defn repl-arg-passed?
+  [args]
+  (some (partial = "--repl") args))
+
+(defn start-nrepl-server
+  [args]
+  (require 'cider.nrepl)
+  (let [the-nrepl-server
+        (nrepl-server/start-server :bind "0.0.0.0"
+                                   :handler (ns-resolve 'cider.nrepl 'cider-nrepl-handler))]
+    (spit ".nrepl-port" (:port the-nrepl-server))
+    (log/infof "Started nrepl server at %s"
+               (.getLocalSocketAddress (:server-socket the-nrepl-server)))
+    the-nrepl-server))
+
+(defn maybe-stop-nrepl-server
+  [args the-nrepl-server]
+  (if (repl-arg-passed? args)
+    (do
+      (log/infof "Leaving repl open for inspection because --repl was passed")
+      (log/infof "nrepl server at %s"
+                 (.getLocalSocketAddress (:server-socket the-nrepl-server))))
+    (do
+      (log/infof "Shutting down the nrepl server")
+      (nrepl-server/stop-server the-nrepl-server))))
+
+(defn non-system-database-name?
+  [config]
+  (if (config "database")
+    (non-system-database? {:table_cat (config "database")})
+    config))
+
+(defn parse-config
+  [config-file]
+  (-> config-file
+      io/reader
+      json/read))
+
+(def cli-options
+  [["-d" "--discover" "Discovery Mode"]
+   [nil "--repl" "REPL Mode"]
+   [nil "--config CONFIG" "Config File"
+    :parse-fn #'parse-config
+    :validate [non-system-database-name?
+               (format "System databases (%s) may not be synced"
+                       (string/join ", " system-database-names))]]
+   [nil "--catalog CATALOG" "Singer Catalog File"
+    :parse-fn (comp json/read io/reader)]
+   [nil "--state STATE" "Singer State File"
+    :parse-fn (comp json/read io/reader)]
+   ["-h" "--help"]])
+
+(defn parse-opts
+  [args]
+  (let [opts (cli/parse-opts args cli-options)
+        _ (def opts opts)]
+    (def config (get-in opts [:options :config]))
+    (when (:errors opts)
+      (throw (IllegalArgumentException. (string/join "\n" (:errors opts)))))
+    opts))
+
 (defn -main [& args]
-  (try
-    (let [opts (cli/parse-opts args cli-options)
-          {{:keys [discover repl config catalog state]} :options} opts]
-      (when repl
-        ;; We do this here to avoid starting the nrepl server during `lein
-        ;; test` executions
-        (defonce the-nrepl-server
-          (nrepl-server/start-server :bind "0.0.0.0"
-                                     :handler (nrepl-handler)))
-        (.start (Thread. #((loop []
-                             (Thread/sleep 1000)
-                             (recur)))))
-        (log/info "Started nrepl server at %s"
-                   (.getLocalSocketAddress (:server-socket the-nrepl-server)))
-        (spit ".nrepl-port" (:port the-nrepl-server)))
+  (let [the-nrepl-server (start-nrepl-server args)]
+    ;; This and the other defs here are not accidental. These are required
+    ;; to be able to easily debug a running process that you didn't already
+    ;; intend to repl into.
+    (def args args)
+    (try
+      (let [{{:keys [discover repl config catalog state]} :options}
+            (parse-opts args)]
+        (cond
+          discover
+          (do-discovery config)
 
-      (cond
-        discover
-        (do-discovery config)
+          catalog
+          (do-sync config catalog state)
 
-        catalog
-        (do-sync config catalog state)
-
-        :else
-        ;; FIXME: (show-help)?
-        nil))
-    (catch Exception ex
-      (dorun (map #(log/fatal %)
-                  (clojure.string/split (str ex) #"\n")))
-      (throw ex))))
+          :else
+          ;; FIXME: (show-help)?
+          nil)
+        (log/info "Tap Finished")
+        (maybe-stop-nrepl-server args the-nrepl-server)
+        (when (not (repl-arg-passed? args))
+          (System/exit 0)))
+      (catch Exception ex
+        (def ex ex)
+        (maybe-stop-nrepl-server args the-nrepl-server)
+        (dorun (map #(log/fatal %) (string/split (or (.getMessage ex)
+                                                     (str ex)) #"\n")))
+        (when (not (repl-arg-passed? args))
+          (System/exit 1))))))
