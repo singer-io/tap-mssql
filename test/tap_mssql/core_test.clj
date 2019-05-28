@@ -6,7 +6,7 @@
   (is (= {:streams
           {"theologians"
            {:stream        "theologians"
-            :tap_stream_id "theologians"
+            :tap_stream_id "test-bar-theologians"
             :table_name    "theologians"
             :schema        {:type       "object"
                             :properties {"name"          {:type    "integer"
@@ -16,7 +16,7 @@
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
             :metadata      {:database-name        "test",
-                            :schema-name          "theologians",
+                            :schema-name          "bar",
                             :table-key-properties #{},
                             :is-view              false,
                             :properties
@@ -30,7 +30,7 @@
                               :selected-by-default true}}}}
            "revivalists"
            {:stream        "revivalists"
-            :tap_stream_id "revivalists"
+            :tap_stream_id "test-bar-revivalists"
             :table_name    "revivalists"
             :schema        {:type       "object"
                             :properties {"name"          {:type    "integer"
@@ -40,7 +40,7 @@
                                                           :minimum -2147483648
                                                           :maximum 2147483647}}}
             :metadata      {:database-name        "test",
-                            :schema-name          "revivalists",
+                            :schema-name          "bar",
                             :table-key-properties #{},
                             :is-view              false,
                             :properties
@@ -54,24 +54,28 @@
                               :selected-by-default true}}}}}}
          (reduce add-column nil [{:table_name   "theologians"
                                   :table_cat    "test"
+                                  :table_schem  "bar"
                                   :column_name  "name"
                                   :type_name    "int"
                                   :primary-key? false
                                   :is-view?     false}
                                  {:table_name   "theologians"
                                   :table_cat    "test"
+                                  :table_schem  "bar"
                                   :column_name  "year_of_death"
                                   :type_name    "int"
                                   :primary-key? false
                                   :is-view?     false}
                                  {:table_name   "revivalists"
                                   :table_cat    "test"
+                                  :table_schem  "bar"
                                   :column_name  "name"
                                   :type_name    "int"
                                   :primary-key? false
                                   :is-view?     false}
                                  {:table_name   "revivalists"
                                   :table_cat    "test"
+                                  :table_schem  "bar"
                                   :column_name  "year_of_death"
                                   :type_name    "int"
                                   :primary-key? false
@@ -90,7 +94,7 @@
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
                     :metadata      [{:metadata   {:database-name        "foo"
-                                                  :schema-name          "foo"
+                                                  :schema-name          "bar"
                                                   :table-key-properties #{}
                                                   :is-view              false}
                                      :breadcrumb []}
@@ -113,7 +117,7 @@
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
                     :metadata      [{:metadata   {:database-name        "foo"
-                                                  :schema-name          "foo"
+                                                  :schema-name          "bar"
                                                   :table-key-properties #{}
                                                   :is-view              false}
                                      :breadcrumb []}
@@ -140,7 +144,7 @@
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
                     :metadata      {:database-name        "foo"
-                                    :schema-name          "foo"
+                                    :schema-name          "bar"
                                     :table-key-properties #{}
                                     :is-view              false
                                     :properties
@@ -162,7 +166,7 @@
                                                                   :minimum -2147483648
                                                                   :maximum 2147483647}}}
                     :metadata      {:database-name        "foo"
-                                    :schema-name          "foo"
+                                    :schema-name          "bar"
                                     :table-key-properties #{}
                                     :is-view              false
                                     :properties

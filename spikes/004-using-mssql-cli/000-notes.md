@@ -26,3 +26,21 @@ mssql-cli:
         500 https://packages.microsoft.com/ubuntu/16.04/prod xenial/main amd64 Packages
 ```
 
+From https://github.com/dbcli/mssql-cli/blob/master/doc/installation/linux.md#ubuntu-1604
+
+```
+# Import the public repository GPG keys
+wget -qO- https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+
+# Register the Microsoft Ubuntu repository
+sudo curl -o /etc/apt/sources.list.d/microsoft.list "https://packages.microsoft.com/config/ubuntu/$(lsb_release -sr)/prod.list"
+
+# Update the list of products
+sudo apt-get update
+
+# Install mssql-cli
+sudo apt-get install mssql-cli
+
+# Start mssql-cli
+mssql-cli
+```
