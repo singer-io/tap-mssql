@@ -113,7 +113,8 @@
                           (jdbc/create-table-ddl :date_and_time
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#date-and-time
                                                  [[:date "date"]
-                                                  [:time "time"]])
+                                                  [:time "time"]
+                                                  [:datetime "datetime"]])
                           (jdbc/create-table-ddl :unsupported_data_types
                                                  [[:rowversion "rowversion"]])
                           ;; timestamp is a synonym for rowversion,
@@ -142,7 +143,11 @@
   (is (= {:type "string"
           :format "date-time"}
          (get-in (discover-catalog test-db-config)
-                 [:streams "date_and_time" :schema :properties "time"]))))
+                 [:streams "date_and_time" :schema :properties "time"])))
+  (is (= {:type "string"
+          :format "date-time"}
+         (get-in (discover-catalog test-db-config)
+                 [:streams "date_and_time" :schema :properties "datetime"]))))
 
 (deftest ^:integration verify-approximate-numerics
   (is (= {:type "number"}

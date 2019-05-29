@@ -114,6 +114,8 @@
                         :format "date-time"}
     "time"             {:type   "string"
                         :format "date-time"}
+    "datetime"         {:type   "string"
+                        :format "date-time"}
     "char"             {:type      "string"
                         :minLength (:column_size column)
                         :maxLength (:column_size column)}
