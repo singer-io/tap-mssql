@@ -21,6 +21,7 @@
                  ;; repl
                  [org.clojure/tools.nrepl "0.2.13"]
                  [cider/cider-nrepl "0.17.0"]]
+  :plugins [[lein-pprint "1.2.0"]]
   :main tap-mssql.core
   :profiles {:uberjar {:aot [tap-mssql.core]}
              :system {:java-cmd "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"}})
