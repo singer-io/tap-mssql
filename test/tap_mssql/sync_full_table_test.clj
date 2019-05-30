@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
+            [clojure.data.json :as json]
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
@@ -59,8 +60,26 @@
 
 (use-fixtures :each test-db-fixture)
 
+(defn get-schema-message-from-output
+  []
+  ;; json/read-str simply grabs the first line of the string and
+  ;; returns that rather than giving you a sequence of objects
+  (json/read-str
+   (with-out-str (do-sync test-db-config
+                          (discover-catalog test-db-config)
+                          nil))))
+
 (deftest ^:integration verify-full-table-sync
   ;; Doesn't throw
-  (is (do-sync test-db-config nil nil))
-  ;; Emits Records
-  )
+  (is (do-sync test-db-config (discover-catalog test-db-config) nil))
+  ;; Emits schema message
+  (is (= "SCHEMA"
+         ((get-schema-message-from-output) "type")))
+  (is (= "full_table_sync_test-dbo-data_table"
+         ((get-schema-message-from-output) "tap_stream_id")))
+  (is (= "data_table"
+         ((get-schema-message-from-output) "table_name")))
+  (is (= {"type" "string"
+          "pattern" "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}
+         (get-in (get-schema-message-from-output) ["schema" "properties" "id"])))
+  (is (not (contains? ((get-schema-message-from-output) "schema") "metadata"))))

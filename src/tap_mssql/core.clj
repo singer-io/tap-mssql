@@ -326,10 +326,83 @@
       json/write-str
       println))
 
+(defn make-stream-seq [config catalog stream-name state]
+  [{:type :schema
+    :value (get-in catalog [:streams stream-name])}
+   ;; Empty state message
+   {:type :state
+    :value {}}])
+
+(defn message-envelope?
+    [message-envelope]
+    (if (and (#{:schema :state :records} (:type message-envelope))
+             (:value message-envelope))
+      message-envelope))
+
+(defn get-singer-type
+  [message-envelope]
+  {:pre [(message-envelope? message-envelope)]
+   :post [#{:schema :state :records}]}
+  (:type message-envelope))
+
+(defn make-messages
+    [stream-name message-envelope]
+    {:pre [(message-envelope? message-envelope)]}
+    (let [singer-type (get-singer-type message-envelope)
+          singer-type-name (string/upper-case (name singer-type))
+          value (:value message-envelope)]
+      (case singer-type
+        :schema [(assoc value :type singer-type-name)]
+        :state [{:type singer-type-name
+                 :stream stream-name
+                 :value value}]
+        :records (map (fn [v]
+                        {:stream stream-name
+                         :type "RECORD"
+                         :record v})
+                      value))))
+
+(defn write-messages!
+    [stream-name message-envelope]
+    {:pre [message-envelope?]
+     :post [message-envelope]}
+    (dorun
+     (map (comp println json/write-str)
+          (make-messages stream-name message-envelope)))
+    message-envelope)
+
+(defn write-stream!
+    [stream-name stream-seq]
+    (last (map (partial write-messages! stream-name)
+               stream-seq)))
+
+(defn selected? [stream-name]
+  ;; TODO this is constantly true right now because we're not at stream
+  ;; selection support yet. When we get there this is where we'll extend
+  ;; the codebase to support it.
+  true)
+
+(defn maybe-sync-stream! [config catalog state stream-name]
+  (if (selected? stream-name)
+    (do
+      ;; Logging is a little weird in this style
+      (log/infof "Syncing stream %s" stream-name)
+      (let [stream (make-stream-seq config catalog stream-name state)]
+        ;; returns state
+        (write-stream! stream-name stream)))
+    (do (log/infof "Skipping stream %s"
+                   stream-name)
+        ;; returns original state
+        state)))
+
 (defn do-sync [config catalog state]
   (log/info "Starting sync mode")
-  ;; fake state for now
-  {})
+  ;; Sync streams, no selection (e.g., maybe-sync-stream)
+  (reduce (partial maybe-sync-stream! config catalog)
+          state
+          (->> (:streams catalog)
+               vals
+               (map :stream))))
 
 (defn repl-arg-passed?
   [args]
