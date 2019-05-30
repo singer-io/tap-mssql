@@ -10,6 +10,9 @@ then
   exit 1
 fi
 
+eval "$(aws ecr get-login --no-include-email)"
+docker pull 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
+
 circleci local execute \
          --job tap_tester \
          -e "SANDBOX_PASSWORD=$(aws s3 cp s3://com-stitchdata-dev-deployment-assets/circleci/SANDBOX_PASSWORD - | cut -d ' ' -f2)" \
