@@ -328,7 +328,8 @@
 
 (defn do-sync [config catalog state]
   (log/info "Starting sync mode")
-  (throw (UnsupportedOperationException. "Sync mode not yet implemented.")))
+  ;; fake state for now
+  {})
 
 (defn repl-arg-passed?
   [args]
