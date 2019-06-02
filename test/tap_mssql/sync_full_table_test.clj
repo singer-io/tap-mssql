@@ -42,12 +42,23 @@
                          [(jdbc/create-table-ddl
                            "data_table"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                            [:value "int"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
+                         [(jdbc/create-table-ddl
+                           "data_table_2"
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]])])))
 
 (defn populate-data
   []
-  (jdbc/insert! (-> (config->conn-map test-db-config)
-                    (assoc :dbname "full_table_sync_test")) :data_table {:value 123}))
+  (jdbc/insert-multi! (-> (config->conn-map test-db-config)
+                          (assoc :dbname "full_table_sync_test"))
+                      :data_table
+                      (take 1000 (map (partial hash-map :value) (range))))
+  (jdbc/insert-multi! (-> (config->conn-map test-db-config)
+                          (assoc :dbname "full_table_sync_test"))
+                      :data_table_2
+                      (take 1000 (map (partial hash-map :value) (range)))))
 
 (defn test-db-fixture [f]
   (with-out-and-err-to-dev-null
@@ -55,8 +66,6 @@
     (create-test-db)
     (populate-data)
     (f)))
-
-(discover-catalog test-db-config)
 
 (use-fixtures :each test-db-fixture)
 
@@ -67,11 +76,23 @@
   (json/read-str
    (with-out-str (do-sync test-db-config
                           (discover-catalog test-db-config)
-                          nil))))
+                          {}))))
+
+(defn get-messages-from-output
+  [table]
+  (as-> (with-out-str
+          (do-sync test-db-config
+                   (discover-catalog test-db-config)
+                   {})) output
+    (string/split output #"\n")
+    (map json/read-str output)
+    (filter (comp (partial = (name table)) #(% "stream"))
+            output)
+    (vec output)))
 
 (deftest ^:integration verify-full-table-sync
-  ;; Doesn't throw
-  (is (do-sync test-db-config (discover-catalog test-db-config) nil))
+  ;; do-sync prints a bunch of stuff and returns nil
+  (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
   ;; Emits schema message
   (is (= "SCHEMA"
          ((get-schema-message-from-output) "type")))
@@ -80,6 +101,33 @@
   (is (= "data_table"
          ((get-schema-message-from-output) "table_name")))
   (is (= {"type" "string"
-          "pattern" "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}
+          "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
          (get-in (get-schema-message-from-output) ["schema" "properties" "id"])))
-  (is (not (contains? ((get-schema-message-from-output) "schema") "metadata"))))
+  (is (not (contains? ((get-schema-message-from-output) "schema") "metadata")))
+  ;; Emits the records expected
+  (is (= 1002
+         (count (get-messages-from-output :data_table))))
+  (is (= 1002
+         (count (get-messages-from-output :data_table_2))))
+  (is (= "RECORD"
+         (get-in (get-messages-from-output :data_table)
+                 [1 "type"])))
+  (is (= "RECORD"
+         (get-in (get-messages-from-output :data_table_2)
+                 [1 "type"])))
+  ;; At the moment we're not ordering by anything so checking the actual
+  ;; value here would be brittle, I think.
+  (is (get-in (get-messages-from-output :data_table)
+              [1 "record" "value"]))
+  (is (get-in (get-messages-from-output :data_table_2)
+              [1 "record" "value"]))
+  (is (get-in (get-messages-from-output :data_table)
+              [1000 "record" "value"]))
+  (is (get-in (get-messages-from-output :data_table_2)
+              [1000 "record" "value"]))
+  (is (= "STATE"
+         (get-in (get-messages-from-output :data_table)
+                 [1001 "type"])))
+  (is (= "STATE"
+         (get-in (get-messages-from-output :data_table_2)
+                 [1001 "type"]))))

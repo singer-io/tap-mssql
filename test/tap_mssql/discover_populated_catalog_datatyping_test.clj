@@ -329,7 +329,7 @@
 
 (deftest ^:integration verify-uniqueidentifiers-are-supported
   (is (= {:type "string"
-          :pattern "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}
+          :pattern "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
        (get-in (discover-catalog test-db-config)
                [:streams "uniqueidentifiers" :schema :properties "uniqueidentifier"])))
   (is (= "uniqueidentifier"
@@ -344,6 +344,15 @@
          (get-in (discover-catalog test-db-config)
                  [:streams "uniqueidentifiers" :metadata :properties
                   "uniqueidentifier" :selected-by-default]))))
+
+(deftest ^:integration verify-symmetry-of-serialize-and-deserialize
+  (let [discovered-catalog (discover-catalog test-db-config)
+        serialized-catalog (catalog->serialized-catalog discovered-catalog)]
+    (is (= discovered-catalog (serialized-catalog->catalog serialized-catalog)))
+    (is (map? (:streams discovered-catalog)))
+    (is (every? (comp map? :metadata) (vals (:streams discovered-catalog))))
+    (is (sequential? (:streams serialized-catalog)))
+    (is (every? (comp sequential? :metadata) (:streams serialized-catalog)))))
 
 (comment
   (map select-keys
