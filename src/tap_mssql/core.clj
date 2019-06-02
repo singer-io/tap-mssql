@@ -142,7 +142,7 @@
                         ;; uniqueidentifier value.
                         ;;
                         ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
-                        :pattern "[A-F0-9]{8}-([A-F0-9]{4}){3}-[A-F0-9]{12}"}}
+                        :pattern "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
@@ -326,55 +326,71 @@
       json/write-str
       println))
 
-(defn make-stream-seq [config catalog stream-name state]
-  [{:type :schema
-    :value (get-in catalog [:streams stream-name])}
-   ;; Empty state message
-   {:type :state
-    :value {}}])
+(defn message-valid?
+  [message]
+  (and (#{:SCHEMA :STATE :RECORD} (:type message))
+       (case (:type message)
+         :SCHEMA
+         (:schema message)
 
-(defn message-envelope?
-    [message-envelope]
-    (if (and (#{:schema :state :records} (:type message-envelope))
-             (:value message-envelope))
-      message-envelope))
+         :STATE
+         (:value message)
 
-(defn get-singer-type
-  [message-envelope]
-  {:pre [(message-envelope? message-envelope)]
-   :post [#{:schema :state :records}]}
-  (:type message-envelope))
+         :RECORD
+         (:record message))))
 
-(defn make-messages
-    [stream-name message-envelope]
-    {:pre [(message-envelope? message-envelope)]}
-    (let [singer-type (get-singer-type message-envelope)
-          singer-type-name (string/upper-case (name singer-type))
-          value (:value message-envelope)]
-      (case singer-type
-        :schema [(assoc value :type singer-type-name)]
-        :state [{:type singer-type-name
-                 :stream stream-name
-                 :value value}]
-        :records (map (fn [v]
-                        {:stream stream-name
-                         :type "RECORD"
-                         :record v})
-                      value))))
+(defn write-message!
+  [message]
+  {:pre [(message-valid? message)]}
+  (-> message
+      json/write-str
+      println))
 
-(defn write-messages!
-    [stream-name message-envelope]
-    {:pre [message-envelope?]
-     :post [message-envelope]}
-    (dorun
-     (map (comp println json/write-str)
-          (make-messages stream-name message-envelope)))
-    message-envelope)
+(defn write-schema! [catalog stream-name]
+  (let [schema-message (assoc (get-in catalog [:streams stream-name])
+                              :type :SCHEMA)]
+    (write-message! schema-message)))
 
-(defn write-stream!
-    [stream-name stream-seq]
-    (last (map (partial write-messages! stream-name)
-               stream-seq)))
+(defn write-state!
+  [stream-name state]
+  (write-message! {:type :STATE
+                   :stream stream-name
+                   :value state})
+  ;; This is very important. This function needs to return state so that
+  ;; the outer reduce can pass it in to the next iteration.
+  state)
+
+(defn write-record!
+  [stream-name record]
+  (write-message! {:type :RECORD
+                   :stream stream-name
+                   :record record}))
+
+(defn write-records-and-states!
+  [config catalog state stream-name]
+  (let [dbname (get-in catalog [:streams stream-name :metadata :database-name])
+        ;; TODO: Field selection
+        record-keys (keys (get-in catalog [:streams stream-name :schema :properties]))
+        last-state
+        (reduce (fn [acc result]
+                  (write-record! stream-name (select-keys result record-keys))
+                  acc)
+                state
+                (jdbc/reducible-query (assoc (config->conn-map config)
+                                             :dbname dbname)
+                                      ;; TODO: Fully qualify and quote all
+                                      ;; database structures
+                                      [(format "SELECT %s FROM %s"
+                                               (string/join ", " record-keys)
+                                               stream-name)]
+                                      {:raw? true}))]
+    (write-state! stream-name last-state)))
+
+(defn sync-stream!
+  [config catalog state stream-name]
+  (log/infof "Syncing stream %s" stream-name)
+  (write-schema! catalog stream-name)
+  (write-records-and-states! config catalog state stream-name))
 
 (defn selected? [stream-name]
   ;; TODO this is constantly true right now because we're not at stream
@@ -382,20 +398,22 @@
   ;; the codebase to support it.
   true)
 
+(defn valid-state?
+  [state]
+  (map? state))
+
 (defn maybe-sync-stream! [config catalog state stream-name]
+  {:post [(valid-state? %)]}
   (if (selected? stream-name)
-    (do
-      ;; Logging is a little weird in this style
-      (log/infof "Syncing stream %s" stream-name)
-      (let [stream (make-stream-seq config catalog stream-name state)]
-        ;; returns state
-        (write-stream! stream-name stream)))
+    ;; returns state
+    (sync-stream! config catalog state stream-name)
     (do (log/infof "Skipping stream %s"
                    stream-name)
         ;; returns original state
         state)))
 
 (defn do-sync [config catalog state]
+  {:pre [(valid-state? state)]}
   (log/info "Starting sync mode")
   ;; Sync streams, no selection (e.g., maybe-sync-stream)
   (reduce (partial maybe-sync-stream! config catalog)
@@ -436,11 +454,73 @@
     (non-system-database? {:table_cat (config "database")})
     config))
 
-(defn parse-config
-  [config-file]
-  (-> config-file
+(defn deserialize-stream-metadata
+  [serialized-stream-metadata]
+  (reduce (fn [metadata serialized-metadata-entry]
+            (reduce (fn [entry-metadata [k v]]
+                      (assoc-in
+                       entry-metadata
+                       (conj (:breadcrumb serialized-metadata-entry) k)
+                       v))
+                    metadata
+                    (:metadata serialized-metadata-entry)))
+          {}
+          serialized-stream-metadata))
+
+(defn get-unsupported-breadcrumbs
+  [stream-schema-metadata]
+  (->> (:properties stream-schema-metadata)
+       (filter (fn [[k v]]
+                 (= "unsupported" (:inclusion v))))
+       (map (fn [[k _]]
+              [:properties k]))))
+
+(defn deserialize-stream-schema
+  [serialized-stream-schema stream-schema-metadata]
+  (let [unsupported-breadcrumbs (get-unsupported-breadcrumbs stream-schema-metadata)]
+    (reduce (fn [acc unsupported-breadcrumb]
+              (assoc-in acc unsupported-breadcrumb nil))
+            serialized-stream-schema
+            unsupported-breadcrumbs)))
+
+(defn deserialize-stream
+  [serialized-stream]
+  (as-> serialized-stream ss
+    (update ss :metadata deserialize-stream-metadata)
+    (update ss :schema deserialize-stream-schema (:metadata ss))))
+
+(defn deserialize-streams
+  [serialized-streams]
+  (reduce (fn [streams deserialized-stream]
+            (assoc streams (:stream deserialized-stream) deserialized-stream))
+          {}
+          (map deserialize-stream serialized-streams)))
+
+(defn serialized-catalog->catalog
+  [serialized-catalog]
+  (update serialized-catalog :streams deserialize-streams))
+
+(defn slurp-json
+  [f]
+  (-> f
       io/reader
       json/read))
+
+(defn parse-config
+  "This function exists as a test seam"
+  [config-file]
+  (slurp-json config-file))
+
+(defn parse-state
+  "This function exists as a test seam and for the post condition"
+  [state-file]
+  {:post [(valid-state? %)]}
+  (slurp-json state-file))
+
+(defn parse-catalog
+  "This function exists as a test seam"
+  [catalog-file]
+  (slurp-json catalog-file))
 
 (def cli-options
   [["-d" "--discover" "Discovery Mode"]
@@ -451,9 +531,11 @@
                (format "System databases (%s) may not be synced"
                        (string/join ", " system-database-names))]]
    [nil "--catalog CATALOG" "Singer Catalog File"
-    :parse-fn (comp json/read io/reader)]
+    :parse-fn (comp serialized-catalog->catalog
+                    #'parse-catalog)]
    [nil "--state STATE" "Singer State File"
-    :parse-fn (comp json/read io/reader)]
+    :default {}
+    :parse-fn #'parse-state]
    ["-h" "--help"]])
 
 (defn parse-opts

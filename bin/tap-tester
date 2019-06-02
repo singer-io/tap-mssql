@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+source /etc/default/tap-mssql
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
+then
+  printf 'Missing required environment variables\n' >&2
+  exit 1
+fi
+
+source /usr/local/share/virtualenvs/tap-tester/bin/activate
+cd /opt/code/tap-tester
+
+if (( 0 < $# ))
+then
+  args=($@)
+else
+  args=(tap_tester.suites.mssql)
+fi
+
+bin/run-a-test --api-host=http://10.10.10.4:8443 \
+               --client-id=3 \
+               --tap=/opt/code/tap-mssql/bin/tap-mssql \
+               "${args[@]}"

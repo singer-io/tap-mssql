@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+source /etc/default/tap-mssql
 if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
      || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]] \
      || [[ -z $AWS_ACCESS_KEY_ID ]] \

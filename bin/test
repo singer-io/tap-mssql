@@ -10,4 +10,4 @@ EOF
   exit 1
 fi
 
-exec lein test
+LEIN_SUPPRESS_USER_LEVEL_REPO_WARNINGS=true lein test
