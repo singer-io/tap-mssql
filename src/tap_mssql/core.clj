@@ -538,13 +538,20 @@
     :parse-fn #'parse-state]
    ["-h" "--help"]])
 
+(defn get-interesting-errors
+  [opts]
+  (filter (fn [error]
+            (not (string/starts-with? error "Unknown option: ")))
+          (:errors opts)))
+
 (defn parse-opts
   [args]
   (let [opts (cli/parse-opts args cli-options)
-        _ (def opts opts)]
+        _ (def opts opts)
+        interesting-errors (get-interesting-errors opts)]
     (def config (get-in opts [:options :config]))
-    (when (:errors opts)
-      (throw (IllegalArgumentException. (string/join "\n" (:errors opts)))))
+    (when (not (empty? interesting-errors))
+      (throw (IllegalArgumentException. (string/join "\n" interesting-errors))))
     opts))
 
 (defn -main [& args]

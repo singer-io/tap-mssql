@@ -349,10 +349,18 @@
   (let [discovered-catalog (discover-catalog test-db-config)
         serialized-catalog (catalog->serialized-catalog discovered-catalog)]
     (is (= discovered-catalog (serialized-catalog->catalog serialized-catalog)))
+    ;; Specific Structure
     (is (map? (:streams discovered-catalog)))
     (is (every? (comp map? :metadata) (vals (:streams discovered-catalog))))
     (is (sequential? (:streams serialized-catalog)))
-    (is (every? (comp sequential? :metadata) (:streams serialized-catalog)))))
+    (is (every? (comp sequential? :metadata) (:streams serialized-catalog)))
+    ;; Unsupported Type Replacement
+    (is (nil? (get-in (serialized-catalog->catalog serialized-catalog)
+                      [:streams "unsupported_data_types" :schema :properties "rowversion"])))
+    (is (= {} (get-in (first (filter (comp (partial = "unsupported_data_types")
+                                           :stream)
+                                     (:streams serialized-catalog)))
+                      [:schema :properties "rowversion"])))))
 
 (comment
   (map select-keys
