@@ -178,6 +178,9 @@
                                                       :sql-datatype        "int"}}}}}}]
              (catalog->serialized-catalog catalog))))))
 
+(deftest verify-extra-arguments-does-not-throw
+  (is (parse-opts ["--properties" "foo"])))
+
 (comment
   ;; Run all loaded tests
   (do
