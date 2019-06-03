@@ -42,7 +42,8 @@
                          [(jdbc/create-table-ddl
                            "data_table"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]])])
+                            [:value "int"]
+                            [:deselected_value "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
                          [(jdbc/create-table-ddl
                            "data_table_2"
@@ -53,11 +54,11 @@
   []
   (jdbc/insert-multi! (-> (config->conn-map test-db-config)
                           (assoc :dbname "full_table_sync_test"))
-                      :data_table
-                      (take 1000 (map (partial hash-map :value) (range))))
+                      "data_table"
+                      (take 1000 (map (partial hash-map :deselected_value nil :value) (range))))
   (jdbc/insert-multi! (-> (config->conn-map test-db-config)
                           (assoc :dbname "full_table_sync_test"))
-                      :data_table_2
+                      "data_table_2"
                       (take 1000 (map (partial hash-map :value) (range)))))
 
 (defn test-db-fixture [f]
@@ -69,65 +70,175 @@
 
 (use-fixtures :each test-db-fixture)
 
-(defn get-schema-message-from-output
-  []
-  ;; json/read-str simply grabs the first line of the string and
-  ;; returns that rather than giving you a sequence of objects
-  (json/read-str
-   (with-out-str (do-sync test-db-config
-                          (discover-catalog test-db-config)
-                          {}))))
-
 (defn get-messages-from-output
-  [table]
-  (as-> (with-out-str
-          (do-sync test-db-config
-                   (discover-catalog test-db-config)
-                   {})) output
-    (string/split output #"\n")
-    (map json/read-str output)
-    (filter (comp (partial = (name table)) #(% "stream"))
+  ([]
+   (get-messages-from-output nil))
+  ([table]
+   (get-messages-from-output
+    (discover-catalog test-db-config)
+    table))
+  ([catalog table]
+   (as-> (with-out-str
+           (do-sync test-db-config catalog {}))
+       output
+       (string/split output #"\n")
+       (filter (complement empty?) output)
+       (map json/read-str
             output)
-    (vec output)))
+       (if table
+         (filter (comp (partial = (name table)) #(% "stream"))
+                 output)
+         output)
+       (vec output))))
 
-(deftest ^:integration verify-full-table-sync
+(deftest ^:integration verify-full-table-sync-with-no-tables-selected
+  ;; do-sync prints a bunch of stuff and returns an empty state
+  (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
+  (is (empty? (get-messages-from-output))))
+
+(defn select-stream
+  [catalog stream-name]
+  (assoc-in catalog [:streams stream-name :metadata :selected] true))
+
+(defn deselect-field
+  [catalog stream-name field-name]
+  (assoc-in catalog [:streams stream-name :metadata :properties field-name :selected] false))
+
+(deftest ^:integration verify-full-table-sync-with-one-table-selected
+  ;; This also verifies selected-by-default
   ;; do-sync prints a bunch of stuff and returns nil
   (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
   ;; Emits schema message
-  (is (= "SCHEMA"
-         ((get-schema-message-from-output) "type")))
   (is (= "full_table_sync_test-dbo-data_table"
-         ((get-schema-message-from-output) "tap_stream_id")))
+         ((-> (discover-catalog test-db-config)
+              (select-stream "data_table")
+              (get-messages-from-output "data_table")
+              first)
+          "tap_stream_id")))
   (is (= "data_table"
-         ((get-schema-message-from-output) "table_name")))
+         ((-> (discover-catalog test-db-config)
+              (select-stream "data_table")
+              (get-messages-from-output "data_table")
+              first)
+          "table_name")))
   (is (= {"type" "string"
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-         (get-in (get-schema-message-from-output) ["schema" "properties" "id"])))
-  (is (not (contains? ((get-schema-message-from-output) "schema") "metadata")))
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output "data_table")
+                     first)
+                 ["schema" "properties" "id"])))
+  (is (not (contains? ((-> (discover-catalog test-db-config)
+                           (select-stream "data_table")
+                           (get-messages-from-output "data_table")
+                           first)
+                       "schema")
+                      "metadata")))
   ;; Emits the records expected
   (is (= 1002
-         (count (get-messages-from-output :data_table))))
-  (is (= 1002
-         (count (get-messages-from-output :data_table_2))))
+         (-> (discover-catalog test-db-config)
+             (select-stream "data_table")
+             (get-messages-from-output nil)
+             count)))
+  (is (every? (fn [rec]
+                (= "data_table" (rec "stream")))
+              (-> (discover-catalog test-db-config)
+                  (select-stream "data_table")
+                  (get-messages-from-output nil))))
   (is (= "RECORD"
-         (get-in (get-messages-from-output :data_table)
-                 [1 "type"])))
-  (is (= "RECORD"
-         (get-in (get-messages-from-output :data_table_2)
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output nil))
                  [1 "type"])))
   ;; At the moment we're not ordering by anything so checking the actual
   ;; value here would be brittle, I think.
-  (is (get-in (get-messages-from-output :data_table)
-              [1 "record" "value"]))
-  (is (get-in (get-messages-from-output :data_table_2)
-              [1 "record" "value"]))
-  (is (get-in (get-messages-from-output :data_table)
-              [1000 "record" "value"]))
-  (is (get-in (get-messages-from-output :data_table_2)
-              [1000 "record" "value"]))
+  (is (every? #(get-in % ["record" "value"])
+              (as-> (discover-catalog test-db-config)
+                  x
+                  (select-stream x "data_table")
+                  (get-messages-from-output x nil)
+                  (drop 1 x)
+                  (take 1000 x))))
+  (is (every? #(contains? (% "record") "deselected_value")
+              (as-> (discover-catalog test-db-config)
+                  x
+                (select-stream x "data_table")
+                ;; Don't select or deselect any fields and let
+                ;; selected-by-default do all the work
+                #_(deselect-field x "data_table" "deselected_value")
+                (get-messages-from-output x nil)
+                (drop 1 x)
+                (take 1000 x))))
   (is (= "STATE"
-         (get-in (get-messages-from-output :data_table)
-                 [1001 "type"])))
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output nil))
+                 [1001 "type"]))))
+
+(deftest ^:integration verify-full-table-sync-with-one-table-selected-and-one-field-deselected
+  ;; do-sync prints a bunch of stuff and returns nil
+  (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
+  ;; Emits schema message
+  (is (= "full_table_sync_test-dbo-data_table"
+         ((-> (discover-catalog test-db-config)
+              (select-stream "data_table")
+              (get-messages-from-output "data_table")
+              first)
+          "tap_stream_id")))
+  (is (= "data_table"
+         ((-> (discover-catalog test-db-config)
+              (select-stream "data_table")
+              (get-messages-from-output "data_table")
+              first)
+          "table_name")))
+  (is (= {"type" "string"
+          "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output "data_table")
+                     first)
+                 ["schema" "properties" "id"])))
+  (is (not (contains? ((-> (discover-catalog test-db-config)
+                           (select-stream "data_table")
+                           (get-messages-from-output "data_table")
+                           first)
+                       "schema")
+                      "metadata")))
+  ;; Emits the records expected
+  (is (= 1002
+         (-> (discover-catalog test-db-config)
+             (select-stream "data_table")
+             (get-messages-from-output nil)
+             count)))
+  (is (every? (fn [rec]
+                (= "data_table" (rec "stream")))
+              (-> (discover-catalog test-db-config)
+                  (select-stream "data_table")
+                  (get-messages-from-output nil))))
+  (is (= "RECORD"
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output nil))
+                 [1 "type"])))
+  ;; At the moment we're not ordering by anything so checking the actual
+  ;; value here would be brittle, I think.
+  (is (every? #(get-in % ["record" "value"])
+              (as-> (discover-catalog test-db-config)
+                  x
+                (select-stream x "data_table")
+                (get-messages-from-output x nil)
+                (drop 1 x)
+                (take 1000 x))))
+  (is (every? #(not (contains? (% "record") "deselected_value"))
+              (as-> (discover-catalog test-db-config)
+                  x
+                (select-stream x "data_table")
+                (deselect-field x "data_table" "deselected_value")
+                (get-messages-from-output x nil)
+                (drop 1 x)
+                (take 1000 x))))
   (is (= "STATE"
-         (get-in (get-messages-from-output :data_table_2)
+         (get-in (-> (discover-catalog test-db-config)
+                     (select-stream "data_table")
+                     (get-messages-from-output nil))
                  [1001 "type"]))))

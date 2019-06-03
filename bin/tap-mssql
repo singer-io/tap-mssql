@@ -2,6 +2,7 @@
 
 if [[ $HOSTNAME = taps-* ]] && [[ $1 == --repl ]]
 then
+  source /etc/default/tap-mssql
   if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
        || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
   then
