@@ -366,11 +366,24 @@
                    :stream stream-name
                    :record record}))
 
+(defn selected-field?
+  [[field-name field-metadata]]
+  (or (:selected field-metadata)
+      (and (:selected-by-default field-metadata)
+           (not (contains? field-metadata :selected)))))
+
+(defn get-selected-fields
+  [catalog stream-name]
+  (let [metadata-properties
+        (get-in catalog [:streams stream-name :metadata :properties])
+        selected-fields (filter selected-field? metadata-properties)
+        selected-field-names (map first selected-fields)]
+    selected-field-names))
+
 (defn write-records-and-states!
   [config catalog state stream-name]
   (let [dbname (get-in catalog [:streams stream-name :metadata :database-name])
-        ;; TODO: Field selection
-        record-keys (keys (get-in catalog [:streams stream-name :schema :properties]))
+        record-keys (get-selected-fields catalog stream-name)
         last-state
         (reduce (fn [acc result]
                   (write-record! stream-name (select-keys result record-keys))
@@ -392,11 +405,8 @@
   (write-schema! catalog stream-name)
   (write-records-and-states! config catalog state stream-name))
 
-(defn selected? [stream-name]
-  ;; TODO this is constantly true right now because we're not at stream
-  ;; selection support yet. When we get there this is where we'll extend
-  ;; the codebase to support it.
-  true)
+(defn selected? [catalog stream-name]
+  (get-in catalog [:streams stream-name :metadata :selected]))
 
 (defn valid-state?
   [state]
@@ -404,7 +414,7 @@
 
 (defn maybe-sync-stream! [config catalog state stream-name]
   {:post [(valid-state? %)]}
-  (if (selected? stream-name)
+  (if (selected? catalog stream-name)
     ;; returns state
     (sync-stream! config catalog state stream-name)
     (do (log/infof "Skipping stream %s"
