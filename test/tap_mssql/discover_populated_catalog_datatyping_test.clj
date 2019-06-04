@@ -40,7 +40,7 @@
     (jdbc/db-do-commands (assoc db-spec :dbname "datatyping")
                          [(jdbc/create-table-ddl :exact_numerics
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#exact-numerics
-                                                 [[:bigint "bigint"]
+                                                 [[:bigint "bigint not null"]
                                                   [:int "int"]
                                                   [:smallint "smallint"]
                                                   [:tinyint "tinyint"]
@@ -123,172 +123,172 @@
 (use-fixtures :each test-db-fixture)
 
 (deftest ^:integration verify-date-and-time
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "format" "date-time"}
          (get-in (discover-catalog test-db-config)
                  ["streams" "date_and_time" "schema" "properties" "date"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "format" "date-time"}
          (get-in (discover-catalog test-db-config)
                  ["streams" "date_and_time" "schema" "properties" "time"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "format" "date-time"}
          (get-in (discover-catalog test-db-config)
                  ["streams" "date_and_time" "schema" "properties" "datetime"]))))
 
 (deftest ^:integration verify-approximate-numerics
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "float"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "float_1"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "float_24"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "float_25"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "float_53"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "double_precision"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "approximate_numerics" "schema" "properties" "real"]))))
 
 (deftest ^:integration verify-unicode-strings
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nchar"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nchar_1"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 4000
           "maxLength" 4000}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nchar_4000"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nvarchar"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nvarchar_1"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 4000}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nvarchar_4000"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 2147483647}
          (get-in (discover-catalog test-db-config)
                  ["streams" "unicode_character_strings" "schema" "properties" "nvarchar_max"]))))
 
 (deftest ^:integration verify-exact-numerics
-  (is (= {"type" "integer"
+  (is (= {"type" ["integer" "null"]
           "minimum" -2147483648
           "maximum"  2147483647}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "int"])))
-  (is (= {"type" "integer"
+  (is (= {"type" ["integer"]
           "minimum" -9223372036854775808
           "maximum"  9223372036854775807}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "bigint"])))
-  (is (= {"type" "integer"
+  (is (= {"type" ["integer" "null"]
           "minimum" -32768
           "maximum"  32767}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "smallint"])))
-  (is (= {"type" "integer"
+  (is (= {"type" ["integer" "null"]
           "minimum" 0
           "maximum" 255}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "tinyint"])))
-  (is (= {"type" "boolean"}
+  (is (= {"type" ["boolean" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "bit"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "decimal"])))
-  (is (= {"type" "number"}
+  (is (= {"type" ["number" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "exact_numerics" "schema" "properties" "numeric"]))))
 
 (deftest ^:integration verify-character-strings
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "char"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "char_one"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 8000
           "maxLength" 8000}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "char_8000"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "varchar"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "varchar_one"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 8000}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "varchar_8000"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 2147483647}
          (get-in (discover-catalog test-db-config)
                  ["streams" "character_strings" "schema" "properties" "varchar_max"]))))
 
 (deftest ^:integration verify-binary-strings
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "binary"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "binary_one"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "minLength" 10
           "maxLength" 10}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "binary_10"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "varbinary"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "maxLength" 1}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "varbinary_one"])))
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "maxLength" 2147483647}
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "varbinary_max"]))))
@@ -315,7 +315,7 @@
               (#(get-in % ["schema" "properties" "rowversion"]))))))
 
 (deftest ^:integration verify-uniqueidentifiers-are-supported
-  (is (= {"type" "string"
+  (is (= {"type" ["string" "null"]
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
          (get-in (discover-catalog test-db-config)
                  ["streams" "uniqueidentifiers" "schema" "properties" "uniqueidentifier"])))

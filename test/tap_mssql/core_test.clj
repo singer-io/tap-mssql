@@ -3,7 +3,7 @@
             [tap-mssql.core :refer :all]))
 
 (deftest add-int-column-to-catalog
-  (is (= "integer"
+  (is (= ["integer"]
          (let [catalog (add-column nil {:table_name   "theologians"
                                         :table_cat    "test"
                                         :table_schem  "bar"
@@ -23,6 +23,7 @@
                                         {:table_name "unsupported_data_types"
                                          :column_name "rowversion"
                                          :type_name "rowversion"
+                                         :is_nullable "YES"
                                          :unsupported? true}])
         serialized-catalog (catalog->serialized-catalog catalog)]
     (is (= catalog (serialized-catalog->catalog serialized-catalog)))
@@ -64,16 +65,16 @@
         serialized-catalog (catalog->serialized-catalog catalog)]
     (is (= catalog (serialized-catalog->catalog serialized-catalog)))
     ;; Property Validation
-    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog->catalog serialized-catalog)
                    ["streams" "invalid_characters" "schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
-    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog->catalog serialized-catalog)
                    ["streams" "invalid_characters" "schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
-    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (get-serialized-catalog-entry serialized-catalog "invalid_characters")
                    ["schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
-    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (get-serialized-catalog-entry serialized-catalog "invalid_characters")
                    ["schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
     ;; Metadata Validation

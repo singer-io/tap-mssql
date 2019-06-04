@@ -68,15 +68,15 @@
    (as-> (with-out-str
            (do-sync test-db-config catalog {}))
        output
-     (string/split output #"\n")
-     (filter (complement empty?) output)
-     (map json/read-str
-          output)
-     (if table
-       (filter (comp (partial = (name table)) #(% "stream"))
-               output)
-       output)
-     (vec output))))
+       (string/split output #"\n")
+       (filter (complement empty?) output)
+       (map json/read-str
+            output)
+       (if table
+         (filter (comp (partial = (name table)) #(% "stream"))
+                 output)
+         output)
+       (vec output))))
 
 (deftest ^:integration verify-full-table-sync-with-no-tables-selected
   ;; do-sync prints a bunch of stuff and returns an empty state
@@ -108,7 +108,7 @@
               (get-messages-from-output "data_table")
               first)
           "table_name")))
-  (is (= {"type" "string"
+  (is (= {"type" ["string"]
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
@@ -178,7 +178,7 @@
               (get-messages-from-output "data_table")
               first)
           "table_name")))
-  (is (= {"type" "string"
+  (is (= {"type" ["string"]
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
