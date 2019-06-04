@@ -12,10 +12,14 @@ then
 fi
 
 eval "$(aws ecr get-login --no-include-email)"
-docker pull 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
+if [[ $1 != --no-pull ]]
+then
+  docker pull 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
+fi
 
 circleci local execute \
          --job tap_tester \
+         -e "STITCH_TAP_MSSQL_TEST_DATABASE_HOST=${HOSTNAME}" \
          -e "SANDBOX_PASSWORD=$(aws s3 cp s3://com-stitchdata-dev-deployment-assets/circleci/SANDBOX_PASSWORD - | cut -d ' ' -f2)" \
          -e "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
          -e "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \

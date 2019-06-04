@@ -5,21 +5,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
-
-(defn get-test-hostname
-  []
-  (let [hostname (.getHostName (java.net.InetAddress/getLocalHost))]
-    (if (string/starts-with? hostname "taps-")
-      hostname
-      "circleci")))
-
-(def test-db-config
-  {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                  (get-test-hostname))
-   "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
-   "port" "1433"})
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                          test-db-config]]))
 
 (defn get-destroy-database-command
   [database]
@@ -53,41 +40,37 @@
 
 (use-fixtures :each test-db-fixture)
 
-(comment
-  (get-columns test-db-config)
-  )
-
 (deftest ^:integration verify-metadata
   (is (= "automatic"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "id" :inclusion])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "id" "inclusion"])))
   (is (= "int"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "id" :sql-datatype])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "id" "sql-datatype"])))
   (is (= true
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "id" :selected-by-default])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "id" "selected-by-default"])))
   (is (= "available"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "name" :inclusion])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "name" "inclusion"])))
   (is (= "varchar"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "name" :sql-datatype])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "name" "sql-datatype"])))
   (is (= true
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata :properties "name" :selected-by-default])))
+                 ["streams" "table_with_a_primary_key" "metadata" "properties" "name" "selected-by-default"])))
   (is (= "database_for_metadata"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata  :database-name])))
+                 ["streams" "table_with_a_primary_key" "metadata"  "database-name"])))
   (is (= "dbo"
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata  :schema-name])))
+                 ["streams" "table_with_a_primary_key" "metadata"  "schema-name"])))
   (is (= false
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata  :is-view])))
+                 ["streams" "table_with_a_primary_key" "metadata"  "is-view"])))
   (is (= #{"id"}
          (get-in (discover-catalog test-db-config)
-                 [:streams "table_with_a_primary_key" :metadata  :table-key-properties])))
+                 ["streams" "table_with_a_primary_key" "metadata"  "table-key-properties"])))
   (is (= true
          (get-in (discover-catalog test-db-config)
-                 [:streams "view_of_table_with_a_primary_key_id" :metadata :is-view]))))
+                 ["streams" "view_of_table_with_a_primary_key_id" "metadata" "is-view"]))))

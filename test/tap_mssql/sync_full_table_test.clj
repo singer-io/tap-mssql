@@ -6,21 +6,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
-
-(defn get-test-hostname
-  []
-  (let [hostname (.getHostName (java.net.InetAddress/getLocalHost))]
-    (if (string/starts-with? hostname "taps-")
-      hostname
-      "circleci")))
-
-(def test-db-config
-  {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                  (get-test-hostname))
-   "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
-   "port" "1433"})
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                          test-db-config]]))
 
 (defn get-destroy-database-command
   [database]
@@ -81,15 +68,15 @@
    (as-> (with-out-str
            (do-sync test-db-config catalog {}))
        output
-       (string/split output #"\n")
-       (filter (complement empty?) output)
-       (map json/read-str
-            output)
-       (if table
-         (filter (comp (partial = (name table)) #(% "stream"))
-                 output)
-         output)
-       (vec output))))
+     (string/split output #"\n")
+     (filter (complement empty?) output)
+     (map json/read-str
+          output)
+     (if table
+       (filter (comp (partial = (name table)) #(% "stream"))
+               output)
+       output)
+     (vec output))))
 
 (deftest ^:integration verify-full-table-sync-with-no-tables-selected
   ;; do-sync prints a bunch of stuff and returns an empty state
@@ -98,11 +85,11 @@
 
 (defn select-stream
   [catalog stream-name]
-  (assoc-in catalog [:streams stream-name :metadata :selected] true))
+  (assoc-in catalog ["streams" stream-name "metadata" "selected"] true))
 
 (defn deselect-field
   [catalog stream-name field-name]
-  (assoc-in catalog [:streams stream-name :metadata :properties field-name :selected] false))
+  (assoc-in catalog ["streams" stream-name "metadata" "properties" field-name "selected"] false))
 
 (deftest ^:integration verify-full-table-sync-with-one-table-selected
   ;; This also verifies selected-by-default
@@ -155,10 +142,10 @@
   (is (every? #(get-in % ["record" "value"])
               (as-> (discover-catalog test-db-config)
                   x
-                  (select-stream x "data_table")
-                  (get-messages-from-output x nil)
-                  (drop 1 x)
-                  (take 1000 x))))
+                (select-stream x "data_table")
+                (get-messages-from-output x nil)
+                (drop 1 x)
+                (take 1000 x))))
   (is (every? #(contains? (% "record") "deselected_value")
               (as-> (discover-catalog test-db-config)
                   x
