@@ -5,21 +5,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
-
-(defn get-test-hostname
-  []
-  (let [hostname (.getHostName (java.net.InetAddress/getLocalHost))]
-    (if (string/starts-with? hostname "taps-")
-      hostname
-      "circleci")))
-
-(def test-db-config
-  {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                  (get-test-hostname))
-   "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
-   "port" "1433"})
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                          test-db-config]]))
 
 (defn get-destroy-database-command
   [database]
@@ -57,9 +44,9 @@
 (use-fixtures :each test-db-fixture)
 
 (deftest ^:integration verify-populated-catalog
-  (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
+  (is (let [stream-names (set (map #(get % "stream") (vals ((discover-catalog test-db-config) "streams"))))]
         (stream-names "empty_table")))
-  (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
+  (is (let [stream-names (set (map #(get % "stream") (vals ((discover-catalog test-db-config) "streams"))))]
         (stream-names "empty_table_ids")))
-  (is (let [stream-names (set (map :stream (vals (:streams (discover-catalog test-db-config)))))]
+  (is (let [stream-names (set (map #(get % "stream") (vals ((discover-catalog test-db-config) "streams"))))]
         (stream-names "another_empty_table"))))

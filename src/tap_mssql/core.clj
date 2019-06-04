@@ -11,10 +11,10 @@
 
 
 ;;; Note: This is different than the serialized form of the the catalog.
-;;; The catalog serialized is :streams → [stream1 … streamN]. This will be
-;;; :streams → :streamName → stream definition and will be serialized like
-;;; {:streams (vals (:streams catalog))}.
-(def empty-catalog {:streams {}})
+;;; The catalog serialized is "streams" → [stream1 … streamN]. This will be
+;;; "streams" → :streamName → stream definition and will be serialized like
+;;; {"streams" (vals (get catalog "streams"))}.
+(def empty-catalog {"streams" {}})
 
 (defn config->conn-map*
   [config]
@@ -79,61 +79,61 @@
 
 (defn column->catalog-entry
   [column]
-  {:stream (:table_name column)
-   :tap_stream_id (format "%s-%s-%s"
-                          (:table_cat column)
-                          (:table_schem column)
-                          (:table_name column))
-   :table_name (:table_name column)
-   :schema {:type "object"}
-   :metadata {:database-name (:table_cat column)
-              :schema-name (:table_schem column)
-              :table-key-properties #{}
-              :is-view (:is-view? column)}})
+  {"stream"        (:table_name column)
+   "tap_stream_id" (format "%s-%s-%s"
+                           (:table_cat column)
+                           (:table_schem column)
+                           (:table_name column))
+   "table_name"    (:table_name column)
+   "schema"        {"type" "object"}
+   "metadata"      {"database-name"        (:table_cat column)
+                    "schema-name"          (:table_schem column)
+                    "table-key-properties" #{}
+                    "is-view"              (:is-view? column)}})
 
 (defn column->schema
   [{:keys [type_name] :as column}]
-  ({"int"              {:type    "integer"
-                        :minimum -2147483648
-                        :maximum 2147483647}
-    "bigint"           {:type    "integer"
-                        :minimum -9223372036854775808
-                        :maximum 9223372036854775807}
-    "smallint"         {:type    "integer"
-                        :minimum -32768
-                        :maximum 32767}
-    "tinyint"          {:type    "integer"
-                        :minimum 0
-                        :maximum 255}
-    "float"            {:type "number"}
-    "real"             {:type "number"}
-    "bit"              {:type "boolean"}
-    "decimal"          {:type "number"}
-    "numeric"          {:type "number"}
-    "date"             {:type   "string"
-                        :format "date-time"}
-    "time"             {:type   "string"
-                        :format "date-time"}
-    "datetime"         {:type   "string"
-                        :format "date-time"}
-    "char"             {:type      "string"
-                        :minLength (:column_size column)
-                        :maxLength (:column_size column)}
-    "nchar"            {:type      "string"
-                        :minLength (:column_size column)
-                        :maxLength (:column_size column)}
-    "varchar"          {:type      "string"
-                        :minLength 0
-                        :maxLength (:column_size column)}
-    "nvarchar"         {:type      "string"
-                        :minLength 0
-                        :maxLength (:column_size column)}
-    "binary"           {:type      "string"
-                        :minLength (:column_size column)
-                        :maxLength (:column_size column)}
-    "varbinary"        {:type      "string"
-                        :maxLength (:column_size column)}
-    "uniqueidentifier" {:type    "string"
+  ({"int"              {"type"    "integer"
+                        "minimum" -2147483648
+                        "maximum" 2147483647}
+    "bigint"           {"type"    "integer"
+                        "minimum" -9223372036854775808
+                        "maximum" 9223372036854775807}
+    "smallint"         {"type"    "integer"
+                        "minimum" -32768
+                        "maximum" 32767}
+    "tinyint"          {"type"    "integer"
+                        "minimum" 0
+                        "maximum" 255}
+    "float"            {"type" "number"}
+    "real"             {"type" "number"}
+    "bit"              {"type" "boolean"}
+    "decimal"          {"type" "number"}
+    "numeric"          {"type" "number"}
+    "date"             {"type"   "string"
+                        "format" "date-time"}
+    "time"             {"type"   "string"
+                        "format" "date-time"}
+    "datetime"         {"type"   "string"
+                        "format" "date-time"}
+    "char"             {"type"      "string"
+                        "minLength" (:column_size column)
+                        "maxLength" (:column_size column)}
+    "nchar"            {"type"      "string"
+                        "minLength" (:column_size column)
+                        "maxLength" (:column_size column)}
+    "varchar"          {"type"      "string"
+                        "minLength" 0
+                        "maxLength" (:column_size column)}
+    "nvarchar"         {"type"      "string"
+                        "minLength" 0
+                        "maxLength" (:column_size column)}
+    "binary"           {"type"      "string"
+                        "minLength" (:column_size column)
+                        "maxLength" (:column_size column)}
+    "varbinary"        {"type"      "string"
+                        "maxLength" (:column_size column)}
+    "uniqueidentifier" {"type"    "string"
                         ;; a string constant in the form
                         ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
                         ;; each x is a hexadecimal digit in the range 0-9
@@ -142,12 +142,12 @@
                         ;; uniqueidentifier value.
                         ;;
                         ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
-                        :pattern "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}}
+                        "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}}
    type_name))
 
 (defn add-column-schema-to-catalog-stream-schema
   [catalog-stream-schema column]
-  (update-in catalog-stream-schema [:properties (:column_name column)]
+  (update-in catalog-stream-schema ["properties" (:column_name column)]
              merge
              (column->schema column)))
 
@@ -165,36 +165,36 @@
 
 (defn column->metadata
   [column]
-  {:inclusion           (if (:unsupported? column)
-                          "unsupported"
-                          (if (:primary-key? column)
-                            "automatic"
-                            "available"))
-   :sql-datatype        (:type_name column)
-   :selected-by-default (not (:unsupported? column))})
+  {"inclusion"           (if (:unsupported? column)
+                           "unsupported"
+                           (if (:primary-key? column)
+                             "automatic"
+                             "available"))
+   "sql-datatype"        (:type_name column)
+   "selected-by-default" (not (:unsupported? column))})
 
 (defn add-column-schema-to-catalog-stream-metadata
   [catalog-stream-metadata column]
-  (update-in catalog-stream-metadata [:properties (:column_name column)]
+  (update-in catalog-stream-metadata ["properties" (:column_name column)]
              merge
              (column->metadata column)))
 
 (defn add-column-to-primary-keys
   [catalog-stream column]
   (if (:primary-key? column)
-    (update-in catalog-stream [:metadata :table-key-properties] conj (:column_name column))
+    (update-in catalog-stream ["metadata" "table-key-properties"] conj (:column_name column))
     catalog-stream))
 
 (defn add-column-to-stream
   [catalog-stream column]
   (-> (or catalog-stream (column->catalog-entry column))
       (add-column-to-primary-keys column)
-      (update :schema add-column-schema-to-catalog-stream-schema column)
-      (update :metadata add-column-schema-to-catalog-stream-metadata column)))
+      (update "schema" add-column-schema-to-catalog-stream-schema column)
+      (update "metadata" add-column-schema-to-catalog-stream-metadata column)))
 
 (defn add-column
   [catalog column]
-  (update-in catalog [:streams (:table_name column)]
+  (update-in catalog ["streams" (:table_name column)]
              add-column-to-stream
              column))
 
@@ -266,23 +266,23 @@
 
 (defn serialize-stream-metadata-property
   [[stream-metadata-property-name stream-metadata-property-metadata :as stream-metadata-property]]
-  {:metadata stream-metadata-property-metadata
-   :breadcrumb [:properties stream-metadata-property-name]})
+  {"metadata" stream-metadata-property-metadata
+   "breadcrumb" ["properties" stream-metadata-property-name]})
 
 (defn serialize-stream-metadata-properties
   [stream-metadata-properties]
-  (let [properties (:properties stream-metadata-properties)]
-    (concat [{:metadata (dissoc stream-metadata-properties :properties)
-              :breadcrumb []}]
+  (let [properties (stream-metadata-properties "properties")]
+    (concat [{"metadata" (dissoc stream-metadata-properties "properties")
+              "breadcrumb" []}]
             (map serialize-stream-metadata-property properties))))
 
 (defn serialize-stream-metadata
   [{:keys [metadata] :as stream}]
-  (update stream :metadata serialize-stream-metadata-properties))
+  (update stream "metadata" serialize-stream-metadata-properties))
 
 (defn serialize-metadata
   [catalog]
-  (update catalog :streams (partial map serialize-stream-metadata)))
+  (update catalog "streams" (partial map serialize-stream-metadata)))
 
 (defn serialize-stream-schema-property
   [[k v]]
@@ -298,23 +298,24 @@
 (defn serialize-stream-schema
   [stream-schema]
   (update stream-schema
-          :properties
+          "properties"
           serialize-stream-schema-properties))
 
 (defn serialize-stream
   [stream-catalog-entry]
-  (update stream-catalog-entry :schema
+  (update stream-catalog-entry "schema"
           serialize-stream-schema))
 
 (defn serialize-streams
   [catalog]
   (update catalog
-          :streams
+          "streams"
           (comp (partial map serialize-stream)
                 vals)))
 
 (defn catalog->serialized-catalog
   [catalog]
+  (def catalog catalog)
   (-> catalog
       serialize-streams
       serialize-metadata))
@@ -328,16 +329,16 @@
 
 (defn message-valid?
   [message]
-  (and (#{:SCHEMA :STATE :RECORD} (:type message))
-       (case (:type message)
-         :SCHEMA
-         (:schema message)
+  (and (#{"SCHEMA" "STATE" "RECORD"} (message "type"))
+       (case (message "type")
+         "SCHEMA"
+         (message "schema")
 
-         :STATE
-         (:value message)
+         "STATE"
+         (message "value")
 
-         :RECORD
-         (:record message))))
+         "RECORD"
+         (message "record"))))
 
 (defn write-message!
   [message]
@@ -347,42 +348,42 @@
       println))
 
 (defn write-schema! [catalog stream-name]
-  (let [schema-message (assoc (get-in catalog [:streams stream-name])
-                              :type :SCHEMA)]
+  (let [schema-message (assoc (get-in catalog ["streams" stream-name])
+                              "type" "SCHEMA")]
     (write-message! schema-message)))
 
 (defn write-state!
   [stream-name state]
-  (write-message! {:type :STATE
-                   :stream stream-name
-                   :value state})
+  (write-message! {"type" "STATE"
+                   "stream" stream-name
+                   "value" state})
   ;; This is very important. This function needs to return state so that
   ;; the outer reduce can pass it in to the next iteration.
   state)
 
 (defn write-record!
   [stream-name record]
-  (write-message! {:type :RECORD
-                   :stream stream-name
-                   :record record}))
+  (write-message! {"type" "RECORD"
+                   "stream" stream-name
+                   "record" record}))
 
 (defn selected-field?
   [[field-name field-metadata]]
-  (or (:selected field-metadata)
-      (and (:selected-by-default field-metadata)
-           (not (contains? field-metadata :selected)))))
+  (or (field-metadata "selected")
+      (and (field-metadata "selected-by-default")
+           (not (contains? field-metadata "selected")))))
 
 (defn get-selected-fields
   [catalog stream-name]
   (let [metadata-properties
-        (get-in catalog [:streams stream-name :metadata :properties])
+        (get-in catalog ["streams" stream-name "metadata" "properties"])
         selected-fields (filter selected-field? metadata-properties)
-        selected-field-names (map first selected-fields)]
+        selected-field-names (map (comp name first) selected-fields)]
     selected-field-names))
 
 (defn write-records-and-states!
   [config catalog state stream-name]
-  (let [dbname (get-in catalog [:streams stream-name :metadata :database-name])
+  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys (get-selected-fields catalog stream-name)
         last-state
         (reduce (fn [acc result]
@@ -406,7 +407,7 @@
   (write-records-and-states! config catalog state stream-name))
 
 (defn selected? [catalog stream-name]
-  (get-in catalog [:streams stream-name :metadata :selected]))
+  (get-in catalog ["streams" stream-name "metadata" "selected"]))
 
 (defn valid-state?
   [state]
@@ -428,9 +429,9 @@
   ;; Sync streams, no selection (e.g., maybe-sync-stream)
   (reduce (partial maybe-sync-stream! config catalog)
           state
-          (->> (:streams catalog)
+          (->> (catalog "streams")
                vals
-               (map :stream))))
+               (map #(get % "stream")))))
 
 (defn repl-arg-passed?
   [args]
@@ -470,20 +471,20 @@
             (reduce (fn [entry-metadata [k v]]
                       (assoc-in
                        entry-metadata
-                       (conj (:breadcrumb serialized-metadata-entry) k)
+                       (conj (serialized-metadata-entry "breadcrumb") k)
                        v))
                     metadata
-                    (:metadata serialized-metadata-entry)))
+                    (serialized-metadata-entry "metadata")))
           {}
           serialized-stream-metadata))
 
 (defn get-unsupported-breadcrumbs
   [stream-schema-metadata]
-  (->> (:properties stream-schema-metadata)
+  (->> (stream-schema-metadata "properties")
        (filter (fn [[k v]]
-                 (= "unsupported" (:inclusion v))))
+                 (= "unsupported" (v "inclusion"))))
        (map (fn [[k _]]
-              [:properties k]))))
+              ["properties" k]))))
 
 (defn deserialize-stream-schema
   [serialized-stream-schema stream-schema-metadata]
@@ -495,20 +496,21 @@
 
 (defn deserialize-stream
   [serialized-stream]
+  {:pre [(map? serialized-stream)]}
   (as-> serialized-stream ss
-    (update ss :metadata deserialize-stream-metadata)
-    (update ss :schema deserialize-stream-schema (:metadata ss))))
+    (update ss "metadata" deserialize-stream-metadata)
+    (update ss "schema" deserialize-stream-schema (ss "metadata"))))
 
 (defn deserialize-streams
   [serialized-streams]
   (reduce (fn [streams deserialized-stream]
-            (assoc streams (:stream deserialized-stream) deserialized-stream))
+            (assoc streams (deserialized-stream "stream") deserialized-stream))
           {}
           (map deserialize-stream serialized-streams)))
 
 (defn serialized-catalog->catalog
   [serialized-catalog]
-  (update serialized-catalog :streams deserialize-streams))
+  (update serialized-catalog "streams" deserialize-streams))
 
 (defn slurp-json
   [f]

@@ -5,21 +5,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null]]))
-
-(defn get-test-hostname
-  []
-  (let [hostname (.getHostName (java.net.InetAddress/getLocalHost))]
-    (if (string/starts-with? hostname "taps-")
-      hostname
-      "circleci")))
-
-(def test-db-config
-  {"host" (format "%s-test-mssql-2017.db.test.stitchdata.com"
-                  (get-test-hostname))
-   "user" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
-   "port" "1433"})
+            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                          test-db-config]]))
 
 (defn get-destroy-database-command
   [database]
@@ -48,7 +35,8 @@
                            SELECT id FROM empty_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "another_database_with_a_table")
                          [(jdbc/create-table-ddl "another_empty_table" [[:id "int"]])])
-    (jdbc/db-do-commands (assoc db-spec :dbname "datatyping") ;; This is scopethe command within the database, e.g USE MY_DB;
+    ;; assoc-ing dbname into the db-spec is equivalent to USE MY_DB;
+    (jdbc/db-do-commands (assoc db-spec :dbname "datatyping")
                          [(jdbc/create-table-ddl :exact_numerics
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#exact-numerics
                                                  [[:bigint "bigint"]
@@ -123,13 +111,13 @@
 
 (deftest ^:integration verify-database-config-limits-catalog
   (let [specific-db-config (assoc test-db-config "database" "empty_database")]
-    (is (= {:streams {}}
+    (is (= {"streams" {}}
            (discover-catalog specific-db-config))))
   (is (= ["datatyping"]
          (let [specific-db-config (assoc test-db-config "database" "datatyping")]
-           (->> (:streams (discover-catalog specific-db-config))
+           (->> ((discover-catalog specific-db-config) "streams")
                 (map (fn [[stream-name catalog-entry]]
-                       (get-in catalog-entry [:metadata :database-name])))
+                       (get-in catalog-entry ["metadata" "database-name"])))
                 distinct)))))
 
 (deftest ^:integration verify-full-catalog
@@ -142,7 +130,7 @@
                                 "date_and_time"
                                 "exact_numerics"
                                 "unicode_character_strings"}
-        discovered-streams (:streams (discover-catalog test-db-config))]
+        discovered-streams ((discover-catalog test-db-config) "streams")]
     (dorun
      (for [stream-name (keys discovered-streams)]
        (is (expected-stream-names stream-name))))))
@@ -202,8 +190,7 @@
                                 "date_and_time"
                                 "exact_numerics"
                                 "unicode_character_strings"}
-        discovered-streams (:streams (discover-catalog ssl-config))]
+        discovered-streams ((discover-catalog ssl-config) "streams")]
     (dorun
      (for [expected-stream-name expected-stream-names]
        (is (contains? discovered-streams expected-stream-name))))))
-

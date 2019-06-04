@@ -3,180 +3,94 @@
             [tap-mssql.core :refer :all]))
 
 (deftest add-int-column-to-catalog
-  (is (= {:streams
-          {"theologians"
-           {:stream        "theologians"
-            :tap_stream_id "test-bar-theologians"
-            :table_name    "theologians"
-            :schema        {:type       "object"
-                            :properties {"name"          {:type    "integer"
-                                                          :minimum -2147483648
-                                                          :maximum 2147483647}
-                                         "year_of_death" {:type    "integer"
-                                                          :minimum -2147483648
-                                                          :maximum 2147483647}}}
-            :metadata      {:database-name        "test",
-                            :schema-name          "bar",
-                            :table-key-properties #{},
-                            :is-view              false,
-                            :properties
-                            {"name"
-                             {:inclusion           "available",
-                              :sql-datatype        "int",
-                              :selected-by-default true},
-                             "year_of_death"
-                             {:inclusion           "available",
-                              :sql-datatype        "int",
-                              :selected-by-default true}}}}
-           "revivalists"
-           {:stream        "revivalists"
-            :tap_stream_id "test-bar-revivalists"
-            :table_name    "revivalists"
-            :schema        {:type       "object"
-                            :properties {"name"          {:type    "integer"
-                                                          :minimum -2147483648
-                                                          :maximum 2147483647}
-                                         "year_of_death" {:type    "integer"
-                                                          :minimum -2147483648
-                                                          :maximum 2147483647}}}
-            :metadata      {:database-name        "test",
-                            :schema-name          "bar",
-                            :table-key-properties #{},
-                            :is-view              false,
-                            :properties
-                            {"name"
-                             {:inclusion           "available",
-                              :sql-datatype        "int",
-                              :selected-by-default true},
-                             "year_of_death"
-                             {:inclusion           "available",
-                              :sql-datatype        "int",
-                              :selected-by-default true}}}}}}
-         (reduce add-column nil [{:table_name   "theologians"
-                                  :table_cat    "test"
-                                  :table_schem  "bar"
-                                  :column_name  "name"
-                                  :type_name    "int"
-                                  :primary-key? false
-                                  :is-view?     false}
-                                 {:table_name   "theologians"
-                                  :table_cat    "test"
-                                  :table_schem  "bar"
-                                  :column_name  "year_of_death"
-                                  :type_name    "int"
-                                  :primary-key? false
-                                  :is-view?     false}
-                                 {:table_name   "revivalists"
-                                  :table_cat    "test"
-                                  :table_schem  "bar"
-                                  :column_name  "name"
-                                  :type_name    "int"
-                                  :primary-key? false
-                                  :is-view?     false}
-                                 {:table_name   "revivalists"
-                                  :table_cat    "test"
-                                  :table_schem  "bar"
-                                  :column_name  "year_of_death"
-                                  :type_name    "int"
-                                  :primary-key? false
-                                  :is-view?     false}]))))
+  (is (= "integer"
+         (let [catalog (add-column nil {:table_name   "theologians"
+                                        :table_cat    "test"
+                                        :table_schem  "bar"
+                                        :column_name  "name"
+                                        :type_name    "int"
+                                        :primary-key? false
+                                        :is-view?     false})]
+           (get-in catalog
+                   ["streams" "theologians" "schema" "properties" "name" "type"])))))
 
 (deftest catalog->serialized-catalog-test
-  (let [expected-catalog
-        {:streams [{:stream        "theologians"
-                    :tap_stream_id "theologians"
-                    :table_name    "theologians"
-                    :schema        {:type       "object"
-                                    :properties {"name"          {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}
-                                                 "year_of_death" {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}}}
-                    :metadata      [{:metadata   {:database-name        "foo"
-                                                  :schema-name          "bar"
-                                                  :table-key-properties #{}
-                                                  :is-view              false}
-                                     :breadcrumb []}
-                                    {:metadata   {:inclusion           "available"
-                                                  :selected-by-default true
-                                                  :sql-datatype        "int"}
-                                     :breadcrumb [:properties "name"]}
-                                    {:metadata   {:inclusion           "available"
-                                                  :selected-by-default true
-                                                  :sql-datatype        "int"}
-                                     :breadcrumb [:properties "year_of_death"]}]}
-                   {:stream        "revivalists"
-                    :tap_stream_id "revivalists"
-                    :table_name    "revivalists"
-                    :schema        {:type       "object"
-                                    :properties {"name"          {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}
-                                                 "year_of_death" {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}}}
-                    :metadata      [{:metadata   {:database-name        "foo"
-                                                  :schema-name          "bar"
-                                                  :table-key-properties #{}
-                                                  :is-view              false}
-                                     :breadcrumb []}
-                                    {:metadata   {:inclusion           "available"
-                                                  :selected-by-default true
-                                                  :sql-datatype        "int"}
-                                     :breadcrumb [:properties "name"]}
-                                    {:metadata   {:inclusion           "available"
-                                                  :selected-by-default true
-                                                  :sql-datatype        "int"}
-                                     :breadcrumb [:properties "year_of_death"]}]}]}]
-    (is (= expected-catalog
-           (let [catalog
-                 {:streams
-                  {"theologians"
-                   {:stream        "theologians"
-                    :tap_stream_id "theologians"
-                    :table_name    "theologians"
-                    :schema        {:type       "object"
-                                    :properties {"name"          {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}
-                                                 "year_of_death" {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}}}
-                    :metadata      {:database-name        "foo"
-                                    :schema-name          "bar"
-                                    :table-key-properties #{}
-                                    :is-view              false
-                                    :properties
-                                    {"name"          {:inclusion           "available"
-                                                      :selected-by-default true
-                                                      :sql-datatype        "int"}
-                                     "year_of_death" {:inclusion           "available"
-                                                      :selected-by-default true
-                                                      :sql-datatype        "int"}}}}
-                   "revivalists"
-                   {:stream        "revivalists"
-                    :tap_stream_id "revivalists"
-                    :table_name    "revivalists"
-                    :schema        {:type       "object"
-                                    :properties {"name"          {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}
-                                                 "year_of_death" {:type    "integer"
-                                                                  :minimum -2147483648
-                                                                  :maximum 2147483647}}}
-                    :metadata      {:database-name        "foo"
-                                    :schema-name          "bar"
-                                    :table-key-properties #{}
-                                    :is-view              false
-                                    :properties
-                                    {"name"          {:inclusion           "available"
-                                                      :selected-by-default true
-                                                      :sql-datatype        "int"}
-                                     "year_of_death" {:inclusion           "available"
-                                                      :selected-by-default true
-                                                      :sql-datatype        "int"}}}}}}]
-             (catalog->serialized-catalog catalog))))))
+  (let [catalog (reduce add-column nil [{:table_name "catalog_test"
+                                         :column_name "id"
+                                         :type_name "int"
+                                         :primary-key? false
+                                         :is-view? false}
+                                        {:table_name "unsupported_data_types"
+                                         :column_name "rowversion"
+                                         :type_name "rowversion"
+                                         :unsupported? true}])
+        serialized-catalog (catalog->serialized-catalog catalog)]
+    (is (= catalog (serialized-catalog->catalog serialized-catalog)))
+    ;; Specific Structure
+    (is (map? (catalog "streams")))
+    (is (every? (comp map? #(get % "metadata")) (vals (catalog "streams"))))
+    (is (sequential? (serialized-catalog "streams")))
+    (is (every? (comp sequential? #(get % "metadata")) (serialized-catalog "streams")))
+    ;; Unsupported Type Replacement
+    (is (nil? (get-in (serialized-catalog->catalog serialized-catalog)
+                      ["streams" "unsupported_data_types" "schema" "properties" "rowversion"])))
+    (is (= {} (get-in (first (filter (comp (partial = "unsupported_data_types")
+                                           #(get % "stream"))
+                                     (serialized-catalog "streams")))
+                      ["schema" "properties" "rowversion"])))))
+
+(defn get-serialized-catalog-entry [serialized-catalog stream-name]
+  (first (filter (comp (partial = stream-name)
+                       #(get % "stream"))
+                 (serialized-catalog "streams"))))
+
+(defn get-serialized-catalog-metadata-for-breadcrumb
+  [serialized-catalog-entry breadcrumb]
+  ((first
+    (filter (comp (partial = breadcrumb)
+                  #(get % "breadcrumb"))
+            (serialized-catalog-entry "metadata")))
+   "metadata"))
+
+(deftest catalog->serialized-catalog-invalid-characters-test
+  (let [catalog (reduce add-column nil [{:table_name "invalid_characters"
+                                         :column_name "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+                                         :type_name "int"
+                                         :primary-key? false
+                                         :is-view? false}
+                                        {:table_name "invalid_characters"
+                                         :column_name "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"
+                                         :type_name "int"}])
+        serialized-catalog (catalog->serialized-catalog catalog)]
+    (is (= catalog (serialized-catalog->catalog serialized-catalog)))
+    ;; Property Validation
+    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+           (get-in (serialized-catalog->catalog serialized-catalog)
+                   ["streams" "invalid_characters" "schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+           (get-in (serialized-catalog->catalog serialized-catalog)
+                   ["streams" "invalid_characters" "schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
+    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+           (get-in (get-serialized-catalog-entry serialized-catalog "invalid_characters")
+                   ["schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+    (is (= {"type" "integer", "minimum" -2147483648, "maximum" 2147483647}
+           (get-in (get-serialized-catalog-entry serialized-catalog "invalid_characters")
+                   ["schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
+    ;; Metadata Validation
+    (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
+           (get-in (serialized-catalog->catalog serialized-catalog)
+                   ["streams" "invalid_characters" "metadata" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+    (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
+           (get-in (serialized-catalog->catalog serialized-catalog)
+                   ["streams" "invalid_characters" "metadata" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
+    (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
+           (get-serialized-catalog-metadata-for-breadcrumb
+            (get-serialized-catalog-entry serialized-catalog "invalid_characters")
+            ["properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+    (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
+           (get-serialized-catalog-metadata-for-breadcrumb
+            (get-serialized-catalog-entry serialized-catalog "invalid_characters")
+            ["properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))))
 
 (deftest verify-extra-arguments-does-not-throw
   (is (parse-opts ["--properties" "foo"])))
