@@ -53,6 +53,7 @@ else
   identifier="$HOSTNAME-test-mssql-2017"
 fi
 stable_dns_name="${identifier}.db.test.stitchdata.com"
+source /etc/default/tap-mssql
 master_username=$STITCH_TAP_MSSQL_TEST_DATABASE_USER
 master_password=$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD
 
@@ -92,6 +93,103 @@ instance_status() {
   describe_instance full | jq -r '.DBInstanceStatus'
 }
 
+create_test_instance() {
+  local instance_identifier=$1
+  printf 'instance_identifier: %s\n' "$instance_identifier"
+  source <(jq -r '."'"$instance_identifier"'".properties
+                    | to_entries[]
+                    | "export \(.key)=\(.value)"' \
+                      bin/testing-resources.json)
+  
+  printf 'Args: %s\n' "$engine" "$engine_version"
+
+#   if test_db_not_online
+#   then
+#     # Create instance if it's not already created
+#     if ! describe_instance >/dev/null
+#     then
+#       logf "Creating db instance %s" "$identifier"
+#       if ! aws --region us-east-1 \
+#            rds create-db-instance \
+#            --vpc-security-group-ids sg-089b5962b0c44592f \
+#            --db-instance-identifier "$identifier" \
+#            --db-instance-class db.m4.large \
+#            --engine sqlserver-se \
+#            --allocated-storage 100 \
+#            --master-username "$master_username" \
+#            --master-user-password "$master_password" \
+#            --backup-retention-period 0 \
+#            --no-auto-minor-version-upgrade \
+#            --license-model license-included
+#       then
+#         errorf  "Failed to initiate creation of %s" "$identifier"
+#       fi
+#     fi
+#     # Wait for instance to be online
+#     while test_db_not_online
+#     do
+#       infof "Waiting for db instance to come up for %s seconds (current status: %s)" \
+#             "$SECONDS" \
+#             "$(instance_status)"
+#       sleep 30
+#     done
+#   fi
+
+#   # Upsert route53 entry
+#   actual_dns_name=$(describe_instance | jq -r '.address')
+#   change_batch='
+# {
+#   "Comment": "'"$identifier"' deployment '"$(date -u)"'"
+# ,
+#   "Changes": [
+#     {
+#       "Action": "UPSERT",
+#       "ResourceRecordSet": {
+#         "Name": "'"$stable_dns_name"'",
+#         "Type": "CNAME",
+#         "TTL": 300,
+#         "ResourceRecords": [
+#           {
+#             "Value": "'"$actual_dns_name"'"
+#           }
+#         ]
+#       }
+#     }
+#   ]
+# }
+# '
+#   if ! aws route53 change-resource-record-sets \
+#        --hosted-zone-id '/hostedzone/ZENICS0BKW1AD' \
+#        --change-batch "$change_batch"
+#   then
+#     errorf 'Failed to create DNS entry: %s' "$stable_dns_name"
+#   fi
+
+#   wait_time=600
+#   SECONDS=0
+#   while ! nslookup "$stable_dns_name" 8.8.8.8 \
+#       | grep -q -F -- 'canonical name ='
+#   do
+#     echo "Waiting for DNS cutover to take effect for ${SECONDS}s"
+#     sleep 30
+#     if (( wait_time < SECONDS ))
+#     then
+#       errorf 'DNS cutover failed to take effect in %d seconds.' "$SECONDS"
+#     fi
+#   done
+
+#   infof 'DB instance %s created' "$identifier"
+#   describe_instance
+}
+
+do_create() {
+  local instance_identifier
+  while read -r instance_identifier
+  do
+    create_test_instance "$instance_identifier"
+  done < <(jq -r 'keys[]' bin/testing-resources.json)
+}
+
 case $command in
   destroy)
     if describe_instance >/dev/null
@@ -118,83 +216,7 @@ case $command in
     fi
     ;;
   create)
-    if test_db_not_online
-    then
-      # Create instance if it's not already created
-      if ! describe_instance >/dev/null
-      then
-        logf "Creating db instance %s" "$identifier"
-        if ! aws --region us-east-1 \
-             rds create-db-instance \
-             --vpc-security-group-ids sg-089b5962b0c44592f \
-             --db-instance-identifier "$identifier" \
-             --db-instance-class db.m4.large \
-             --engine sqlserver-se \
-             --allocated-storage 100 \
-             --master-username "$master_username" \
-             --master-user-password "$master_password" \
-             --backup-retention-period 0 \
-             --no-auto-minor-version-upgrade \
-             --license-model license-included
-        then
-          errorf  "Failed to initiate creation of %s" "$identifier"
-        fi
-      fi
-      # Wait for instance to be online
-      while test_db_not_online
-      do
-        infof "Waiting for db instance to come up for %s seconds (current status: %s)" \
-              "$SECONDS" \
-              "$(instance_status)"
-        sleep 30
-      done
-    fi
-
-    # Upsert route53 entry
-    actual_dns_name=$(describe_instance | jq -r '.address')
-    change_batch='
-{
-  "Comment": "'"$identifier"' deployment '"$(date -u)"'"
-,
-  "Changes": [
-    {
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "'"$stable_dns_name"'",
-        "Type": "CNAME",
-        "TTL": 300,
-        "ResourceRecords": [
-          {
-            "Value": "'"$actual_dns_name"'"
-          }
-        ]
-      }
-    }
-  ]
-}
-'
-    if ! aws route53 change-resource-record-sets \
-         --hosted-zone-id '/hostedzone/ZENICS0BKW1AD' \
-         --change-batch "$change_batch"
-    then
-      errorf 'Failed to create DNS entry: %s' "$stable_dns_name"
-    fi
-
-    wait_time=600
-    SECONDS=0
-    while ! nslookup "$stable_dns_name" 8.8.8.8 \
-            | grep -q -F -- 'canonical name ='
-    do
-      echo "Waiting for DNS cutover to take effect for ${SECONDS}s"
-      sleep 30
-      if (( wait_time < SECONDS ))
-      then
-        errorf 'DNS cutover failed to take effect in %d seconds.' "$SECONDS"
-      fi
-    done
-
-    infof 'DB instance %s created' "$identifier"
-    describe_instance
+    do_create
     ;;
   describe)
     infof 'Describing instance %s' "$identifier"
