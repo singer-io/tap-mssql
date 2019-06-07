@@ -387,8 +387,12 @@
 
 (defn write-records-and-states!
   [config catalog state stream-name]
-  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        record-keys (get-selected-fields catalog stream-name)
+  (let [dbname
+        (get-in catalog ["streams" stream-name "metadata" "database-name"])
+
+        record-keys
+        (get-selected-fields catalog stream-name)
+
         last-state
         (reduce (fn [acc result]
                   (write-record! stream-name (select-keys result record-keys))
