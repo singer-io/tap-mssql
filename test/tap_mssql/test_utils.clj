@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
+            [clojure.data.json :as json]
             [clojure.test :refer [deftest]]))
 
 (defmacro with-out-and-err-to-dev-null
@@ -27,18 +28,6 @@
           (or (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_HOST")
               "circleci"))))
 
-;; Need some kind of definition like 2017-test-db-config and
-;; 2014-test-db-config which are dynamically created from the descriptins.
-;;
-;; That's actually nice because to create a test that runs against all of
-;; them can be done with a simple mapping over a vector of configs and a
-;; test that should run against a specific one can just reference it by
-;; name.
-;;
-;; Or maybe the answer is to just read in the configs and patch them with
-;; the needed creds and such so that they're in a a map exactly as they
-;; already are in the testing-resources.json file.
-
 (def test-db-config
   {"host"     (format "%s-test-mssql-2017.db.test.stitchdata.com"
                       (get-test-hostname))
@@ -46,12 +35,9 @@
    "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
    "port"     "1433"})
 
-(comment
-  (:testing-resource-name (meta (first test-db-configs)))
-  (intern *ns* (symbol (str "test-db-config-" "name")))
-  )
-
 (def test-db-configs
+  "Maps over `bin/testing-resources.json` and creates a list of tap config
+  objects based on its contents."
   (let [testing-resources
         (-> "bin/testing-resources.json"
             io/reader
