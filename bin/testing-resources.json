@@ -1,0 +1,18 @@
+[
+  {
+    "name": "2017",
+    "provider": "aws",
+    "properties": {
+      "engine": "sqlserver-se",
+      "engine_version": "14.00.3049.1.v1"
+    }
+  },
+  {
+    "name": "2014",
+    "provider": "aws",
+    "properties": {
+      "engine": "sqlserver-se",
+      "engine_version": "12.00.5546.0.v1"
+    }
+  }
+]
