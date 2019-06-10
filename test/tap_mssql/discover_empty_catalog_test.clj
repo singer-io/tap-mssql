@@ -27,7 +27,7 @@
 
 (defn create-test-db
   []
-  (let [test-db-config *test-db-config*
+  (let [test-db-config (or *test-db-config* test-db-config)
         db-spec (config->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
 
@@ -36,10 +36,6 @@
     (maybe-destroy-test-db)
     (create-test-db)
     (f)))
-
-#_(def-matrix-tests verify-mssql-version test-db-configs test-db-fixture
-  (is (nil? (do-discovery *test-db-config*))
-      "Discovery ran succesfully and did not throw an exception"))
 
 (deftest verify-mssql-version
   (with-matrix-assertions test-db-configs test-db-fixture
@@ -52,7 +48,7 @@
        "Databases without any tables (like empty_database) do not show up in the catalog")))
 
 (comment
-  ;; TODO helper functions?
+  ;; TODO Can these be helper functions?
   ;; Clear all tests from namespace
   (map (comp (partial ns-unmap *ns*) #(.sym %)) (filter (comp :test meta) (vals (ns-publics *ns*))))
   ;; Clear entire namespace
