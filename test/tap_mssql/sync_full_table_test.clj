@@ -92,6 +92,9 @@
   (assoc-in catalog ["streams" stream-name "metadata" "properties" field-name "selected"] false))
 
 (deftest ^:integration verify-full-table-sync-with-one-table-selected
+  ;; REFERENCE: Current expected order of one table
+  ;;     SCHEMA, ACTIVATE_VERSION, STATE, 1k x RECORD, ACTIVATE_VERSION, STATE
+
   ;; This also verifies selected-by-default
   ;; do-sync prints a bunch of stuff and returns nil
   (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
@@ -122,7 +125,7 @@
                        "schema")
                       "metadata")))
   ;; Emits the records expected
-  (is (= 1002
+  (is (= 1005
          (-> (discover-catalog test-db-config)
              (select-stream "data_table")
              (get-messages-from-output nil)
@@ -136,7 +139,7 @@
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
                      (get-messages-from-output nil))
-                 [1 "type"])))
+                 [3 "type"])))
   ;; At the moment we're not ordering by anything so checking the actual
   ;; value here would be brittle, I think.
   (is (every? #(get-in % ["record" "value"])
@@ -144,7 +147,7 @@
                   x
                 (select-stream x "data_table")
                 (get-messages-from-output x nil)
-                (drop 1 x)
+                (drop 3 x)
                 (take 1000 x))))
   (is (every? #(contains? (% "record") "deselected_value")
               (as-> (discover-catalog test-db-config)
@@ -154,13 +157,13 @@
                 ;; selected-by-default do all the work
                 #_(deselect-field x "data_table" "deselected_value")
                 (get-messages-from-output x nil)
-                (drop 1 x)
+                (drop 3 x)
                 (take 1000 x))))
   (is (= "STATE"
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
                      (get-messages-from-output nil))
-                 [1001 "type"]))))
+                 [1004 "type"]))))
 
 (deftest ^:integration verify-full-table-sync-with-one-table-selected-and-one-field-deselected
   ;; do-sync prints a bunch of stuff and returns nil
@@ -192,7 +195,7 @@
                        "schema")
                       "metadata")))
   ;; Emits the records expected
-  (is (= 1002
+  (is (= 1005
          (-> (discover-catalog test-db-config)
              (select-stream "data_table")
              (get-messages-from-output nil)
@@ -206,26 +209,48 @@
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
                      (get-messages-from-output nil))
-                 [1 "type"])))
+                 [3 "type"])))
   ;; At the moment we're not ordering by anything so checking the actual
   ;; value here would be brittle, I think.
   (is (every? #(get-in % ["record" "value"])
               (as-> (discover-catalog test-db-config)
                   x
-                (select-stream x "data_table")
-                (get-messages-from-output x nil)
-                (drop 1 x)
-                (take 1000 x))))
+                  (select-stream x "data_table")
+                  (get-messages-from-output x nil)
+                  (drop 3 x)
+                  (take 1000 x))))
   (is (every? #(not (contains? (% "record") "deselected_value"))
               (as-> (discover-catalog test-db-config)
                   x
-                (select-stream x "data_table")
-                (deselect-field x "data_table" "deselected_value")
-                (get-messages-from-output x nil)
-                (drop 1 x)
-                (take 1000 x))))
+                  (select-stream x "data_table")
+                  (deselect-field x "data_table" "deselected_value")
+                  (get-messages-from-output x nil)
+                  (drop 3 x)
+                  (take 1000 x))))
   (is (= "STATE"
          (get-in (-> (discover-catalog test-db-config)
                      (select-stream "data_table")
                      (get-messages-from-output nil))
-                 [1001 "type"]))))
+                 [1004 "type"])))
+  ;; Emits Activate Version Messages at the right times
+  (is (= "ACTIVATE_VERSION"
+         (get (-> (discover-catalog test-db-config)
+                  (select-stream "data_table")
+                  (get-messages-from-output nil)
+                  second)
+              "type")))
+  (is (= "STATE" ;; 3rd message should be a state with the table version
+         (get (-> (discover-catalog test-db-config)
+                  (select-stream "data_table")
+                  (get-messages-from-output nil)
+                  (nth 2))
+              "type")))
+  (is (= "ACTIVATE_VERSION" ;; Last activate version
+         (get (as-> (discover-catalog test-db-config)
+                     x
+                     (select-stream x "data_table")
+                     (get-messages-from-output x nil)
+                     (drop 1003 x) ;; Drop schema, activate_version, state, and 1k records
+                     (first x))
+                 "type")))
+  )
