@@ -5,19 +5,23 @@ set -o pipefail
 logf() {
   printf "$1\n" "${@:2}" >&2
 }
+export -f logf
 
 warnf() {
   logf "WARN: ${1}" "${@:2}"
 }
+export -f warnf
 
 infof() {
   logf "INFO: ${1}" "${@:2}"
 }
+export -f infof
 
 errorf() {
   logf "ERROR: ${1}" "${@:2}"
   exit 1
 }
+export -f errorf
 
 while :
 do
@@ -46,22 +50,31 @@ do
   shift
 done
 
-if [[ $HOSTNAME != taps-* ]]
-then
-  identifier=circleci-test-mssql-2017
-else
-  identifier="$HOSTNAME-test-mssql-2017"
-fi
-stable_dns_name="${identifier}.db.test.stitchdata.com"
-master_username=$STITCH_TAP_MSSQL_TEST_DATABASE_USER
-master_password=$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD
+source /etc/default/tap-mssql
 
-if [[ -z $master_username ]] || [[ -z $master_password ]]
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
 then
   errorf 'Missing required environment variables STITCH_TAP_MSSQL_TEST_DATABASE_{USER,PASSWORD}. Have you sourced `/etc/default/tap-mssql`?'
 fi
 
+get_stable_dns_name() {
+  local instance_identifier=$1
+  printf "%s-test-mssql-%s.db.test.stitchdata.com" \
+         "$HOSTNAME" \
+         "$instance_identifier"
+}
+export -f get_stable_dns_name
+
 describe_instance() {
+  local instance_identifier_name=$1
+  local instance_identifier="$(get_instance_identifier "$instance_identifier_name")"
+  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
+  if [[ -z $instance_identifier ]]
+  then
+    # Support old calls for now
+    instance_identifier=$identifier
+  fi
   local jq_filter
   jq_filter='.DBInstances[]
              | {stable_address: "'"$stable_dns_name"'",
@@ -69,17 +82,33 @@ describe_instance() {
                 identifier: .DBInstanceIdentifier,
                 status: .DBInstanceStatus,
                 master_username: .MasterUsername,
-                master_password: "'"$master_password"'"}'
-  if [[ $long_output == true ]] || [[ $1 == full ]]
+                master_password: "'"$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD"'"}'
+  if [[ $long_output == true ]] || [[ $2 == full ]]
   then
     jq_filter='.DBInstances[]'
   fi
-  aws rds describe-db-instances --db-instance-identifier "${identifier}" \
+  aws rds describe-db-instances --db-instance-identifier "${instance_identifier}" \
     | jq "$jq_filter"
 }
+export -f describe_instance
+
+instance_status() {
+  local instance_identifier_name=$1
+  describe_instance "${instance_identifier_name}" full | jq -r '.DBInstanceStatus'
+}
+export -f instance_status
+
+get_instance_identifier() {
+  printf '%s-test-mssql-%s' \
+         "$HOSTNAME" \
+         "$1"
+}
+export -f instance_status
 
 test_db_not_online() {
-  db_instance_status=$(aws rds describe-db-instances --db-instance-identifier "${identifier}" \
+  local instance_identifier_name=$1
+  local instance_identifier="$(get_instance_identifier "${instance_identifier_name}")"
+  db_instance_status=$(aws rds describe-db-instances --db-instance-identifier "${instance_identifier}" \
                          | jq -r '.DBInstances[].DBInstanceStatus')
   if (( $? != 0 ))
   then
@@ -87,123 +116,233 @@ test_db_not_online() {
   fi
   [[ $db_instance_status != available ]]
 }
+export -f test_db_not_online
 
-instance_status() {
-  describe_instance full | jq -r '.DBInstanceStatus'
+get_actual_dns_name() {
+  local instance_identifier_name=$1
+  describe_instance "${instance_identifier_name}" | jq -r '.address'
 }
+export -f get_actual_dns_name
 
-case $command in
-  destroy)
-    if describe_instance >/dev/null
-    then
-      infof 'Destroying %s' "$identifier"
-      if [[ $(instance_status) != deleting ]]
-      then
-        if ! aws --region us-east-1 \
-             rds delete-db-instance \
-             --db-instance-identifier "$identifier" \
-             --skip-final-snapshot
-        then
-          errorf "Failed to initiate destruction of %s" "$identifier"
-        fi
-      fi
-      while describe_instance >/dev/null
-      do
-        infof "Waiting for %s to be destroyed for %s seconds (current status: %s)" \
-              "$identifier" "$SECONDS" "$(instance_status)"
-        sleep 30
-      done
-    else
-      infof '%s is already offline' "$identifier"
-    fi
-    ;;
-  create)
-    if test_db_not_online
-    then
-      # Create instance if it's not already created
-      if ! describe_instance >/dev/null
-      then
-        logf "Creating db instance %s" "$identifier"
-        if ! aws --region us-east-1 \
-             rds create-db-instance \
-             --vpc-security-group-ids sg-089b5962b0c44592f \
-             --db-instance-identifier "$identifier" \
-             --db-instance-class db.m4.large \
-             --engine sqlserver-se \
-             --allocated-storage 100 \
-             --master-username "$master_username" \
-             --master-user-password "$master_password" \
-             --backup-retention-period 0 \
-             --no-auto-minor-version-upgrade \
-             --license-model license-included
-        then
-          errorf  "Failed to initiate creation of %s" "$identifier"
-        fi
-      fi
-      # Wait for instance to be online
-      while test_db_not_online
-      do
-        infof "Waiting for db instance to come up for %s seconds (current status: %s)" \
-              "$SECONDS" \
-              "$(instance_status)"
-        sleep 30
-      done
-    fi
+dns_entry_up_to_date() {
+  local instance_identifier_name=$1
+  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
+  local actual_dns_name="$(get_actual_dns_name "$instance_identifier_name")"
+  nslookup "$stable_dns_name" 8.8.8.8 \
+    | grep -q -E -- "$stable_dns_name"'[[:blank:]]+canonical name = '"$actual_dns_name"
+}
+export -f dns_entry_up_to_date
 
+get_instance_identifier() {
+  local instance_identifier_name=$1
+  printf '%s-test-mssql-%s' \
+         "$HOSTNAME" \
+         "$instance_identifier_name"
+}
+export -f get_instance_identifier
+
+create_test_instance() {
+  local instance_identifier_name=$1
+  local instance_identifier=$(get_instance_identifier "${instance_identifier_name}")
+  local stable_dns_name=$(get_stable_dns_name "${instance_identifier_name}")
+
+  source <(jq -r '.[] 
+                  | select(.name == "'"$instance_identifier_name"'")
+                  | .properties
+                  | to_entries[]
+                  | "export \(.key)=\(.value)"' \
+                    bin/testing-resources.json)
+
+  if [[ -z $engine ]] || [[ -z $engine_version ]]
+  then
+    # FIXME This doesn't trigger properly
+    errorf 'Unable to read inputs from bin/testing-resources.json'
+  fi
+
+  infof 'Creating test instance %s' "$instance_identifier_name"
+
+  if test_db_not_online "${instance_identifier_name}"
+  then
+    # Create instance if it's not already created
+    if ! describe_instance "${instance_identifier_name}" >/dev/null
+    then
+      logf "Creating db instance %s" "${instance_identifier_name}"
+      if ! aws --region us-east-1 \
+           rds create-db-instance \
+           --vpc-security-group-ids sg-089b5962b0c44592f \
+           --db-instance-identifier "${instance_identifier}" \
+           --db-instance-class db.m4.large \
+           --engine "${engine}" \
+           --engine-version "${engine_version}" \
+           --allocated-storage 100 \
+           --master-username "$STITCH_TAP_MSSQL_TEST_DATABASE_USER" \
+           --master-user-password "$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD" \
+           --backup-retention-period 0 \
+           --no-auto-minor-version-upgrade \
+           --license-model license-included
+      then
+        errorf  "Failed to initiate creation of %s" "${instance_identifier_name}"
+      fi
+    fi
+    # Wait for instance to be online
+    wait_time=600
+    SECONDS=0
+    while test_db_not_online "${instance_identifier_name}"
+    do
+      infof "Waiting for db instance %s to come up for %s seconds (current status: %s)" \
+            "${instance_identifier_name}" \
+            "$SECONDS" \
+            "$(instance_status "${instance_identifier_name}")"
+      sleep 30
+      if (( wait_time < SECONDS ))
+      then
+        errorf 'DB instance %s failed to come up in %d seconds.' \
+               "$instance_identifier_name" \
+               "$SECONDS"
+      fi
+    done
+  fi
+
+  if ! dns_entry_up_to_date "$instance_identifier_name"
+  then
+    infof 'Upserting route53 entry %s' "$(get_stable_dns_name "$instance_identifier_name")"
     # Upsert route53 entry
-    actual_dns_name=$(describe_instance | jq -r '.address')
+    actual_dns_name="$(get_actual_dns_name "$instance_identifier_name")"
     change_batch='
-{
-  "Comment": "'"$identifier"' deployment '"$(date -u)"'"
-,
-  "Changes": [
-    {
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "'"$stable_dns_name"'",
-        "Type": "CNAME",
-        "TTL": 300,
-        "ResourceRecords": [
-          {
-            "Value": "'"$actual_dns_name"'"
-          }
-        ]
+  {
+    "Comment": "'"${instance_identifier_name}"' deployment '"$(date -u)"'",
+    "Changes": [
+      {
+        "Action": "UPSERT",
+        "ResourceRecordSet": {
+          "Name": "'"$stable_dns_name"'",
+          "Type": "CNAME",
+          "TTL": 300,
+          "ResourceRecords": [
+            {
+              "Value": "'"$actual_dns_name"'"
+            }
+          ]
+        }
       }
-    }
-  ]
-}
-'
+    ]
+  }
+  '
     if ! aws route53 change-resource-record-sets \
          --hosted-zone-id '/hostedzone/ZENICS0BKW1AD' \
          --change-batch "$change_batch"
     then
       errorf 'Failed to create DNS entry: %s' "$stable_dns_name"
     fi
+  fi
 
-    wait_time=600
-    SECONDS=0
-    while ! nslookup "$stable_dns_name" 8.8.8.8 \
-            | grep -q -F -- 'canonical name ='
-    do
-      echo "Waiting for DNS cutover to take effect for ${SECONDS}s"
-      sleep 30
-      if (( wait_time < SECONDS ))
+  wait_time=600
+  SECONDS=0
+  while ! dns_entry_up_to_date "$instance_identifier_name"
+  do
+    echo "Waiting for DNS cutover to take effect for ${SECONDS}s"
+    sleep 30
+    if (( wait_time < SECONDS ))
+    then
+      errorf 'DNS cutover failed to take effect in %d seconds.' "$SECONDS"
+    fi
+  done
+
+  infof 'DB instance %s created' "${instance_identifier_name}"
+  describe_instance "${instance_identifier_name}"
+}
+export -f create_test_instance
+
+do_create() {
+  local instance_identifier_names
+  while read -r instance_identifier_name
+  do
+    instance_identifier_names+=("${instance_identifier_name}")
+  done < <(jq -r '.[].name' bin/testing-resources.json)
+
+  parallel --will-cite --line-buffer -j 0 "set -o pipefail; create_test_instance '{}'" ::: "${instance_identifier_names[@]}"
+}
+
+destroy_test_instance() {
+  local instance_identifier_name=$1
+  local instance_identifier="$(get_instance_identifier "$instance_identifier_name")"
+
+  if describe_instance "$instance_identifier_name" >/dev/null 2>&1
+  then
+    infof 'Destroying %s' "$instance_identifier_name"
+    if [[ $(instance_status "$instance_identifier_name") != deleting ]]
+    then
+      if ! aws --region us-east-1 \
+           rds delete-db-instance \
+           --db-instance-identifier "$instance_identifier" \
+           --skip-final-snapshot
       then
-        errorf 'DNS cutover failed to take effect in %d seconds.' "$SECONDS"
+        errorf "Failed to initiate destruction of %s" "$instance_identifier_name"
       fi
+    fi
+    while describe_instance "$instance_identifier_name" >/dev/null
+    do
+      infof "Waiting for %s to be destroyed for %s seconds (current status: %s)" \
+            "$instance_identifier_name" \
+            "$SECONDS" \
+            "$(instance_status "$instance_identifier_name")"
+      sleep 30
     done
+    infof 'Successfully destroyed %s' "$instance_identifier_name"
+  else
+    infof '%s is already offline' "$instance_identifier_name"
+  fi
+}
+export -f destroy_test_instance
 
-    infof 'DB instance %s created' "$identifier"
-    describe_instance
+do_destroy() {
+  local instance_identifier_names
+  while read -r instance_identifier_name
+  do
+    instance_identifier_names+=("${instance_identifier_name}")
+  done < <(jq -r '.[].name' bin/testing-resources.json)
+
+  parallel --will-cite --line-buffer -j 0 "set -o pipefail; destroy_test_instance '{}'" ::: "${instance_identifier_names[@]}"
+}
+
+do_describe() {
+  while read -r instance_identifier_name
+  do
+    infof "Describing instance %s" "$instance_identifier_name"
+    describe_instance "${instance_identifier_name}"
+  done < <(jq -r '.[].name' bin/testing-resources.json)
+}
+
+do_connect() {
+  local instance_identifier_name=$1
+  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
+
+  if test_db_not_online "$instance_identifier_name" >/dev/null 2>&1
+  then
+    errorf 'Test instance %s is not online.' "$instance_identifier_name"
+  fi
+
+  infof 'Connecting to %s' "$instance_identifier_name"
+  exec mssql-cli \
+       -U "$STITCH_TAP_MSSQL_TEST_DATABASE_USER" \
+       -P "$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD" \
+       -S "$stable_dns_name"
+}
+
+case $command in
+  destroy)
+    do_destroy
+    ;;
+  create)
+    do_create
     ;;
   describe)
-    infof 'Describing instance %s' "$identifier"
-    describe_instance
+    do_describe
     ;;
   connect)
-    infof 'Connecting to %s' "$identifier"
-    exec mssql-cli -U "$master_username" -P "$master_password" -S "$stable_dns_name"
+    do_connect "$1"
     ;;
   *)
     errorf "Unknown or no command passed"
+    ;;
 esac
