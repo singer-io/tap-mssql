@@ -6,7 +6,11 @@
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
-                                          test-db-config]]))
+                                          test-db-config
+                                          test-db-configs
+                                          def-matrix-tests
+                                          with-matrix-assertions
+                                          *test-db-config*]]))
 
 (defn get-destroy-database-command
   [database]
@@ -14,7 +18,8 @@
 
 (defn maybe-destroy-test-db
   []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
+  (let [test-db-config (or *test-db-config* test-db-config)
+        destroy-database-commands (->> (get-databases test-db-config)
                                        (filter non-system-database?)
                                        (map get-destroy-database-command))]
     (let [db-spec (config->conn-map test-db-config)]
@@ -22,7 +27,8 @@
 
 (defn create-test-db
   []
-  (let [db-spec (config->conn-map test-db-config)]
+  (let [test-db-config (or *test-db-config* test-db-config)
+        db-spec (config->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
 
 (defn test-db-fixture [f]
@@ -31,13 +37,22 @@
     (create-test-db)
     (f)))
 
-(use-fixtures :each test-db-fixture)
-
-(deftest ^:integration verify-mssql-version
-  (is (nil?
-       (do-discovery test-db-config))
-      "Discovery ran succesfully and did not throw an exception"))
+(deftest verify-mssql-version
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (is (nil? (do-discovery *test-db-config*))
+        "Discovery ran succesfully and did not throw an exception")))
 
 (deftest ^:integration verify-empty-catalog
-  (is (= empty-catalog (discover-catalog test-db-config))
-      "Databases without any tables (like empty_database) do not show up in the catalog"))
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (is (= empty-catalog (discover-catalog *test-db-config*))
+       "Databases without any tables (like empty_database) do not show up in the catalog")))
+
+(comment
+  ;; TODO Can these be helper functions?
+  ;; Clear all tests from namespace
+  (map (comp (partial ns-unmap *ns*) #(.sym %)) (filter (comp :test meta) (vals (ns-publics *ns*))))
+  ;; Clear entire namespace
+  (map (comp (partial ns-unmap *ns*) #(.sym %)) (vals (ns-publics *ns*)))
+
+  (ns-unmap *ns* (.sym #'tap-mssql.discover-empty-catalog-test/*test-db-config*))
+  )
