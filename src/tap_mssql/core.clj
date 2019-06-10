@@ -333,7 +333,7 @@
 
 (defn message-valid?
   [message]
-  (and (#{"SCHEMA" "STATE" "RECORD"} (message "type"))
+  (and (#{"SCHEMA" "STATE" "RECORD" "ACTIVATE_VERSION"} (message "type"))
        (case (message "type")
          "SCHEMA"
          (message "schema")
@@ -342,7 +342,10 @@
          (message "value")
 
          "RECORD"
-         (message "record"))))
+         (message "record")
+
+         "ACTIVATE_VERSION"
+         (message "version"))))
 
 (defn write-message!
   [message]
@@ -371,6 +374,15 @@
                    "stream" stream-name
                    "record" record}))
 
+(defn write-activate-version!
+  [stream-name state]
+  (write-message! {"type" "ACTIVATE_VERSION"
+                   "stream" stream-name
+                   "version" (get-in state
+                                     ["bookmarks" stream-name "version"])})
+  ;; This must return state, as it appears in the pipeline of a sync
+  state)
+
 (defn selected-field?
   [[field-name field-metadata]]
   (or (field-metadata "selected")
@@ -385,30 +397,53 @@
         selected-field-names (map (comp name first) selected-fields)]
     selected-field-names))
 
+(defn maybe-write-activate-version!
+  "Writes activate version message if not in state"
+  [stream-name state]
+  ;; TODO: This assumes that uninterruptible full-table is the only mode,
+  ;; this will need modified for incremental, CDC, and interruptible full
+  ;; table to not change the table version in those modes unless needed
+  ;; For now, always generate and return a new version
+  (let [version-bookmark (get-in state ["bookmarks" stream-name "version"])
+        new-state        (assoc-in state
+                                   ["bookmarks" stream-name "version"]
+                                   (System/currentTimeMillis))]
+    ;; Write activate version on first sync to get records flowing, and
+    ;; never again so that the table only truncates at the end of the load
+    ;; TODO: This will need changed, assumes that a full-table sync runs
+    ;; 100% in a single tap run. It will need to be smarter than `nil?`
+    ;; for these cases
+    (when (nil? version-bookmark)
+      (write-activate-version! stream-name new-state))
+    new-state))
+
 (defn write-records-and-states!
-  [config catalog state stream-name]
+  "Syncs all records, states, returns the latest state."
+  [config catalog stream-name state]
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        record-keys (get-selected-fields catalog stream-name)
-        last-state
-        (reduce (fn [acc result]
-                  (write-record! stream-name (select-keys result record-keys))
-                  acc)
-                state
-                (jdbc/reducible-query (assoc (config->conn-map config)
-                                             :dbname dbname)
-                                      ;; TODO: Fully qualify and quote all
-                                      ;; database structures
-                                      [(format "SELECT %s FROM %s"
-                                               (string/join ", " record-keys)
-                                               stream-name)]
-                                      {:raw? true}))]
-    (write-state! stream-name last-state)))
+        record-keys (get-selected-fields catalog stream-name)]
+    (reduce (fn [acc result]
+              (write-record! stream-name (select-keys result record-keys))
+              acc)
+            state
+            (jdbc/reducible-query (assoc (config->conn-map config)
+                                         :dbname dbname)
+                                  ;; TODO: Fully qualify and quote all
+                                  ;; database structures
+                                  [(format "SELECT %s FROM %s"
+                                           (string/join ", " record-keys)
+                                           stream-name)]
+                                  {:raw? true}))))
 
 (defn sync-stream!
   [config catalog state stream-name]
   (log/infof "Syncing stream %s" stream-name)
   (write-schema! catalog stream-name)
-  (write-records-and-states! config catalog state stream-name))
+  (->> (maybe-write-activate-version! stream-name state)
+       (write-state! stream-name)
+       (write-records-and-states! config catalog stream-name)
+       (write-activate-version! stream-name)
+       (write-state! stream-name)))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))
