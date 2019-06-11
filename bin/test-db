@@ -319,7 +319,7 @@ do_connect() {
 
   if test_db_not_online "$instance_identifier_name" >/dev/null 2>&1
   then
-    errorf 'Test instance %s is not online.' "$instance_identifier_name"
+    errorf 'Test instance %s is not online. Perhaps you need to assume_read_only?' "$instance_identifier_name"
   fi
 
   infof 'Connecting to %s' "$instance_identifier_name"
