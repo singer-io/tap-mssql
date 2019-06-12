@@ -457,9 +457,6 @@
                            field-names))
       field-names))
 
-(comment
-  (not []))
-
 (defn get-bookmark-keys
   "Gets the possible bookmark keys to use for sorting, falling back to
   `nil`. Values are only chosen if _all_ are selected.
@@ -468,28 +465,22 @@
   `replicationkey` > `timestamp` field > `table-key-properties`"
   [catalog stream-name]
   (let [all-selected (partial all-selected? catalog stream-name)]
-    (flatten
-     (vector
-      (or (all-selected (get-in catalog ["streams"
-                                         stream-name
-                                         "metadata"
-                                         "replication-key"]))
-          (all-selected (first
-                         (first
-                          (filter (fn [[k v]] (= "timestamp"
-                                                 (v "sql-datatype")))
-                                  (get-in catalog ["streams"
-                                                   stream-name
-                                                   "metadata"
-                                                   "properties"])))))
-          (all-selected (get-in catalog ["streams"
-                                         stream-name
-                                         "metadata"
-                                         "table-key-properties"])))))))
-
-(defn bookmark-valid? [catalog stream-name bookmark]
-  (or (nil? bookmark)
-      (= (set (keys (dissoc bookmark "version"))) (set (get-bookmark-keys catalog stream-name)))))
+    (or (get-in catalog ["streams"
+                         stream-name
+                         "metadata"
+                         "replication-key"])
+        (first
+         (first
+          (filter (fn [[k v]] (= "timestamp"
+                                 (v "sql-datatype")))
+                  (get-in catalog ["streams"
+                                   stream-name
+                                   "metadata"
+                                   "properties"]))))
+        (get-in catalog ["streams"
+                         stream-name
+                         "metadata"
+                         "table-key-properties"]))))
 
 (defn get-sql-params [stream-name record-keys bookmark bookmark-keys]
   ;; TODO: Fully qualify and quote all database structures
@@ -518,12 +509,8 @@
 ;; Points of interest are:
 ;; - The get-bookmark-keys function: if that holds up, then that might be
 ;; a good route to go.
-;; - Added a precondition to validate that the bookmark is what we expect
-;; a proper bookmark to be. The effect of this is that if the bookmark
-;; changes, then we'll blow up, which might be the right call?
 
 ;; Still TODO:
-;; - Updating state as it emits records
 ;; - `max_pk_values` and `last_pk_fetched`, not sure how this should go
 ;; - I guess we should unit test this? Regular unit tests are in
 ;; `core_test.clj` some of these functions can be unit tested.
@@ -532,15 +519,13 @@
   (reduce (fn [acc bookmark-key]
             (assoc-in acc ["bookmarks" stream-name bookmark-key] (get record bookmark-key)))
           state
-          bookmark-keys)
-  )
+          bookmark-keys))
 
 (defn write-records-and-states!
   "Syncs all records, states, returns the latest state. Ensures that the
   bookmark we have for this stream matches our understanding of the fields
   defined in the catalog that are bookmark-able."
   [config catalog stream-name state]
-  {:pre [(bookmark-valid? catalog stream-name (get-in state ["bookmarks" stream-name]))]}
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys (get-selected-fields catalog stream-name)
         bookmark-keys (get-bookmark-keys catalog stream-name)
@@ -549,51 +534,13 @@
               (let [record (->> (select-keys result record-keys)
                                 (transform catalog stream-name))]
                 (write-record! stream-name record)
-                (update-state stream-name bookmark-keys acc record))) ;; TODO: When to write?
+                (->> (update-state stream-name bookmark-keys acc record)
+                    (write-state! stream-name)))) ;; TODO: When to write? Every time for now.
             state
             (jdbc/reducible-query (assoc (config->conn-map config)
                                          :dbname dbname)
                                   sql-params
                                   {:raw? true}))))
-
-(comment
-  (def config (parse-config "/tmp/tap_config.json"))
-  (def catalog (serialized-catalog->catalog (parse-catalog "/tmp/catalog.json")))
-  (def state {})
-  (def bookmark {"value" 602})
-  (def config {"host" "taps-dmosora1-test-mssql-2017.db.test.stitchdata.com",
-               "user" "admin",
-               "password" "Kpg3RDzZNqdRFCXAaZCQ",
-               "port" "1433"})
-  (def catalog (discover-catalog config))
-  (def stream-name "data_table_rowversion")
-
-  (jdbc/reducible-query (assoc (config->conn-map config)
-                               :dbname dbname)
-                        ;; TODO: Fully qualify and quote all
-                        ;; database structures
-                        (flatten [(str (format "SELECT %s FROM %s"
-                                               (string/join ", " record-keys)
-                                               stream-name)
-                                       (when bookmark
-                                         (str " WHERE " (string/join " AND "
-                                                                     (map #(format "%s >= ?" %)
-                                                                          (keys bookmark))))))
-                                  (when bookmark
-                                    (vals bookmark))])
-                        {:raw? true})
-  
-  (let [record-keys ["foo" "bar" "baz"]]
-    (flatten [(str (format "SELECT %s FROM %s"
-                           (string/join ", " record-keys)
-                           stream-name)
-                   (when bookmark
-                     (str " WHERE " (string/join " AND "
-                                                 (map #(format "%s >= ?" %)
-                                                      (keys bookmark))))))
-              (when bookmark
-                (vec (vals bookmark)))]))
-  )
 
 (defn get-resumable-fields [catalog stream-name]
   ;; Check for rowversion
@@ -613,7 +560,7 @@
   (let [resumable-fields (get-resumable-fields catalog stream-name)]
     (->> (maybe-write-activate-version! stream-name state)
          (write-state! stream-name)
-         (write-records-and-states! config catalog stream-name resumable-fields)
+         (write-records-and-states! config catalog stream-name)
          (write-activate-version! stream-name)
          (write-state! stream-name))))
 
