@@ -429,7 +429,7 @@
                              (partial format "%02x"))
                        rowversion)))
 
-(defn transform-field [[k v]]
+(defn transform-field [catalog stream-name [k v]]
   (condp = (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
     "timestamp"
     [k (transform-rowversion v)]
@@ -437,7 +437,7 @@
     [k v]))
 
 (defn transform [catalog stream-name record]
-  (into {} (map transform-field record)))
+  (into {} (map (partial transform-field catalog stream-name) record)))
 
 (defn write-records-and-states!
   "Syncs all records, states, returns the latest state."

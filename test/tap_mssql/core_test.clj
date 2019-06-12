@@ -2,6 +2,19 @@
   (:require [clojure.test :refer [is deftest]]
             [tap-mssql.core :refer :all]))
 
+(defn get-serialized-catalog-entry [serialized-catalog stream-name]
+  (first (filter (comp (partial = stream-name)
+                       #(get % "stream"))
+                 (serialized-catalog "streams"))))
+
+(defn get-serialized-catalog-metadata-for-breadcrumb
+  [serialized-catalog-entry breadcrumb]
+  ((first
+    (filter (comp (partial = breadcrumb)
+                  #(get % "breadcrumb"))
+            (serialized-catalog-entry "metadata")))
+   "metadata"))
+
 (deftest add-int-column-to-catalog
   (is (= ["integer"]
          (let [catalog (add-column nil {:table_name   "theologians"
@@ -35,23 +48,15 @@
     ;; Unsupported Type Replacement
     (is (nil? (get-in (serialized-catalog->catalog serialized-catalog)
                       ["streams" "unsupported_data_types" "schema" "properties" "rowversion"])))
-    (is (= {} (get-in (first (filter (comp (partial = "unsupported_data_types")
-                                           #(get % "stream"))
-                                     (serialized-catalog "streams")))
-                      ["schema" "properties" "rowversion"])))))
-
-(defn get-serialized-catalog-entry [serialized-catalog stream-name]
-  (first (filter (comp (partial = stream-name)
-                       #(get % "stream"))
-                 (serialized-catalog "streams"))))
-
-(defn get-serialized-catalog-metadata-for-breadcrumb
-  [serialized-catalog-entry breadcrumb]
-  ((first
-    (filter (comp (partial = breadcrumb)
-                  #(get % "breadcrumb"))
-            (serialized-catalog-entry "metadata")))
-   "metadata"))
+    (is (= {} (get-in (get-serialized-catalog-entry serialized-catalog "unsupported_data_types")
+                      ["schema" "properties" "rowversion"])))
+    (is (= {"inclusion" "unsupported",
+            "sql-datatype" "rowversion",
+            "selected-by-default" false}
+           (get-serialized-catalog-metadata-for-breadcrumb
+            (get-serialized-catalog-entry serialized-catalog "unsupported_data_types")
+            ["properties" "rowversion"]))))
+  )
 
 (deftest catalog->serialized-catalog-invalid-characters-test
   (let [catalog (reduce add-column nil [{:table_name "invalid_characters"
