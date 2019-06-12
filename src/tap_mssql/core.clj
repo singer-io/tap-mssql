@@ -4,6 +4,7 @@
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.set]
             [clojure.data.json :as json]
             [clojure.java.jdbc :as jdbc])
   (:import [com.microsoft.sqlserver.jdbc SQLServerException])
@@ -404,6 +405,10 @@
         selected-field-names (map (comp name first) selected-fields)]
     selected-field-names))
 
+(defn now []
+  ;; To redef in tests
+  (System/currentTimeMillis))
+
 (defn maybe-write-activate-version!
   "Writes activate version message if not in state"
   [stream-name state]
@@ -414,12 +419,12 @@
   (let [version-bookmark (get-in state ["bookmarks" stream-name "version"])
         new-state        (assoc-in state
                                    ["bookmarks" stream-name "version"]
-                                   (System/currentTimeMillis))]
+                                   (now))]
     ;; Write activate version on first sync to get records flowing, and
     ;; never again so that the table only truncates at the end of the load
-    ;; TODO: This will need changed, assumes that a full-table sync runs
+    ;; TODO: This will need changed (?), assumes that a full-table sync runs
     ;; 100% in a single tap run. It will need to be smarter than `nil?`
-    ;; for these cases
+    ;; for these cases (?)
     (when (nil? version-bookmark)
       (write-activate-version! stream-name new-state))
     new-state))
@@ -429,7 +434,7 @@
                              (partial format "%02x"))
                        rowversion)))
 
-(defn transform-field [[k v]]
+(defn transform-field [catalog stream-name [k v]]
   (condp = (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
     "timestamp"
     [k (transform-rowversion v)]
@@ -437,36 +442,180 @@
     [k v]))
 
 (defn transform [catalog stream-name record]
-  (into {} (map transform-field record)))
+  (into {} (map (partial transform-field catalog stream-name) record)))
+
+;; TODO: It occurs to me that stream-name can be duplicated in the catalog, all code should use tap-stream-id instead
+(defn all-selected?
+  "Returns the field names if all are selected, otherwise returns nil"
+  [catalog stream-name field-names]
+  (when
+      (every? selected-field?
+              (select-keys (get-in catalog ["streams"
+                                            stream-name
+                                            "metadata"
+                                            "properties"])
+                           field-names))
+      field-names))
+
+(comment
+  (not []))
+
+(defn get-bookmark-keys
+  "Gets the possible bookmark keys to use for sorting, falling back to
+  `nil`. Values are only chosen if _all_ are selected.
+
+  Priority is in this order:
+  `replicationkey` > `timestamp` field > `table-key-properties`"
+  [catalog stream-name]
+  (let [all-selected (partial all-selected? catalog stream-name)]
+    (flatten
+     (vector
+      (or (all-selected (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "replication-key"]))
+          (all-selected (first
+                         (first
+                          (filter (fn [[k v]] (= "timestamp"
+                                                 (v "sql-datatype")))
+                                  (get-in catalog ["streams"
+                                                   stream-name
+                                                   "metadata"
+                                                   "properties"])))))
+          (all-selected (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "table-key-properties"])))))))
+
+(defn bookmark-valid? [catalog stream-name bookmark]
+  (or (nil? bookmark)
+      (= (set (keys (dissoc bookmark "version"))) (set (get-bookmark-keys catalog stream-name)))))
+
+(defn get-sql-params [stream-name record-keys bookmark bookmark-keys]
+  ;; TODO: Fully qualify and quote all database structures
+  (let [sql-params [(str (format "SELECT %s FROM %s"
+                                 (string/join ", " record-keys)
+                                 stream-name)
+                         (when bookmark
+                           (str " WHERE " (string/join " AND "
+                                                       (map #(format "%s >= ?" %)
+                                                            (keys bookmark)))
+                                " ORDER BY " (string/join ", "
+                                                          (map #(format "%s" %)
+                                                               bookmark-keys)))))]]
+    (if bookmark (concat sql-params (vals bookmark)) sql-params)))
+
+;; @Nick: Signing off for now. I worked on things in the
+;; `write-records-and-states! function tree. Laid down the config/catalog
+;; for connection 85 in my app (which points to 2017) in /tmp and def'd
+;; them to check proper field/rep key selection. This as it is right now
+;; runs the query and returns in sorted order. That should be good, still
+;; need to validate.
+
+;; I pulled out a lot of thing to get moving, we can talk about this
+;; approach tomorrow
+
+;; Points of interest are:
+;; - The get-bookmark-keys function: if that holds up, then that might be
+;; a good route to go.
+;; - Added a precondition to validate that the bookmark is what we expect
+;; a proper bookmark to be. The effect of this is that if the bookmark
+;; changes, then we'll blow up, which might be the right call?
+
+;; Still TODO:
+;; - Updating state as it emits records
+;; - `max_pk_values` and `last_pk_fetched`, not sure how this should go
+;; - I guess we should unit test this? Regular unit tests are in
+;; `core_test.clj` some of these functions can be unit tested.
+
+(defn update-state [stream-name bookmark-keys state record]
+  (reduce (fn [acc bookmark-key]
+            (assoc-in acc ["bookmarks" stream-name bookmark-key] (get record bookmark-key)))
+          state
+          bookmark-keys)
+  )
 
 (defn write-records-and-states!
-  "Syncs all records, states, returns the latest state."
+  "Syncs all records, states, returns the latest state. Ensures that the
+  bookmark we have for this stream matches our understanding of the fields
+  defined in the catalog that are bookmark-able."
   [config catalog stream-name state]
+  {:pre [(bookmark-valid? catalog stream-name (get-in state ["bookmarks" stream-name]))]}
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        record-keys (get-selected-fields catalog stream-name)]
+        record-keys (get-selected-fields catalog stream-name)
+        bookmark-keys (get-bookmark-keys catalog stream-name)
+        sql-params (get-sql-params stream-name record-keys bookmark bookmark-keys)]
     (reduce (fn [acc result]
-              (write-record! stream-name (->> (select-keys result record-keys)
-                                              (transform catalog stream-name)))
-              acc)
+              (let [record (->> (select-keys result record-keys)
+                                (transform catalog stream-name))]
+                (write-record! stream-name record)
+                (update-state stream-name bookmark-keys acc record))) ;; TODO: When to write?
             state
             (jdbc/reducible-query (assoc (config->conn-map config)
                                          :dbname dbname)
-                                  ;; TODO: Fully qualify and quote all
-                                  ;; database structures
-                                  [(format "SELECT %s FROM %s"
-                                           (string/join ", " record-keys)
-                                           stream-name)]
+                                  sql-params
                                   {:raw? true}))))
+
+(comment
+  (def config (parse-config "/tmp/tap_config.json"))
+  (def catalog (serialized-catalog->catalog (parse-catalog "/tmp/catalog.json")))
+  (def state {})
+  (def bookmark {"value" 602})
+  (def config {"host" "taps-dmosora1-test-mssql-2017.db.test.stitchdata.com",
+               "user" "admin",
+               "password" "***REMOVED***",
+               "port" "1433"})
+  (def catalog (discover-catalog config))
+  (def stream-name "data_table_rowversion")
+
+  (jdbc/reducible-query (assoc (config->conn-map config)
+                               :dbname dbname)
+                        ;; TODO: Fully qualify and quote all
+                        ;; database structures
+                        (flatten [(str (format "SELECT %s FROM %s"
+                                               (string/join ", " record-keys)
+                                               stream-name)
+                                       (when bookmark
+                                         (str " WHERE " (string/join " AND "
+                                                                     (map #(format "%s >= ?" %)
+                                                                          (keys bookmark))))))
+                                  (when bookmark
+                                    (vals bookmark))])
+                        {:raw? true})
+  
+  (let [record-keys ["foo" "bar" "baz"]]
+    (flatten [(str (format "SELECT %s FROM %s"
+                           (string/join ", " record-keys)
+                           stream-name)
+                   (when bookmark
+                     (str " WHERE " (string/join " AND "
+                                                 (map #(format "%s >= ?" %)
+                                                      (keys bookmark))))))
+              (when bookmark
+                (vec (vals bookmark)))]))
+  )
+
+(defn get-resumable-fields [catalog stream-name]
+  ;; Check for rowversion
+  ;; Fallback to PK (if sortable by all fields?)
+  ;; Otherwise return nil
+  nil)
 
 (defn sync-stream!
   [config catalog state stream-name]
   (log/infof "Syncing stream %s" stream-name)
+  ;; TODO: Setup for full table. Identify interruptible columns for state, store them in state
+  ;; --- This could get the `max_pk_values` here and store them in the state before syncing records
+  ;; --- There needs to be a qualification, like (pk-is-valid-for-sorting? catalog table-key-properties)
+  ;; TODO: Store `last_pk_fetched` on state as records are emitted
+  ;; TODO: Split full and incremental? Maybe that can be handled in write-records-and-states!
   (write-schema! catalog stream-name)
-  (->> (maybe-write-activate-version! stream-name state)
-       (write-state! stream-name)
-       (write-records-and-states! config catalog stream-name)
-       (write-activate-version! stream-name)
-       (write-state! stream-name)))
+  (let [resumable-fields (get-resumable-fields catalog stream-name)]
+    (->> (maybe-write-activate-version! stream-name state)
+         (write-state! stream-name)
+         (write-records-and-states! config catalog stream-name resumable-fields)
+         (write-activate-version! stream-name)
+         (write-state! stream-name))))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))

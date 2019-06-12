@@ -101,6 +101,10 @@
             "fixture-fn must be a valid clojure.test fixture-fn")
     `(do
        ~@(map (fn [test-db-config]
-                `(binding [*test-db-config* ~test-db-config]
+                ;; `let` here provides ease of use without dynamic binding
+                ;; at the cost of shadowing test-db-config if imported.
+                ;; The benefit is that no code needs to change to add or
+                ;; remove the matrix.
+                `(let [~(symbol "test-db-config") ~test-db-config]
                    (~fixture-fn (fn [] ~@body))))
               test-configs))))
