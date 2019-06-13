@@ -497,7 +497,7 @@
 
 (defn build-sync-query [stream-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
-         (valid-full-table-state? state table-name)]}
+         (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
   (let [last-pk-fetched   (get-in state ["bookmarks" stream-name "last_pk_fetched"])
         bookmark-keys     (map #(format "%s >= ?" %)
@@ -556,12 +556,6 @@
            first
            (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
        state))
-  )
-
-(comment
-  (require 'tap-mssql.test-utils)
-  (def catalog (discover-catalog  tap-mssql.test-utils/test-db-config))
-  (def stream-name "full_table_sync_test-dbo-data_table")
   )
 
 (defn write-records-and-states!
