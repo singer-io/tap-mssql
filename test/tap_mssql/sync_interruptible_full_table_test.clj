@@ -45,11 +45,11 @@
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table"
-                      (take 100 (map (partial hash-map :deselected_value nil :value) (range))))
+                      (take 200 (map (partial hash-map :deselected_value nil :value) (range))))
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table_rowversion"
-                      (take 100 (map (partial hash-map :value) (range)))))
+                      (take 200 (map (partial hash-map :value) (range)))))
 
 (defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
@@ -136,7 +136,7 @@
       (with-redefs [write-record! (fn [stream-name state record]
                                     ;; Call inc N times (using atom to track), then throw
                                     (swap! record-count inc)
-                                    (if (> @record-count 60)
+                                    (if (> @record-count 120)
                                       (do
                                         (reset! record-count 0)
                                         (throw (ex-info "Interrupting!" {:ignore true})))
@@ -146,7 +146,7 @@
                                   (get-messages-from-output test-db-config
                                                             "full_table_interruptible_sync_test-dbo-data_table_rowversion"))
               first-state (last first-messages)]
-          (def first-messages first-messages)
+          (def first-messages first-messages) ;; Convenience def for debugging
           (is (valid-state? first-state))
           (is (= "SCHEMA"
                  ((-> first-messages
@@ -171,7 +171,7 @@
                                                   (take-last 20)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
                                                   last)]
-                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "rowversion"]))))
+                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "last_pk_fetched" "rowversion"]))))
           ;; Last state emitted has the version of the last record emitted before that state
           (is (let [[last-record last-state] (->> first-messages
                                                   (drop 3) ;; Drop initial schema, state, and activate_version
@@ -185,24 +185,7 @@
                  ((->> first-messages
                        (second)) "type")))
           ;;   - Record count (if we use a consistent method of blowing up)
-          (is (= 60
+          (is (= 120
                  (count (filter #(= "RECORD" (% "type")) first-messages)))))
         ))
     ))
-
-
-(comment
-  (let [old-write-record write-record!]
-    (with-redefs [write-record! (fn [stream-name record]
-                                  ;; Call inc N times (using atom to track), then throw
-                                  (swap! record-count inc)
-                                  (if (> @record-count 600)
-                                    (do
-                                      (reset! record-count 0)
-                                      (throw (ex-info "Interrupting!" {:ignore true})))
-                                    (old-write-record stream-name record)))]
-      (->> (discover-catalog test-db-config)
-           (select-stream "full_table_interruptible_sync_test-dbo-data_table_rowversion")
-           (get-messages-from-output test-db-config
-                                     "full_table_interruptible_sync_test-dbo-data_table_rowversion"))))
-  )

@@ -364,11 +364,11 @@
 
 (defn write-schema! [catalog stream-name]
   (let [schema-message {"type" "SCHEMA"
-                         "stream" stream-name
-                         "key_properties" (get-in catalog ["streams"
-                                                           stream-name
-                                                           "metadata"
-                                                           "table-key-properties"])
+                        "stream" stream-name
+                        "key_properties" (get-in catalog ["streams"
+                                                          stream-name
+                                                          "metadata"
+                                                          "table-key-properties"])
                         "schema" (get-in catalog ["streams" stream-name "schema"])}
         replication-key (get-in catalog ["streams"
                                          stream-name
@@ -489,29 +489,42 @@
         (when (not (empty? table-key-properties))
           table-key-properties)))))
 
-(comment
-  (def catalog (serialized-catalog->catalog (parse-catalog "/tmp/catalog.json")))
-  (def stream-name "data_table")
-  )
+(defn valid-full-table-state? [state table-name]
+  ;; The state MUST contain max_pk_values if there is a bookmark
+  (if (contains? (get-in state ["bookmarks" table-name]) "last_pk_fetched")
+    (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
+    true))
 
-(defn get-sql-params [stream-name record-keys bookmark bookmark-keys]
-  ;; TODO: Fully qualify and quote all database structures
-  (let [sql-params [(str (format "SELECT %s FROM %s"
-                                 (string/join ", " record-keys)
-                                 stream-name)
-                         (when (not (empty? bookmark))
-                           (str " WHERE " (string/join " AND "
-                                                       (map #(format "%s >= ?" %)
-                                                            (keys bookmark)))))
-                         (str " ORDER BY " (string/join ", "
-                                                          (map #(format "%s" %)
-                                                               bookmark-keys))))]]
-    (if bookmark (concat sql-params (vals bookmark)) sql-params)))
-
-;; Still TODO:
-;; - `max_pk_values` and `last_pk_fetched`, not sure how this should go
-;; - I guess we should unit test this? Regular unit tests are in
-;; `core_test.clj` some of these functions can be unit tested.
+(defn build-sync-query [stream-name table-name record-keys state]
+  {:pre [(not (empty? record-keys))
+         (valid-full-table-state? state table-name)]}
+  ;; TODO: Fully qualify and quote all database structures, maybe just schema
+  (let [last-pk-fetched   (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+        bookmark-keys     (map #(format "%s >= ?" %)
+                               (keys last-pk-fetched))
+        max-pk-values     (get-in state ["bookmarks" stream-name "max_pk_values"])
+        limiting-keys     (map #(format "%s <= ?" %)
+                               (keys max-pk-values))
+        add-where-clause? (or (not (empty? bookmark-keys))
+                              (not (empty? limiting-keys)))
+        where-clause      (when add-where-clause?
+                            (str " WHERE " (string/join " AND "
+                                                        (concat bookmark-keys
+                                                                limiting-keys))))
+        order-by           (when (not (empty? limiting-keys))
+                            (str " ORDER BY " (string/join ", "
+                                                           (map #(format "%s" %)
+                                                                (keys max-pk-values)))))
+        sql-params        [(str (format "SELECT %s FROM %s"
+                                        (string/join ", " record-keys)
+                                        table-name)
+                                where-clause
+                                order-by)]]
+    (if add-where-clause?
+      (concat sql-params
+              (vals last-pk-fetched)
+              (vals max-pk-values))
+      sql-params)))
 
 (defn update-state [stream-name bookmark-keys state record]
   (reduce (fn [acc bookmark-key]
@@ -519,9 +532,31 @@
           state
           bookmark-keys))
 
-(defn get-bookmark [state stream-name]
-  (-> (get-in state ["bookmarks" stream-name])
-      (dissoc "version")))
+(defn update-last-pk-fetched [stream-name bookmark-keys state record]
+  (assoc-in state
+            ["bookmarks" stream-name "last_pk_fetched"]
+            (zipmap bookmark-keys (map (partial get record) bookmark-keys))))
+
+(def records-since-last-state (atom 0))
+(defn write-state-buffered! [stream-name state]
+  (swap! records-since-last-state inc)
+  (if (> @records-since-last-state 100)
+    (do
+      (reset! records-since-last-state 0)
+      (write-state! stream-name state))
+    state))
+
+(defn get-max-pk-values [config catalog stream-name state]
+  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        bookmark-keys (get-bookmark-keys catalog stream-name)
+        table-name (get-in catalog ["streams" stream-name "table_name"])
+        sql-query [(format "select %s from %s" (string/join " ," (map (fn [bookmark-key] (format "max(%1$s) as %1$s" bookmark-key)) bookmark-keys)) table-name)]]
+    (if (not (nil? bookmark-keys)) ;; ({"id" ... "other" ... })
+      (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false})
+           first
+           (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
+       state))
+  )
 
 (comment
   (require 'tap-mssql.test-utils)
@@ -537,42 +572,33 @@
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys (get-selected-fields catalog stream-name)
         bookmark-keys (get-bookmark-keys catalog stream-name)
-        bookmark (get-bookmark state stream-name)
         table-name (get-in catalog ["streams" stream-name "table_name"])
-        sql-params (get-sql-params table-name record-keys bookmark bookmark-keys)]
-    (reduce (fn [acc result]
-              (let [record (->> (select-keys result record-keys)
-                                (transform catalog stream-name))]
-                (write-record! stream-name state record)
-                (->> (update-state stream-name bookmark-keys acc record)
-                     (write-state! stream-name)))) ;; TODO: When to write? Every time for now.
-            state
-            (jdbc/reducible-query (assoc (config->conn-map config)
-                                         :dbname dbname)
-                                  sql-params
-                                  {:raw? true}))))
+        sql-params (build-sync-query stream-name table-name record-keys state)]
+    (-> (reduce (fn [acc result]
+               (let [record (->> (select-keys result record-keys)
+                                 (transform catalog stream-name))]
+                 (write-record! stream-name state record)
+                 (->> (update-last-pk-fetched stream-name bookmark-keys acc record)
+                      (write-state-buffered! stream-name)))) ;; TODO: When to write? Every time for now.
+             state
+             (jdbc/reducible-query (assoc (config->conn-map config)
+                                          :dbname dbname)
+                                   sql-params
+                                   {:raw? true}))
+        (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
-(defn get-resumable-fields [catalog stream-name]
-  ;; Check for rowversion
-  ;; Fallback to PK (if sortable by all fields?)
-  ;; Otherwise return nil
-  nil)
-
+;; Note: This is interruptible full table sync
+;; TODO: Break into other strategy functions
 (defn sync-stream!
   [config catalog state stream-name]
   (log/infof "Syncing stream %s" stream-name)
-  ;; TODO: Setup for full table. Identify interruptible columns for state, store them in state
-  ;; --- This could get the `max_pk_values` here and store them in the state before syncing records
-  ;; --- There needs to be a qualification, like (pk-is-valid-for-sorting? catalog table-key-properties)
-  ;; TODO: Store `last_pk_fetched` on state as records are emitted
-  ;; TODO: Split full and incremental? Maybe that can be handled in write-records-and-states!
   (write-schema! catalog stream-name)
-  (let [resumable-fields (get-resumable-fields catalog stream-name)]
-    (->> (maybe-write-activate-version! stream-name state)
-         (write-state! stream-name)
-         (write-records-and-states! config catalog stream-name)
-         (write-activate-version! stream-name)
-         (write-state! stream-name))))
+  (->> (maybe-write-activate-version! stream-name state)
+       (get-max-pk-values config catalog stream-name)
+       (write-state! stream-name)
+       (write-records-and-states! config catalog stream-name)
+       (write-activate-version! stream-name)
+       (write-state! stream-name)))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))
@@ -730,6 +756,8 @@
         _ (def opts opts)
         interesting-errors (get-interesting-errors opts)]
     (def config (get-in opts [:options :config]))
+    (def catalog (get-in opts [:options :catalog]))
+    (def state (get-in opts [:options :state]))
     (when (not (empty? interesting-errors))
       (throw (IllegalArgumentException. (string/join "\n" interesting-errors))))
     opts))
