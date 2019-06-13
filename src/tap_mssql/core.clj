@@ -78,13 +78,16 @@
             (jdbc/with-db-metadata [md conn-map]
               (jdbc/metadata-result (.getCatalogs md))))))
 
+(defn column->tap-stream-id [column]
+  (format "%s-%s-%s"
+          (:table_cat column)
+          (:table_schem column)
+          (:table_name column)))
+
 (defn column->catalog-entry
   [column]
   {"stream"        (:table_name column)
-   "tap_stream_id" (format "%s-%s-%s"
-                           (:table_cat column)
-                           (:table_schem column)
-                           (:table_name column))
+   "tap_stream_id" (column->tap-stream-id column)
    "table_name"    (:table_name column)
    "schema"        {"type" "object"}
    "metadata"      {"database-name"        (:table_cat column)
@@ -204,7 +207,7 @@
 
 (defn add-column
   [catalog column]
-  (update-in catalog ["streams" (:table_name column)]
+  (update-in catalog ["streams" (column->tap-stream-id column)]
              add-column-to-stream
              column))
 
@@ -360,12 +363,20 @@
       println))
 
 (defn write-schema! [catalog stream-name]
-  ;; TODO: This is writing nil for unsupported values
-  ;; - It's also writing metadata with it, should be dissoc'd
-  ;; - Verify using Singer spec
-  (let [schema-message (assoc (get-in catalog ["streams" stream-name])
-                              "type" "SCHEMA")]
-    (write-message! schema-message)))
+  (let [schema-message {"type" "SCHEMA"
+                         "stream" stream-name
+                         "key_properties" (get-in catalog ["streams"
+                                                           stream-name
+                                                           "metadata"
+                                                           "table-key-properties"])
+                        "schema" (get-in catalog ["streams" stream-name "schema"])}
+        replication-key (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "replication-key"])]
+    (if (nil? replication-key)
+      (write-message! schema-message)
+      (write-message! (assoc schema-message "bookmark_properties" [replication-key])))))
 
 (defn write-state!
   [stream-name state]
@@ -377,10 +388,14 @@
   state)
 
 (defn write-record!
-  [stream-name record]
-  (write-message! {"type" "RECORD"
-                   "stream" stream-name
-                   "record" record}))
+  [stream-name state record]
+  (let [record-message {"type" "RECORD"
+                        "stream" stream-name
+                        "record" record}
+        version (get-in state ["bookmarks" stream-name "version"])]
+    (if (nil? version)
+      (write-message! record-message)
+      (write-message! (assoc record-message "version" version)))))
 
 (defn write-activate-version!
   [stream-name state]
@@ -444,71 +459,54 @@
 (defn transform [catalog stream-name record]
   (into {} (map (partial transform-field catalog stream-name) record)))
 
-;; TODO: It occurs to me that stream-name can be duplicated in the catalog, all code should use tap-stream-id instead
-(defn all-selected?
-  "Returns the field names if all are selected, otherwise returns nil"
-  [catalog stream-name field-names]
-  (when
-      (every? selected-field?
-              (select-keys (get-in catalog ["streams"
-                                            stream-name
-                                            "metadata"
-                                            "properties"])
-                           field-names))
-      field-names))
-
 (defn get-bookmark-keys
   "Gets the possible bookmark keys to use for sorting, falling back to
-  `nil`. Values are only chosen if _all_ are selected.
+  `nil`.
 
   Priority is in this order:
   `replicationkey` > `timestamp` field > `table-key-properties`"
   [catalog stream-name]
-  (let [all-selected (partial all-selected? catalog stream-name)]
-    (or (get-in catalog ["streams"
-                         stream-name
-                         "metadata"
-                         "replication-key"])
-        (first
-         (first
-          (filter (fn [[k v]] (= "timestamp"
-                                 (v "sql-datatype")))
-                  (get-in catalog ["streams"
-                                   stream-name
-                                   "metadata"
-                                   "properties"]))))
-        (get-in catalog ["streams"
-                         stream-name
-                         "metadata"
-                         "table-key-properties"]))))
+  (let [replication-key (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "replication-key"])
+        timestamp-column (first
+                          (first
+                           (filter (fn [[k v]] (= "timestamp"
+                                                  (v "sql-datatype")))
+                                   (get-in catalog ["streams"
+                                                    stream-name
+                                                    "metadata"
+                                                    "properties"]))))
+        table-key-properties (get-in catalog ["streams"
+                                              stream-name
+                                              "metadata"
+                                              "table-key-properties"])]
+    (if (not (nil? replication-key))
+      [replication-key]
+      (if (not (nil? timestamp-column))
+        [timestamp-column]
+        (when (not (empty? table-key-properties))
+          table-key-properties)))))
+
+(comment
+  (def catalog (serialized-catalog->catalog (parse-catalog "/tmp/catalog.json")))
+  (def stream-name "data_table")
+  )
 
 (defn get-sql-params [stream-name record-keys bookmark bookmark-keys]
   ;; TODO: Fully qualify and quote all database structures
   (let [sql-params [(str (format "SELECT %s FROM %s"
                                  (string/join ", " record-keys)
                                  stream-name)
-                         (when bookmark
+                         (when (not (empty? bookmark))
                            (str " WHERE " (string/join " AND "
                                                        (map #(format "%s >= ?" %)
-                                                            (keys bookmark)))
-                                " ORDER BY " (string/join ", "
+                                                            (keys bookmark)))))
+                         (str " ORDER BY " (string/join ", "
                                                           (map #(format "%s" %)
-                                                               bookmark-keys)))))]]
+                                                               bookmark-keys))))]]
     (if bookmark (concat sql-params (vals bookmark)) sql-params)))
-
-;; @Nick: Signing off for now. I worked on things in the
-;; `write-records-and-states! function tree. Laid down the config/catalog
-;; for connection 85 in my app (which points to 2017) in /tmp and def'd
-;; them to check proper field/rep key selection. This as it is right now
-;; runs the query and returns in sorted order. That should be good, still
-;; need to validate.
-
-;; I pulled out a lot of thing to get moving, we can talk about this
-;; approach tomorrow
-
-;; Points of interest are:
-;; - The get-bookmark-keys function: if that holds up, then that might be
-;; a good route to go.
 
 ;; Still TODO:
 ;; - `max_pk_values` and `last_pk_fetched`, not sure how this should go
@@ -521,6 +519,16 @@
           state
           bookmark-keys))
 
+(defn get-bookmark [state stream-name]
+  (-> (get-in state ["bookmarks" stream-name])
+      (dissoc "version")))
+
+(comment
+  (require 'tap-mssql.test-utils)
+  (def catalog (discover-catalog  tap-mssql.test-utils/test-db-config))
+  (def stream-name "full_table_sync_test-dbo-data_table")
+  )
+
 (defn write-records-and-states!
   "Syncs all records, states, returns the latest state. Ensures that the
   bookmark we have for this stream matches our understanding of the fields
@@ -529,13 +537,15 @@
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys (get-selected-fields catalog stream-name)
         bookmark-keys (get-bookmark-keys catalog stream-name)
-        sql-params (get-sql-params stream-name record-keys bookmark bookmark-keys)]
+        bookmark (get-bookmark state stream-name)
+        table-name (get-in catalog ["streams" stream-name "table_name"])
+        sql-params (get-sql-params table-name record-keys bookmark bookmark-keys)]
     (reduce (fn [acc result]
               (let [record (->> (select-keys result record-keys)
                                 (transform catalog stream-name))]
-                (write-record! stream-name record)
+                (write-record! stream-name state record)
                 (->> (update-state stream-name bookmark-keys acc record)
-                    (write-state! stream-name)))) ;; TODO: When to write? Every time for now.
+                     (write-state! stream-name)))) ;; TODO: When to write? Every time for now.
             state
             (jdbc/reducible-query (assoc (config->conn-map config)
                                          :dbname dbname)
@@ -589,7 +599,7 @@
           state
           (->> (catalog "streams")
                vals
-               (map #(get % "stream")))))
+               (map #(get % "tap_stream_id")))))
 
 (defn repl-arg-passed?
   [args]
@@ -662,7 +672,7 @@
 (defn deserialize-streams
   [serialized-streams]
   (reduce (fn [streams deserialized-stream]
-            (assoc streams (deserialized-stream "stream") deserialized-stream))
+            (assoc streams (deserialized-stream "tap_stream_id") deserialized-stream))
           {}
           (map deserialize-stream serialized-streams)))
 

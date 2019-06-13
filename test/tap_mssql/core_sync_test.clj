@@ -42,9 +42,6 @@
     (create-test-db)
     (f)))
 
-(deftest bookmark-valid?-test
-  (with-matrix-assertions test-db-configs test-db-fixture
-    (is (bookmark-valid? {} {} {}))))
 
 (deftest transform-rowversion-test
   ;; Convert to hex number (8 bytes)
