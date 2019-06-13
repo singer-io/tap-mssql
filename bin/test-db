@@ -112,7 +112,7 @@ test_db_not_online() {
                          | jq -r '.DBInstances[].DBInstanceStatus')
   if (( $? != 0 ))
   then
-    warnf 'Failed to describe %s' "$identifier"
+    warnf 'Failed to describe %s' "$instance_identifier"
   fi
   [[ $db_instance_status != available ]]
 }
@@ -146,7 +146,7 @@ create_test_instance() {
   local instance_identifier=$(get_instance_identifier "${instance_identifier_name}")
   local stable_dns_name=$(get_stable_dns_name "${instance_identifier_name}")
 
-  source <(jq -r '.[] 
+  source <(jq -r '.[]
                   | select(.name == "'"$instance_identifier_name"'")
                   | .properties
                   | to_entries[]
@@ -316,6 +316,11 @@ do_describe() {
 do_connect() {
   local instance_identifier_name=$1
   local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
+
+  if [[ -z $instance_identifier_name ]]
+  then
+    errorf 'Must specify instance identifier to connect to (e.g., 2017)'
+  fi
 
   if test_db_not_online "$instance_identifier_name" >/dev/null 2>&1
   then

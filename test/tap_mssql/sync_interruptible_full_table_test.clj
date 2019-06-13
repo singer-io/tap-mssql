@@ -9,7 +9,6 @@
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
-                                          *test-db-config*
                                           with-matrix-assertions]]))
 
 (defn get-destroy-database-command
@@ -17,16 +16,16 @@
   (format "DROP DATABASE %s" (:table_cat database)))
 
 (defn maybe-destroy-test-db
-  []
-  (let [destroy-database-commands (->> (get-databases *test-db-config*)
+  [config]
+  (let [destroy-database-commands (->> (get-databases config)
                                        (filter non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map *test-db-config*)]
+    (let [db-spec (config->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
-  []
-  (let [db-spec (config->conn-map *test-db-config*)]
+  [config]
+  (let [db-spec (config->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE full_table_interruptible_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
@@ -42,36 +41,37 @@
                             [:rowversion "rowversion"]])])))
 
 (defn populate-data
-  []
-  (jdbc/insert-multi! (-> (config->conn-map *test-db-config*)
+  [config]
+  (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table"
-                      (take 1000 (map (partial hash-map :deselected_value nil :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map *test-db-config*)
+                      (take 100 (map (partial hash-map :deselected_value nil :value) (range))))
+  (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table_rowversion"
-                      (take 1000 (map (partial hash-map :value) (range)))))
+                      (take 100 (map (partial hash-map :value) (range)))))
 
-(defn test-db-fixture [f]
+(defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
-    (maybe-destroy-test-db)
-    (create-test-db)
-    (populate-data)
+    (maybe-destroy-test-db config)
+    (create-test-db config)
+    (populate-data config)
     (f)))
 
 (defn get-messages-from-output
-  ([]
-   (get-messages-from-output nil))
-  ([table]
+  ([config]
+   (get-messages-from-output config nil))
+  ([config table]
    (get-messages-from-output
+    config
     table
-    (discover-catalog test-db-config)))
-  ([table catalog]
-   (get-messages-from-output table {} catalog))
-  ([table state catalog]
+    (discover-catalog config)))
+  ([config table catalog]
+   (get-messages-from-output config table {} catalog))
+  ([config table state catalog]
    (as-> (with-out-str
            (try
-             (do-sync test-db-config catalog state)
+             (do-sync config catalog state)
              (catch Exception e (when (not (:ignore (ex-data e)))
                                   (throw e )))))
        output
@@ -133,23 +133,25 @@
     ;; Sync partially, a table with row version, interrupted at some point
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
     (let [old-write-record write-record!]
-      (with-redefs [write-record! (fn [stream-name record]
+      (with-redefs [write-record! (fn [stream-name state record]
                                     ;; Call inc N times (using atom to track), then throw
                                     (swap! record-count inc)
-                                    (if (> @record-count 600)
+                                    (if (> @record-count 60)
                                       (do
                                         (reset! record-count 0)
                                         (throw (ex-info "Interrupting!" {:ignore true})))
-                                      (old-write-record stream-name record)))]
+                                      (old-write-record stream-name state record)))]
         (let [first-messages (->> (discover-catalog test-db-config)
-                                  (select-stream "data_table_rowversion")
-                                  (get-messages-from-output "data_table_rowversion"))
+                                  (select-stream "full_table_interruptible_sync_test-dbo-data_table_rowversion")
+                                  (get-messages-from-output test-db-config
+                                                            "full_table_interruptible_sync_test-dbo-data_table_rowversion"))
               first-state (last first-messages)]
+          (def first-messages first-messages)
           (is (valid-state? first-state))
-          (is (= "full_table_interruptible_sync_test-dbo-data_table_rowversion"
+          (is (= "SCHEMA"
                  ((-> first-messages
                       first)
-                  "tap_stream_id")))
+                  "type")))
           ;; Strictly increasing rowversion
           (is (every? (comp (partial > 0)
                             (partial apply compare))
@@ -162,19 +164,45 @@
                       (->> first-messages
                            (filter #(= "RECORD" (% "type")))
                            (map #(get-in % ["record" "rowversion"])))))
-          ;; Last state emitted has the rowversion of the last record emitted before that state
-          (is (let [[activate-version initial-state] (->> first-messages
-                                                          (drop 3) ;; Drop initial schema, state, and activate_version
-                                                          (partition 2 1)
-                                                          (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                          first)]
-                (= (activate-version "version") (get-in initial-state ["value" "bookmarks" "data_table_rowversion" "version"]))))
+          ;; Last state emitted has the pk of the last record emitted before that state
+          (is (let [[last-record last-state] (->> first-messages
+                                                  (drop 3) ;; Drop initial schema, state, and activate_version
+                                                  (partition 2 1)
+                                                  (take-last 20)
+                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                                  last)]
+                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "rowversion"]))))
+          ;; Last state emitted has the version of the last record emitted before that state
+          (is (let [[last-record last-state] (->> first-messages
+                                                  (drop 3) ;; Drop initial schema, state, and activate_version
+                                                  (partition 2 1)
+                                                  (take-last 20)
+                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                                  last)]
+                (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages
                        (second)) "type")))
           ;;   - Record count (if we use a consistent method of blowing up)
-          (is (= 603 ;; 600 records, schema, state, activate_version
-                 (count first-messages))))
+          (is (= 60
+                 (count (filter #(= "RECORD" (% "type")) first-messages)))))
         ))
     ))
+
+
+(comment
+  (let [old-write-record write-record!]
+    (with-redefs [write-record! (fn [stream-name record]
+                                  ;; Call inc N times (using atom to track), then throw
+                                  (swap! record-count inc)
+                                  (if (> @record-count 600)
+                                    (do
+                                      (reset! record-count 0)
+                                      (throw (ex-info "Interrupting!" {:ignore true})))
+                                    (old-write-record stream-name record)))]
+      (->> (discover-catalog test-db-config)
+           (select-stream "full_table_interruptible_sync_test-dbo-data_table_rowversion")
+           (get-messages-from-output test-db-config
+                                     "full_table_interruptible_sync_test-dbo-data_table_rowversion"))))
+  )
