@@ -44,29 +44,29 @@
 
 (deftest build-sync-query-test
   (is (thrown? AssertionError
-               (build-sync-query "mahogany" [] {})))
+               (build-sync-query "craftsmanship-dbo-mahogany" "mahogany" [] {})))
   ;; No bookmark, no pk = Full Table sync query
   (is (= ["SELECT legs, tabletop, leaf FROM mahogany"]
-         (build-sync-query "mahogany" ["legs", "tabletop", "leaf"] {})))
+         (build-sync-query "craftsmanship-dbo-mahogany" "mahogany" ["legs", "tabletop", "leaf"] {})))
   ;; No bookmark, yes pk = First FT Interruptible query
   (is (= '("SELECT legs, tabletop, leaf FROM mahogany WHERE legs <= ? AND leaf <= ? ORDER BY legs, leaf"
           4
           "birch")
-         (build-sync-query "mahogany" ["legs", "tabletop", "leaf"]
-                           {"bookmarks" {"mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
+         (build-sync-query "craftsmanship-dbo-mahogany" "mahogany" ["legs", "tabletop", "leaf"]
+                           {"bookmarks" {"craftsmanship-dbo-mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   ;; Bookmark, no pk = ??? Invalid state
   (is (thrown? AssertionError
-               (build-sync-query "mahogany" ["legs", "tabletop", "leaf"]
-                                 {"bookmarks" {"mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
+               (build-sync-query "craftsmanship-dbo-mahogany" "mahogany" ["legs", "tabletop", "leaf"]
+                                 {"bookmarks" {"craftsmanship-dbo-mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
   ;; Bookmark and PK = Resuming Full Table Sync
   (is (= '("SELECT legs, tabletop, leaf FROM mahogany WHERE legs >= ? AND leaf >= ? AND legs <= ? AND leaf <= ? ORDER BY legs, leaf"
           2
           "balsa"
           4
           "birch")
-         (build-sync-query "mahogany" ["legs", "tabletop", "leaf"]
+         (build-sync-query "craftsmanship-dbo-mahogany" "mahogany" ["legs", "tabletop", "leaf"]
                            {"bookmarks"
-                            {"mahogany"
+                            {"craftsmanship-dbo-mahogany"
                              {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
                               "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   )

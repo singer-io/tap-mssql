@@ -93,40 +93,7 @@
   [stream-name field-name catalog]
   (assoc-in catalog ["streams" stream-name "metadata" "properties" field-name "selected"] false))
 
-;; How is this supposed to work?
-;; - Check if sync is marked as FULL_TABLE
-;; - Check if rowversion (e.g., timestamp) column exists
-;; - If so, use that, otherwise, use PK (get-full-table-replication-key catalog stream-name) => ["rowversion"] or ["name", "age", "ssn"] (if rowversion not present)
-;;    - Should `max_pk_values` be stored in state like mysql? Needed for CDC
-;; - If no sortable PK exists, do uninterruptible full table (with log)
-
-;; State Should Look like: {"bookmarks":{"my_table": {"version": 1235677879, "max_pk_values": {"field": "value", ...}, "last_pk_fetched": {"field: "value", ...}}}}}
-
 (def record-count (atom 0))
-
-(comment
-  ;; Check if sequence is strictly increasing
-  (apply < [1 2 3 4])
-
-  (let [sample '("0x0000000000000A2E"
-                "0x0000000000000884"
-                "0x0000000000000AA5"
-                "0x0000000000000AAE"
-                "0x0000000000000A29"
-                "0x00000000000008CA"
-                "0x0000000000000A2D"
-                "0x00000000000008C6"
-                "0x0000000000000B7A"
-                "0x00000000000009F1"
-                "0x00000000000009A8"
-                "0x000000000000082B"
-                "0x000000000000099D"
-                "0x000000000000093D"
-                "0x0000000000000A3E")]
-    (every? (comp (partial > 0) (partial apply compare)) (partition 2 (sort sample)))
-      (sort sample))
-  )
-
 (deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
@@ -134,7 +101,6 @@
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
     (let [old-write-record write-record!]
       (with-redefs [write-record! (fn [stream-name state record]
-                                    ;; Call inc N times (using atom to track), then throw
                                     (swap! record-count inc)
                                     (if (> @record-count 120)
                                       (do
@@ -164,27 +130,26 @@
                       (->> first-messages
                            (filter #(= "RECORD" (% "type")))
                            (map #(get-in % ["record" "rowversion"])))))
-          ;; Last state emitted has the pk of the last record emitted before that state
+          ;; Next state emitted has the pk of the last record emitted before that state
           (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 3) ;; Drop initial schema, state, and activate_version
+                                                  (drop 5) ;; Ignore first state
                                                   (partition 2 1)
-                                                  (take-last 20)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  last)]
-                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "last_pk_fetched" "rowversion"]))))
-          ;; Last state emitted has the version of the last record emitted before that state
+                                                  first)]
+                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "last_pk_fetched" "rowversion"])))
+              "Either no state emitted, or state does not match previous record")
+          ;; Next state emitted has the version of the last record emitted before that state
           (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 3) ;; Drop initial schema, state, and activate_version
+                                                  (drop 5) ;; Ignore first state
                                                   (partition 2 1)
-                                                  (take-last 20)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  last)]
+                                                  first)]
                 (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages
                        (second)) "type")))
-          ;;   - Record count (if we use a consistent method of blowing up)
+          ;;   - Record count (Equal to the counter of the atom before exception)
           (is (= 120
                  (count (filter #(= "RECORD" (% "type")) first-messages)))))
         ))
