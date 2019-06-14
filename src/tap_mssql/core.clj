@@ -143,7 +143,11 @@
                               ;; uniqueidentifier value.
                               ;;
                               ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
-                              "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}}
+                              "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
+          ;; timestamp is a synonym for rowversion, which is automatically
+          ;; generated and guaranteed to be unique. It is _not_ a datetime
+          ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
+          "timestamp"         {"type" ["string"] }}
          type_name)]
     (if (and column-schema
              (= "YES" (:is_nullable column)))
@@ -355,6 +359,9 @@
       println))
 
 (defn write-schema! [catalog stream-name]
+  ;; TODO: This is writing nil for unsupported values
+  ;; - It's also writing metadata with it, should be dissoc'd
+  ;; - Verify using Singer spec
   (let [schema-message (assoc (get-in catalog ["streams" stream-name])
                               "type" "SCHEMA")]
     (write-message! schema-message)))
@@ -417,13 +424,29 @@
       (write-activate-version! stream-name new-state))
     new-state))
 
+(defn transform-rowversion [rowversion]
+  (apply str "0x" (map (comp string/upper-case
+                             (partial format "%02x"))
+                       rowversion)))
+
+(defn transform-field [catalog stream-name [k v]]
+  (condp = (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
+    "timestamp"
+    [k (transform-rowversion v)]
+    ;; Other cases?
+    [k v]))
+
+(defn transform [catalog stream-name record]
+  (into {} (map (partial transform-field catalog stream-name) record)))
+
 (defn write-records-and-states!
   "Syncs all records, states, returns the latest state."
   [config catalog stream-name state]
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys (get-selected-fields catalog stream-name)]
     (reduce (fn [acc result]
-              (write-record! stream-name (select-keys result record-keys))
+              (write-record! stream-name (->> (select-keys result record-keys)
+                                              (transform catalog stream-name)))
               acc)
             state
             (jdbc/reducible-query (assoc (config->conn-map config)
