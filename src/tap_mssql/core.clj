@@ -95,6 +95,18 @@
                     "table-key-properties" #{}
                     "is-view"              (:is-view? column)}})
 
+(defn maybe-add-nullable-to-column-schema [column-schema column]
+  (if (and column-schema
+           (= "YES" (:is_nullable column)))
+    (update column-schema "type" conj "null")
+    column-schema))
+
+(defn maybe-add-precision-to-column-schema [column-schema column]
+  (if (and column-schema
+           (> (:decimal_digits column) 0))
+    (assoc column-schema "multipleOf" (Math/pow 10 (- (:decimal_digits column))))
+    column-schema))
+
 (defn column->schema
   [{:keys [type_name] :as column}]
   (let [column-schema
@@ -153,10 +165,9 @@
           ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
           "timestamp"         {"type" ["string"] }}
          type_name)]
-    (if (and column-schema
-             (= "YES" (:is_nullable column)))
-      (update column-schema "type" conj "null")
-      column-schema)))
+    (-> column-schema
+        (maybe-add-nullable-to-column-schema column)
+        (maybe-add-precision-to-column-schema column))))
 
 (defn add-column-schema-to-catalog-stream-schema
   [catalog-stream-schema column]
@@ -550,8 +561,8 @@
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
         bookmark-keys (get-bookmark-keys catalog stream-name)
         table-name (get-in catalog ["streams" stream-name "table_name"])
-        sql-query [(format "select %s from %s" (string/join " ," (map (fn [bookmark-key] (format "max(%1$s) as %1$s" bookmark-key)) bookmark-keys)) table-name)]]
-    (if (not (nil? bookmark-keys)) ;; ({"id" ... "other" ... })
+        sql-query [(format "SELECT %s FROM %s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) table-name)]]
+    (if (not (nil? bookmark-keys))
       (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false})
            first
            (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
