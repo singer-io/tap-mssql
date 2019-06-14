@@ -102,7 +102,11 @@
     column-schema))
 
 (defn maybe-add-precision-to-column-schema [column-schema column]
+  {:pre [(map? column)]}
   (if (and column-schema
+           (not (nil? (:decimal_digits column)))
+           ;; Datetime columns have a precision, not a candidate for multipleOf
+           (not (= "date-time" (column-schema "format")))
            (> (:decimal_digits column) 0))
     (assoc column-schema "multipleOf" (Math/pow 10 (- (:decimal_digits column))))
     column-schema))
@@ -374,6 +378,7 @@
       println))
 
 (defn write-schema! [catalog stream-name]
+  ;; TODO: Make sure that unsupported values are written with an empty schema
   (let [schema-message {"type" "SCHEMA"
                         "stream" stream-name
                         "key_properties" (get-in catalog ["streams"
