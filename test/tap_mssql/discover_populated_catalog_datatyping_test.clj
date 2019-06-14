@@ -102,17 +102,17 @@
                                                  [[:date "date"]
                                                   [:time "time"]
                                                   [:datetime "datetime"]])
-                          (jdbc/create-table-ddl :unsupported_data_types
-                                                 [[:rowversion "rowversion"]])
-                          ;; timestamp is a synonym for rowversion,
-                          ;; neither of which are analogous to the ISO
-                          ;; Standard timestamp type.
-                          ;;
-                          ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
-                          (jdbc/create-table-ddl :unsupported_data_type_synonyms
-                                                 [[:timestamp "timestamp"]])
                           (jdbc/create-table-ddl :uniqueidentifiers
-                                                 [[:uniqueidentifier "uniqueidentifier"]])])))
+                                                 [[:uniqueidentifier "uniqueidentifier"]])
+                          (jdbc/create-table-ddl :timestamps
+                                                 ;; timestamp is a synonym for rowversion,
+                                                 ;; neither of which are analogous to the ISO
+                                                 ;; Standard timestamp type.
+                                                 ;;
+                                                 ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
+                                                 [[:timestamp "timestamp"]])
+                          (jdbc/create-table-ddl :rowversions
+                                                 [[:rowversion "rowversion"]])])))
 
 (defn test-db-fixture [f]
   (with-out-and-err-to-dev-null
@@ -293,27 +293,6 @@
          (get-in (discover-catalog test-db-config)
                  ["streams" "binary_strings" "schema" "properties" "varbinary_max"]))))
 
-(deftest ^:integration verify-unsupported-columns
-  (is (nil? (get-in (discover-catalog test-db-config)
-                    ["streams" "unsupported_data_types" "schema" "properties"
-                     "rowversion"])))
-  (is (= "unsupported"
-         (get-in (discover-catalog test-db-config)
-                 ["streams" "unsupported_data_types" "metadata" "properties"
-                  "rowversion" "inclusion"])))
-  (is (= false
-         (get-in (discover-catalog test-db-config)
-                 ["streams" "unsupported_data_types" "metadata" "properties"
-                  "rowversion" "selected-by-default"])))
-  (is (= {}
-         (->> (discover-catalog test-db-config)
-              catalog->serialized-catalog
-              (#(get % "streams"))
-              (filter (comp (partial = "unsupported_data_types")
-                            #(get % "stream")))
-              first
-              (#(get-in % ["schema" "properties" "rowversion"]))))))
-
 (deftest ^:integration verify-uniqueidentifiers-are-supported
   (is (= {"type" ["string" "null"]
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
@@ -331,6 +310,40 @@
          (get-in (discover-catalog test-db-config)
                  ["streams" "uniqueidentifiers" "metadata" "properties"
                   "uniqueidentifier" "selected-by-default"]))))
+
+(deftest ^:integration verify-timestamps-are-supported
+  (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "timestamps" "schema" "properties" "timestamp"])))
+  (is (= "timestamp"
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "timestamps" "metadata" "properties"
+                  "timestamp" "sql-datatype"])))
+  (is (= "available"
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "timestamps" "metadata" "properties"
+                  "timestamp" "inclusion"])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "timestamps" "metadata" "properties"
+                  "timestamp" "selected-by-default"]))))
+
+(deftest ^:integration verify-rowversions-are-supported
+  (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "rowversions" "schema" "properties" "rowversion"])))
+  (is (= "timestamp" ;; rowversion is an alias for timestamp
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "rowversions" "metadata" "properties"
+                  "rowversion" "sql-datatype"])))
+  (is (= "available"
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "rowversions" "metadata" "properties"
+                  "rowversion" "inclusion"])))
+  (is (= true
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "rowversions" "metadata" "properties"
+                  "rowversion" "selected-by-default"]))))
 
 (comment
   (map select-keys
