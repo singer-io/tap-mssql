@@ -7,8 +7,8 @@
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                          test-db-config
                                           test-db-configs
-                                          *test-db-config*
                                           with-matrix-assertions]]))
 
 (defn get-destroy-database-command
@@ -16,16 +16,16 @@
   (format "DROP DATABASE %s" (:table_cat database)))
 
 (defn maybe-destroy-test-db
-  []
-  (let [destroy-database-commands (->> (get-databases *test-db-config*)
+  [config]
+  (let [destroy-database-commands (->> (get-databases config)
                                        (filter non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map *test-db-config*)]
+    (let [db-spec (config->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
-  []
-  (let [db-spec (config->conn-map *test-db-config*)]
+  [config]
+  (let [db-spec (config->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE full_table_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
                          [(jdbc/create-table-ddl
@@ -40,33 +40,34 @@
                             [:value "int"]])])))
 
 (defn populate-data
-  []
-  (jdbc/insert-multi! (-> (config->conn-map *test-db-config*)
+  [config]
+  (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_sync_test"))
                       "data_table"
-                      (take 1000 (map (partial hash-map :deselected_value nil :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map *test-db-config*)
+                      (take 100 (map (partial hash-map :deselected_value nil :value) (range))))
+  (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_sync_test"))
                       "data_table_2"
-                      (take 1000 (map (partial hash-map :value) (range)))))
+                      (take 100 (map (partial hash-map :value) (range)))))
 
-(defn test-db-fixture [f]
+(defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
-    (maybe-destroy-test-db)
-    (create-test-db)
-    (populate-data)
+    (maybe-destroy-test-db config)
+    (create-test-db config)
+    (populate-data config)
     (f)))
 
 (defn get-messages-from-output
-  ([]
-   (get-messages-from-output nil))
-  ([table]
+  ([config]
+   (get-messages-from-output config nil))
+  ([config table]
    (get-messages-from-output
-    (discover-catalog *test-db-config*)
+    (discover-catalog config)
+    config
     table))
-  ([catalog table]
+  ([catalog config table]
    (as-> (with-out-str
-           (do-sync *test-db-config* catalog {}))
+           (do-sync config catalog {}))
        output
        (string/split output #"\n")
        (filter (complement empty?) output)
@@ -81,8 +82,8 @@
 (deftest ^:integration verify-full-table-sync-with-no-tables-selected
   ;; do-sync prints a bunch of stuff and returns an empty state
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (valid-state? (do-sync *test-db-config* (discover-catalog *test-db-config*) {})))
-    (is (empty? (get-messages-from-output)))))
+    (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
+    (is (empty? (get-messages-from-output test-db-config)))))
 
 (defn select-stream
   [catalog stream-name]
@@ -99,164 +100,148 @@
 
     ;; This also verifies selected-by-default
     ;; do-sync prints a bunch of stuff and returns nil
-    (is (valid-state? (do-sync *test-db-config* (discover-catalog *test-db-config*) {})))
+    (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
     ;; Emits schema message
     (is (= "full_table_sync_test-dbo-data_table"
-           ((-> (discover-catalog *test-db-config*)
-                (select-stream "data_table")
-                (get-messages-from-output "data_table")
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
-            "tap_stream_id")))
-    (is (= "data_table"
-           ((-> (discover-catalog *test-db-config*)
-                (select-stream "data_table")
-                (get-messages-from-output "data_table")
+            "stream")))
+    (is (= ["id"]
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
-            "table_name")))
+            "key_properties")))
     (is (= {"type" ["string"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output "data_table")
+           (get-in (-> (discover-catalog test-db-config)
+                       (select-stream "full_table_sync_test-dbo-data_table")
+                       (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                        first)
                    ["schema" "properties" "id"])))
-    (is (not (contains? ((-> (discover-catalog *test-db-config*)
-                             (select-stream "data_table")
-                             (get-messages-from-output "data_table")
+    (is (not (contains? ((-> (discover-catalog test-db-config)
+                             (select-stream "full_table_sync_test-dbo-data_table")
+                             (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                              first)
                          "schema")
                         "metadata")))
     ;; Emits the records expected
-    (is (= 1005
-           (-> (discover-catalog *test-db-config*)
-               (select-stream "data_table")
-               (get-messages-from-output nil)
+    (is (= 100
+           (-> (discover-catalog test-db-config)
+               (select-stream "full_table_sync_test-dbo-data_table")
+               (get-messages-from-output test-db-config nil)
+               ((partial filter #(= "RECORD" (% "type"))))
                count)))
     (is (every? (fn [rec]
-                  (= "data_table" (rec "stream")))
-                (-> (discover-catalog *test-db-config*)
-                    (select-stream "data_table")
-                    (get-messages-from-output nil))))
-    (is (= "RECORD"
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output nil))
-                   [3 "type"])))
+                  (= "full_table_sync_test-dbo-data_table" (rec "stream")))
+                (-> (discover-catalog test-db-config)
+                    (select-stream "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output test-db-config nil))))
     ;; At the moment we're not ordering by anything so checking the actual
     ;; value here would be brittle, I think.
     (is (every? #(get-in % ["record" "value"])
-                (as-> (discover-catalog *test-db-config*)
+                (as-> (discover-catalog test-db-config)
                     x
-                    (select-stream x "data_table")
-                    (get-messages-from-output x nil)
-                    (drop 3 x)
-                    (take 1000 x))))
-    (is (every? #(contains? (% "record") "deselected_value")
-                (as-> (discover-catalog *test-db-config*)
-                    x
-                    (select-stream x "data_table")
-                    ;; Don't select or deselect any fields and let
-                    ;; selected-by-default do all the work
-                    #_(deselect-field x "data_table" "deselected_value")
-                    (get-messages-from-output x nil)
-                    (drop 3 x)
-                    (take 1000 x))))
+                    (select-stream x "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output x test-db-config nil)
+                    (filter #(= "RECORD" (% "type")) x))))
     (is (= "STATE"
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output nil))
-                   [1004 "type"])))))
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config nil)
+                last)
+            "type"))
+        "Last message in a complete sync must be state")))
 
 (deftest ^:integration verify-full-table-sync-with-one-table-selected-and-one-field-deselected
   (with-matrix-assertions test-db-configs test-db-fixture ;; do-sync prints a bunch of stuff and returns nil
-    (is (valid-state? (do-sync *test-db-config* (discover-catalog *test-db-config*) {})))
+    (is (valid-state? (do-sync test-db-config (discover-catalog test-db-config) {})))
     ;; Emits schema message
     (is (= "full_table_sync_test-dbo-data_table"
-           ((-> (discover-catalog *test-db-config*)
-                (select-stream "data_table")
-                (get-messages-from-output "data_table")
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
-            "tap_stream_id")))
-    (is (= "data_table"
-           ((-> (discover-catalog *test-db-config*)
-                (select-stream "data_table")
-                (get-messages-from-output "data_table")
+            "stream")))
+    (is (= ["id"]
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
-            "table_name")))
+            "key_properties")))
     (is (= {"type" ["string"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output "data_table")
+           (get-in (-> (discover-catalog test-db-config)
+                       (select-stream "full_table_sync_test-dbo-data_table")
+                       (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                        first)
                    ["schema" "properties" "id"])))
-    (is (not (contains? ((-> (discover-catalog *test-db-config*)
-                             (select-stream "data_table")
-                             (get-messages-from-output "data_table")
+    (is (not (contains? ((-> (discover-catalog test-db-config)
+                             (select-stream "full_table_sync_test-dbo-data_table")
+                             (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                              first)
                          "schema")
                         "metadata")))
     ;; Emits the records expected
-    (is (= 1005
-           (-> (discover-catalog *test-db-config*)
-               (select-stream "data_table")
-               (get-messages-from-output nil)
+    (is (= 100
+           (-> (discover-catalog test-db-config)
+               (select-stream "full_table_sync_test-dbo-data_table")
+               (get-messages-from-output test-db-config nil)
+               ((partial filter #(= "RECORD" (% "type"))))
                count)))
     (is (every? (fn [rec]
-                  (= "data_table" (rec "stream")))
-                (-> (discover-catalog *test-db-config*)
-                    (select-stream "data_table")
-                    (get-messages-from-output nil))))
-    (is (= "RECORD"
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output nil))
-                   [3 "type"])))
+                  (= "full_table_sync_test-dbo-data_table" (rec "stream")))
+                (-> (discover-catalog test-db-config)
+                    (select-stream "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output test-db-config nil))))
     ;; At the moment we're not ordering by anything so checking the actual
     ;; value here would be brittle, I think.
     (is (every? #(get-in % ["record" "value"])
-                (as-> (discover-catalog *test-db-config*)
+                (as-> (discover-catalog test-db-config)
                     x
-                    (select-stream x "data_table")
-                    (get-messages-from-output x nil)
-                    (drop 3 x)
-                    (take 1000 x))))
+                    (select-stream x "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output x test-db-config nil)
+                    (filter #(= "RECORD" (% "type")) x))))
     (is (every? #(not (contains? (% "record") "deselected_value"))
-                (as-> (discover-catalog *test-db-config*)
+                (as-> (discover-catalog test-db-config)
                     x
-                    (select-stream x "data_table")
-                    (deselect-field x "data_table" "deselected_value")
-                    (get-messages-from-output x nil)
-                    (drop 3 x)
-                    (take 1000 x))))
+                    (select-stream x "full_table_sync_test-dbo-data_table")
+                    (deselect-field x "full_table_sync_test-dbo-data_table" "deselected_value")
+                    (get-messages-from-output x test-db-config nil)
+                    (filter #(= "RECORD" (% "type")) x))))
     (is (= "STATE"
-           (get-in (-> (discover-catalog *test-db-config*)
-                       (select-stream "data_table")
-                       (get-messages-from-output nil))
-                   [1004 "type"])))
+           ((-> (discover-catalog test-db-config)
+                (select-stream "full_table_sync_test-dbo-data_table")
+                (get-messages-from-output test-db-config nil)
+                last)
+            "type"))
+        "Last message in a complete sync must be state")
     )
   )
 
 (deftest ^:integration verify-activate-version-emitted-on-full-table-sync
   (with-matrix-assertions test-db-configs test-db-fixture ;; Emits Activate Version Messages at the right times
     (is (= "ACTIVATE_VERSION"
-           (get (-> (discover-catalog *test-db-config*)
-                    (select-stream "data_table")
-                    (get-messages-from-output nil)
+           (get (-> (discover-catalog test-db-config)
+                    (select-stream "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output test-db-config nil)
                     second)
                 "type")))
     (is (= "STATE" ;; 3rd message should be a state with the table version
-           (get (-> (discover-catalog *test-db-config*)
-                    (select-stream "data_table")
-                    (get-messages-from-output nil)
+           (get (-> (discover-catalog test-db-config)
+                    (select-stream "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output test-db-config nil)
                     (nth 2))
                 "type")))
     (is (= "ACTIVATE_VERSION" ;; Last activate version
-           (get (as-> (discover-catalog *test-db-config*)
+           (get (as-> (discover-catalog test-db-config)
                     x
-                    (select-stream x "data_table")
-                    (get-messages-from-output x nil)
-                    (drop 1003 x) ;; Drop schema, activate_version, state, and 1k records
+                    (select-stream x "full_table_sync_test-dbo-data_table")
+                    (get-messages-from-output x test-db-config nil)
+                    (take-last 2 x)
                     (first x))
-                "type"))))
+                "type"))
+        "Second to last message on full table sync should be Activate Version"))
   )

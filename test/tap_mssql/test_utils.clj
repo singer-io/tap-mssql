@@ -91,7 +91,17 @@
               test-configs))))
 
 ;; Def multiple assertions for the same test
-(defmacro with-matrix-assertions [test-db-configs-form fixture-fn & body]
+(defmacro with-matrix-assertions
+  "Expands to a copy of the passed in `~@body` forms for each config in
+  `test-db-configs-form` that is wrapped with an anonymous function that is
+  passed into `fixture-fn`.
+
+  Within `fixture-fn` and the wrapped forms, the
+  symbol `test-db-config` is bound to the current config.
+
+  NOTE: At execution time, this shadows any other `test-db-config` in the
+  namespace."
+  [test-db-configs-form fixture-fn & body]
   (let [test-configs (eval test-db-configs-form)]
     (assert (every? (fn [test-db-config]
                       (map? test-db-config))
@@ -101,6 +111,10 @@
             "fixture-fn must be a valid clojure.test fixture-fn")
     `(do
        ~@(map (fn [test-db-config]
-                `(binding [*test-db-config* ~test-db-config]
-                   (~fixture-fn (fn [] ~@body))))
+                ;; `let` here provides ease of use without dynamic binding
+                ;; at the cost of shadowing test-db-config if imported.
+                ;; The benefit is that no code needs to change to add or
+                ;; remove the matrix.
+                `(let [~(symbol "test-db-config") ~test-db-config]
+                   (~fixture-fn (fn [] ~@body) ~(symbol "test-db-config"))))
               test-configs))))
