@@ -108,7 +108,7 @@
            ;; Datetime columns have a precision, not a candidate for multipleOf
            (not (= "date-time" (column-schema "format")))
            (> (:decimal_digits column) 0))
-    (assoc column-schema "multipleOf" (Math/pow 10 (- (:decimal_digits column))))
+    (assoc column-schema "multipleOf" (* 1 (Math/pow 10 (- (:decimal_digits column)))))
     column-schema))
 
 (defn column->schema
@@ -539,6 +539,10 @@
     (if add-where-clause?
       (concat sql-params
               (vals last-pk-fetched)
+              ;; TODO: String PKs? They may need quoted, they may also
+              ;; need N'' for nvarchar/nchar/ntext, etc., conditionally
+              ;; :facepalm:
+              ;; Likely an edge case, but might be pretty rough.
               (vals max-pk-values))
       sql-params)))
 
