@@ -184,7 +184,6 @@
 
 (defn column->table-primary-keys*
   [conn-map table_cat table_schem table_name]
-  (log/info "Discovering primary keys...")
   (jdbc/with-db-metadata [md conn-map]
     (->> (.getPrimaryKeys md table_cat table_schem table_name)
          jdbc/metadata-result
@@ -246,7 +245,6 @@
 
 (defn get-column-database-view-names*
   [conn-map table_cat]
-  (log/info "Discovering views...")
   (jdbc/with-db-metadata [md conn-map]
     (->> (.getTables md table_cat "dbo" nil (into-array ["VIEW"]))
          jdbc/metadata-result
