@@ -72,11 +72,14 @@
 
 (defn get-databases
   [config]
-  (let [conn-map (config->conn-map config)]
-    (filter (every-pred non-system-database?
-                        (partial config-specific-database? config))
-            (jdbc/with-db-metadata [md conn-map]
-              (jdbc/metadata-result (.getCatalogs md))))))
+  (log/info "Discovering  databases...")
+  (let [conn-map (config->conn-map config)
+        databases (filter (every-pred non-system-database?
+                                      (partial config-specific-database? config))
+                          (jdbc/with-db-metadata [md conn-map]
+                            (jdbc/metadata-result (.getCatalogs md))))]
+    (log/infof "Found %s non-system databases." (count databases))
+    databases))
 
 (defn column->tap-stream-id [column]
   (format "%s-%s-%s"
@@ -181,6 +184,7 @@
 
 (defn column->table-primary-keys*
   [conn-map table_cat table_schem table_name]
+  (log/info "Discovering primary keys...")
   (jdbc/with-db-metadata [md conn-map]
     (->> (.getPrimaryKeys md table_cat table_schem table_name)
          jdbc/metadata-result
@@ -228,6 +232,7 @@
 
 (defn get-database-raw-columns
   [conn-map database]
+  (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
   (jdbc/with-db-metadata [md conn-map]
     (jdbc/metadata-result (.getColumns md (:table_cat database) "dbo" nil nil))))
 
@@ -241,6 +246,7 @@
 
 (defn get-column-database-view-names*
   [conn-map table_cat]
+  (log/info "Discovering views...")
   (jdbc/with-db-metadata [md conn-map]
     (->> (.getTables md table_cat "dbo" nil (into-array ["VIEW"]))
          jdbc/metadata-result

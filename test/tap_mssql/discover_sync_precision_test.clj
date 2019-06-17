@@ -153,6 +153,7 @@
       ;; error
       (map #(json/read-str % :bigdec true) output)))
 
+;; Decimal
 (deftest precision-should-be-maintained-in-written-records-from-json
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (every? #(or (nil? %)
@@ -166,3 +167,8 @@
                      (filter #(= "RECORD" (% "type")))
                      (map #(get % "record"))
                      (map #(% "numeric_38_22")))))))
+
+;; Single/Float
+;; TODO: Harrison had this case come up in testing.
+;; -8084.015625 vs -8084.0156 for a single  and -2.4927882e+29 vs -2.4927882284206863e+29 for a single
+;; the first is what the target has and the second is what is actually _[returned from a select]_ in the db
