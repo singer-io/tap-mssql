@@ -121,15 +121,15 @@
                 distinct)))))
 
 (deftest ^:integration verify-full-catalog
-  (let [expected-stream-names #{"another_empty_table"
-                                "empty_table"
-                                "empty_table_ids"
-                                "approximate_numerics"
-                                "binary_strings"
-                                "character_strings"
-                                "date_and_time"
-                                "exact_numerics"
-                                "unicode_character_strings"}
+  (let [expected-stream-names #{"another_database_with_a_table-dbo-another_empty_table"
+                                "database_with_a_table-dbo-empty_table"
+                                "database_with_a_table-dbo-empty_table_ids"
+                                "datatyping-dbo-approximate_numerics"
+                                "datatyping-dbo-binary_strings"
+                                "datatyping-dbo-character_strings"
+                                "datatyping-dbo-date_and_time"
+                                "datatyping-dbo-exact_numerics"
+                                "datatyping-dbo-unicode_character_strings"}
         discovered-streams ((discover-catalog test-db-config) "streams")]
     (dorun
      (for [stream-name (keys discovered-streams)]
@@ -181,15 +181,15 @@
 
 (deftest ^:integration verify-ssl-returns-full-catalog
   (let [ssl-config (assoc test-db-config "ssl" "true")
-        expected-stream-names #{"another_empty_table"
-                                "empty_table"
-                                "empty_table_ids"
-                                "approximate_numerics"
-                                "binary_strings"
-                                "character_strings"
-                                "date_and_time"
-                                "exact_numerics"
-                                "unicode_character_strings"}
+        expected-stream-names #{"another_database_with_a_table-dbo-another_empty_table"
+                                "database_with_a_table-dbo-empty_table"
+                                "database_with_a_table-dbo-empty_table_ids"
+                                "datatyping-dbo-approximate_numerics"
+                                "datatyping-dbo-binary_strings"
+                                "datatyping-dbo-character_strings"
+                                "datatyping-dbo-date_and_time"
+                                "datatyping-dbo-exact_numerics"
+                                "datatyping-dbo-unicode_character_strings"}
         discovered-streams ((discover-catalog ssl-config) "streams")]
     (dorun
      (for [expected-stream-name expected-stream-names]

@@ -9,42 +9,39 @@
                                           test-db-config
                                           test-db-configs
                                           def-matrix-tests
-                                          with-matrix-assertions
-                                          *test-db-config*]]))
+                                          with-matrix-assertions]]))
 
 (defn get-destroy-database-command
   [database]
   (format "DROP DATABASE %s" (:table_cat database)))
 
 (defn maybe-destroy-test-db
-  []
-  (let [test-db-config (or *test-db-config* test-db-config)
-        destroy-database-commands (->> (get-databases test-db-config)
+  [config]
+  (let [destroy-database-commands (->> (get-databases config)
                                        (filter non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
-  []
-  (let [test-db-config (or *test-db-config* test-db-config)
-        db-spec (config->conn-map test-db-config)]
+  [config]
+  (let [db-spec (config->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
 
-(defn test-db-fixture [f]
+(defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
-    (maybe-destroy-test-db)
-    (create-test-db)
+    (maybe-destroy-test-db config)
+    (create-test-db config)
     (f)))
 
 (deftest verify-mssql-version
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (nil? (do-discovery *test-db-config*))
+    (is (nil? (do-discovery test-db-config))
         "Discovery ran succesfully and did not throw an exception")))
 
 (deftest ^:integration verify-empty-catalog
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (= empty-catalog (discover-catalog *test-db-config*))
+    (is (= empty-catalog (discover-catalog test-db-config))
        "Databases without any tables (like empty_database) do not show up in the catalog")))
 
 (comment
@@ -53,6 +50,4 @@
   (map (comp (partial ns-unmap *ns*) #(.sym %)) (filter (comp :test meta) (vals (ns-publics *ns*))))
   ;; Clear entire namespace
   (map (comp (partial ns-unmap *ns*) #(.sym %)) (vals (ns-publics *ns*)))
-
-  (ns-unmap *ns* (.sym #'tap-mssql.discover-empty-catalog-test/*test-db-config*))
   )

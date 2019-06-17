@@ -4,6 +4,7 @@
             [clojure.tools.cli :as cli]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.set]
             [clojure.data.json :as json]
             [clojure.java.jdbc :as jdbc])
   (:import [com.microsoft.sqlserver.jdbc SQLServerException])
@@ -77,19 +78,38 @@
             (jdbc/with-db-metadata [md conn-map]
               (jdbc/metadata-result (.getCatalogs md))))))
 
+(defn column->tap-stream-id [column]
+  (format "%s-%s-%s"
+          (:table_cat column)
+          (:table_schem column)
+          (:table_name column)))
+
 (defn column->catalog-entry
   [column]
   {"stream"        (:table_name column)
-   "tap_stream_id" (format "%s-%s-%s"
-                           (:table_cat column)
-                           (:table_schem column)
-                           (:table_name column))
+   "tap_stream_id" (column->tap-stream-id column)
    "table_name"    (:table_name column)
    "schema"        {"type" "object"}
    "metadata"      {"database-name"        (:table_cat column)
                     "schema-name"          (:table_schem column)
                     "table-key-properties" #{}
                     "is-view"              (:is-view? column)}})
+
+(defn maybe-add-nullable-to-column-schema [column-schema column]
+  (if (and column-schema
+           (= "YES" (:is_nullable column)))
+    (update column-schema "type" conj "null")
+    column-schema))
+
+(defn maybe-add-precision-to-column-schema [column-schema column]
+  {:pre [(map? column)]}
+  (if (and column-schema
+           (not (nil? (:decimal_digits column)))
+           ;; Datetime columns have a precision, not a candidate for multipleOf
+           (not (= "date-time" (column-schema "format")))
+           (> (:decimal_digits column) 0))
+    (assoc column-schema "multipleOf" (* 1 (Math/pow 10 (- (:decimal_digits column)))))
+    column-schema))
 
 (defn column->schema
   [{:keys [type_name] :as column}]
@@ -149,10 +169,9 @@
           ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
           "timestamp"         {"type" ["string"] }}
          type_name)]
-    (if (and column-schema
-             (= "YES" (:is_nullable column)))
-      (update column-schema "type" conj "null")
-      column-schema)))
+    (-> column-schema
+        (maybe-add-nullable-to-column-schema column)
+        (maybe-add-precision-to-column-schema column))))
 
 (defn add-column-schema-to-catalog-stream-schema
   [catalog-stream-schema column]
@@ -203,7 +222,7 @@
 
 (defn add-column
   [catalog column]
-  (update-in catalog ["streams" (:table_name column)]
+  (update-in catalog ["streams" (column->tap-stream-id column)]
              add-column-to-stream
              column))
 
@@ -359,12 +378,21 @@
       println))
 
 (defn write-schema! [catalog stream-name]
-  ;; TODO: This is writing nil for unsupported values
-  ;; - It's also writing metadata with it, should be dissoc'd
-  ;; - Verify using Singer spec
-  (let [schema-message (assoc (get-in catalog ["streams" stream-name])
-                              "type" "SCHEMA")]
-    (write-message! schema-message)))
+  ;; TODO: Make sure that unsupported values are written with an empty schema
+  (let [schema-message {"type" "SCHEMA"
+                        "stream" stream-name
+                        "key_properties" (get-in catalog ["streams"
+                                                          stream-name
+                                                          "metadata"
+                                                          "table-key-properties"])
+                        "schema" (get-in catalog ["streams" stream-name "schema"])}
+        replication-key (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "replication-key"])]
+    (if (nil? replication-key)
+      (write-message! schema-message)
+      (write-message! (assoc schema-message "bookmark_properties" [replication-key])))))
 
 (defn write-state!
   [stream-name state]
@@ -376,10 +404,14 @@
   state)
 
 (defn write-record!
-  [stream-name record]
-  (write-message! {"type" "RECORD"
-                   "stream" stream-name
-                   "record" record}))
+  [stream-name state record]
+  (let [record-message {"type" "RECORD"
+                        "stream" stream-name
+                        "record" record}
+        version (get-in state ["bookmarks" stream-name "version"])]
+    (if (nil? version)
+      (write-message! record-message)
+      (write-message! (assoc record-message "version" version)))))
 
 (defn write-activate-version!
   [stream-name state]
@@ -404,6 +436,10 @@
         selected-field-names (map (comp name first) selected-fields)]
     selected-field-names))
 
+(defn now []
+  ;; To redef in tests
+  (System/currentTimeMillis))
+
 (defn maybe-write-activate-version!
   "Writes activate version message if not in state"
   [stream-name state]
@@ -414,12 +450,12 @@
   (let [version-bookmark (get-in state ["bookmarks" stream-name "version"])
         new-state        (assoc-in state
                                    ["bookmarks" stream-name "version"]
-                                   (System/currentTimeMillis))]
+                                   (now))]
     ;; Write activate version on first sync to get records flowing, and
     ;; never again so that the table only truncates at the end of the load
-    ;; TODO: This will need changed, assumes that a full-table sync runs
+    ;; TODO: This will need changed (?), assumes that a full-table sync runs
     ;; 100% in a single tap run. It will need to be smarter than `nil?`
-    ;; for these cases
+    ;; for these cases (?)
     (when (nil? version-bookmark)
       (write-activate-version! stream-name new-state))
     new-state))
@@ -439,30 +475,140 @@
 (defn transform [catalog stream-name record]
   (into {} (map (partial transform-field catalog stream-name) record)))
 
+(defn get-bookmark-keys
+  "Gets the possible bookmark keys to use for sorting, falling back to
+  `nil`.
+
+  Priority is in this order:
+  `replicationkey` > `timestamp` field > `table-key-properties`"
+  [catalog stream-name]
+  (let [replication-key (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "replication-key"])
+        timestamp-column (first
+                          (first
+                           (filter (fn [[k v]] (= "timestamp"
+                                                  (v "sql-datatype")))
+                                   (get-in catalog ["streams"
+                                                    stream-name
+                                                    "metadata"
+                                                    "properties"]))))
+        table-key-properties (get-in catalog ["streams"
+                                              stream-name
+                                              "metadata"
+                                              "table-key-properties"])]
+    (if (not (nil? replication-key))
+      [replication-key]
+      (if (not (nil? timestamp-column))
+        [timestamp-column]
+        (when (not (empty? table-key-properties))
+          table-key-properties)))))
+
+(defn valid-full-table-state? [state table-name]
+  ;; The state MUST contain max_pk_values if there is a bookmark
+  (if (contains? (get-in state ["bookmarks" table-name]) "last_pk_fetched")
+    (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
+    true))
+
+(defn build-sync-query [stream-name table-name record-keys state]
+  {:pre [(not (empty? record-keys))
+         (valid-full-table-state? state stream-name)]}
+  ;; TODO: Fully qualify and quote all database structures, maybe just schema
+  (let [last-pk-fetched   (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+        bookmark-keys     (map #(format "%s >= ?" %)
+                               (keys last-pk-fetched))
+        max-pk-values     (get-in state ["bookmarks" stream-name "max_pk_values"])
+        limiting-keys     (map #(format "%s <= ?" %)
+                               (keys max-pk-values))
+        add-where-clause? (or (not (empty? bookmark-keys))
+                              (not (empty? limiting-keys)))
+        where-clause      (when add-where-clause?
+                            (str " WHERE " (string/join " AND "
+                                                        (concat bookmark-keys
+                                                                limiting-keys))))
+        order-by           (when (not (empty? limiting-keys))
+                            (str " ORDER BY " (string/join ", "
+                                                           (map #(format "%s" %)
+                                                                (keys max-pk-values)))))
+        sql-params        [(str (format "SELECT %s FROM %s"
+                                        (string/join ", " record-keys)
+                                        table-name)
+                                where-clause
+                                order-by)]]
+    (if add-where-clause?
+      (concat sql-params
+              (vals last-pk-fetched)
+              ;; TODO: String PKs? They may need quoted, they may also
+              ;; need N'' for nvarchar/nchar/ntext, etc., conditionally
+              ;; :facepalm:
+              ;; Likely an edge case, but might be pretty rough.
+              (vals max-pk-values))
+      sql-params)))
+
+(defn update-state [stream-name bookmark-keys state record]
+  (reduce (fn [acc bookmark-key]
+            (assoc-in acc ["bookmarks" stream-name bookmark-key] (get record bookmark-key)))
+          state
+          bookmark-keys))
+
+(defn update-last-pk-fetched [stream-name bookmark-keys state record]
+  (assoc-in state
+            ["bookmarks" stream-name "last_pk_fetched"]
+            (zipmap bookmark-keys (map (partial get record) bookmark-keys))))
+
+(def records-since-last-state (atom 0))
+(defn write-state-buffered! [stream-name state]
+  (swap! records-since-last-state inc)
+  (if (> @records-since-last-state 100)
+    (do
+      (reset! records-since-last-state 0)
+      (write-state! stream-name state))
+    state))
+
+(defn get-max-pk-values [config catalog stream-name state]
+  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        bookmark-keys (get-bookmark-keys catalog stream-name)
+        table-name (get-in catalog ["streams" stream-name "table_name"])
+        sql-query [(format "SELECT %s FROM %s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) table-name)]]
+    (if (not (nil? bookmark-keys))
+      (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false})
+           first
+           (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
+       state))
+  )
+
 (defn write-records-and-states!
-  "Syncs all records, states, returns the latest state."
+  "Syncs all records, states, returns the latest state. Ensures that the
+  bookmark we have for this stream matches our understanding of the fields
+  defined in the catalog that are bookmark-able."
   [config catalog stream-name state]
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        record-keys (get-selected-fields catalog stream-name)]
-    (reduce (fn [acc result]
-              (write-record! stream-name (->> (select-keys result record-keys)
-                                              (transform catalog stream-name)))
-              acc)
-            state
-            (jdbc/reducible-query (assoc (config->conn-map config)
-                                         :dbname dbname)
-                                  ;; TODO: Fully qualify and quote all
-                                  ;; database structures
-                                  [(format "SELECT %s FROM %s"
-                                           (string/join ", " record-keys)
-                                           stream-name)]
-                                  {:raw? true}))))
+        record-keys (get-selected-fields catalog stream-name)
+        bookmark-keys (get-bookmark-keys catalog stream-name)
+        table-name (get-in catalog ["streams" stream-name "table_name"])
+        sql-params (build-sync-query stream-name table-name record-keys state)]
+    (-> (reduce (fn [acc result]
+               (let [record (->> (select-keys result record-keys)
+                                 (transform catalog stream-name))]
+                 (write-record! stream-name state record)
+                 (->> (update-last-pk-fetched stream-name bookmark-keys acc record)
+                      (write-state-buffered! stream-name)))) ;; TODO: When to write? Every time for now.
+             state
+             (jdbc/reducible-query (assoc (config->conn-map config)
+                                          :dbname dbname)
+                                   sql-params
+                                   {:raw? true}))
+        (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
+;; Note: This is interruptible full table sync
+;; TODO: Break into other strategy functions
 (defn sync-stream!
   [config catalog state stream-name]
   (log/infof "Syncing stream %s" stream-name)
   (write-schema! catalog stream-name)
   (->> (maybe-write-activate-version! stream-name state)
+       (get-max-pk-values config catalog stream-name)
        (write-state! stream-name)
        (write-records-and-states! config catalog stream-name)
        (write-activate-version! stream-name)
@@ -493,7 +639,7 @@
           state
           (->> (catalog "streams")
                vals
-               (map #(get % "stream")))))
+               (map #(get % "tap_stream_id")))))
 
 (defn repl-arg-passed?
   [args]
@@ -566,7 +712,7 @@
 (defn deserialize-streams
   [serialized-streams]
   (reduce (fn [streams deserialized-stream]
-            (assoc streams (deserialized-stream "stream") deserialized-stream))
+            (assoc streams (deserialized-stream "tap_stream_id") deserialized-stream))
           {}
           (map deserialize-stream serialized-streams)))
 
@@ -624,6 +770,8 @@
         _ (def opts opts)
         interesting-errors (get-interesting-errors opts)]
     (def config (get-in opts [:options :config]))
+    (def catalog (get-in opts [:options :catalog]))
+    (def state (get-in opts [:options :state]))
     (when (not (empty? interesting-errors))
       (throw (IllegalArgumentException. (string/join "\n" interesting-errors))))
     opts))
