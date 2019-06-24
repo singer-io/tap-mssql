@@ -121,7 +121,8 @@
 
 (defn select-stream
   [stream-name catalog]
-  (assoc-in catalog ["streams" stream-name "metadata" "selected"] true))
+  (-> (assoc-in catalog ["streams" stream-name "metadata" "selected"] true)
+      (assoc-in ["streams" stream-name "metadata" "replication-method"] "FULL_TABLE")))
 
 (deftest precision-should-be-specified-in-discovered-schema
   (with-matrix-assertions test-db-configs test-db-fixture

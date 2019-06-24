@@ -374,29 +374,69 @@
          "ACTIVATE_VERSION"
          (message "version"))))
 
+
+(defn serialize-datetime [k v]
+  (if (instance? java.sql.Timestamp v)
+    (.. v toInstant toString)
+    v)
+  )
+
 (defn write-message!
   [message]
   {:pre [(message-valid? message)]}
   (-> message
-      json/write-str
+      (json/write-str :value-fn serialize-datetime)
       println))
 
-(defn write-schema! [catalog stream-name]
-  ;; TODO: Make sure that unsupported values are written with an empty schema
-  (let [schema-message {"type" "SCHEMA"
-                        "stream" stream-name
-                        "key_properties" (get-in catalog ["streams"
-                                                          stream-name
-                                                          "metadata"
-                                                          "table-key-properties"])
-                        "schema" (get-in catalog ["streams" stream-name "schema"])}
-        replication-key (get-in catalog ["streams"
+(defn maybe-add-bookmark-properties-to-schema [schema-message catalog stream-name]
+  ;; Add or don't and return message
+  (let [replication-key (get-in catalog ["streams"
                                          stream-name
                                          "metadata"
                                          "replication-key"])]
-    (if (nil? replication-key)
-      (write-message! schema-message)
-      (write-message! (assoc schema-message "bookmark_properties" [replication-key])))))
+    (if replication-key
+      (assoc schema-message "bookmark_properties" [replication-key])
+      schema-message)))
+
+
+(defn maybe-add-deleted-at-to-schema [schema-message catalog stream-name]
+  (if (= "LOG_BASED"(get-in catalog ["streams" stream-name "metadata" "replication-method"]))
+    (assoc-in schema-message ["schema" "properties" "_sdc_deleted_at"] {"type" "string"
+                                                                        "format" "date-time"})
+    schema-message))
+
+(comment
+  ;; TODO: Make this into a test and make a change so that `rowversion`
+  ;; shows up as `{}` insteald of `null`
+  (def catalog (serialized-catalog->catalog
+    (catalog->serialized-catalog
+     (reduce add-column nil [{:table_name "catalog_test"
+                              :column_name "id"
+                              :type_name "int"
+                              :primary-key? false
+                              :is-view? false}
+                             {:table_name "unsupported_data_types"
+                              :column_name "rowversion"
+                              :type_name "rowversion"
+                              :is_nullable "YES"
+                              :unsupported? true}]))))
+  (def stream-name "null-null-unsupported_data_types")
+  (with-out-str
+    (write-schema! catalog stream-name))
+  )
+
+(defn write-schema! [catalog stream-name]
+  ;; TODO: Make sure that unsupported values are written with an empty schema
+  (-> {"type" "SCHEMA"
+       "stream" stream-name
+       "key_properties" (get-in catalog ["streams"
+                                         stream-name
+                                         "metadata"
+                                         "table-key-properties"])
+       "schema" (get-in catalog ["streams" stream-name "schema"])}
+      (maybe-add-bookmark-properties-to-schema catalog stream-name)
+      (maybe-add-deleted-at-to-schema catalog stream-name)
+      write-message!))
 
 (defn write-state!
   [stream-name state]
@@ -597,7 +637,7 @@
                                  (transform catalog stream-name))]
                  (write-record! stream-name state record)
                  (->> (update-last-pk-fetched stream-name bookmark-keys acc record)
-                      (write-state-buffered! stream-name)))) ;; TODO: When to write? Every time for now.
+                      (write-state-buffered! stream-name))))
              state
              (jdbc/reducible-query (assoc (config->conn-map config)
                                           :dbname dbname)
@@ -605,25 +645,216 @@
                                    {:raw? true}))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
-;; Note: This is interruptible full table sync
-;; TODO: Break into other strategy functions
+(defn valid-state?
+  [state]
+  (map? state))
+
+(defn sync-full-table
+  [config catalog stream-name state]
+  {:post [(valid-state? %)]}
+  (->> state
+       (get-max-pk-values config catalog stream-name)
+       (write-state! stream-name)
+       (write-records-and-states! config catalog stream-name)
+       (write-activate-version! stream-name)))
+
+(defn get-current-log-version [config catalog stream-name]
+  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])]
+    (:current_version (first
+                       (jdbc/query (assoc (config->conn-map config)
+                                          :dbname dbname)
+                                   ["SELECT current_version = CHANGE_TRACKING_CURRENT_VERSION()"]))))
+  )
+
+(defn build-log-based-sql-query [catalog stream-name state]
+  (let [table-name            (get-in catalog ["streams" stream-name "table_name"])
+        primary-keys          (set (get-in catalog ["streams"
+                                                    stream-name
+                                                    "metadata"
+                                                    "table-key-properties"]))
+        primary-key-bookmarks (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+        current-log-version   (get-in state ["bookmarks" stream-name "current_log_version"])
+        record-keys           (clojure.set/difference (set (get-selected-fields catalog stream-name))
+                                                      primary-keys)]
+    ;; Assert state of the world
+    (assert (or (not-empty primary-keys)
+                (not-empty record-keys))
+            "No selected keys found, you must have a primary key and/or select columns to replicate.")
+    (assert (not (nil? current-log-version))
+            "Invalid log-based state, need a value for `current-log-version`.")
+    (as-> (format
+           (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
+                (when (not-empty primary-keys)
+                  (str ", " (clojure.string/join ", "
+                                                 (map #(format "c.%s" %)
+                                                      primary-keys))))
+                (when (not-empty record-keys)
+                  (str ", " (clojure.string/join ", "
+                                                 (map #(format "%s.%s" table-name %)
+                                                      record-keys))))
+                " FROM CHANGETABLE (CHANGES %s, %s) as c "
+                "LEFT JOIN %s ON %s LEFT JOIN %s on %s"
+                ;; Existence of PK Bookmark indicates that a single change
+                ;; was interrupted. Only get changes for this version to
+                ;; finish it out.
+                (when (not-empty primary-key-bookmarks)
+                  (str (format " WHERE c.SYS_CHANGE_VERSION = %s AND "
+                               current-log-version)
+                       (clojure.string/join " AND "
+                                            (map #(format "c.%s >= ?" %)
+                                                 (-> (keys primary-key-bookmarks)
+                                                     sort
+                                                     vec)))))
+                " ORDER BY c.SYS_CHANGE_VERSION"
+                (when (not-empty primary-keys)
+                  (str ", " (clojure.string/join ", "
+                                                 (map #(format "c.%s" %)
+                                                      (sort (vec primary-keys)))))))
+           table-name
+           ;; CHANGETABLE is strictly greater than, so we decrement here
+           ;; to keep the state showing the "current version"
+           (if (> current-log-version 0)
+             (dec current-log-version)
+             0)
+           table-name
+           (clojure.string/join " AND "(map #(format "c.%s=%s.%s" % table-name %) primary-keys))
+           "sys.dm_tran_commit_table tc"
+           "c.sys_change_version = tc.commit_ts")
+        query-string
+        (if (not-empty primary-key-bookmarks)
+          (into [query-string] (-> (sort-by key primary-key-bookmarks)
+                                   vals))
+          [query-string]))
+    )
+  )
+
+(defn update-current-log-version [stream-name version state]
+  (let [previous-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
+    (as-> (assoc-in state
+                    ["bookmarks" stream-name "current_log_version"]
+                    version)
+        new-state
+        (if (not= previous-log-version version)
+          (update-in new-state ["bookmarks" stream-name] dissoc "last_pk_fetched")
+          new-state))))
+
+(defn log-based-init
+  [config catalog stream-name state]
+  (if (nil? (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
+    (-> state
+        (assoc-in ["bookmarks" stream-name "current_log_version"]
+                  (get-current-log-version config catalog stream-name))
+        (assoc-in ["bookmarks" stream-name "initial_full_table_complete"] false)
+        ((partial write-state! stream-name)))
+    state))
+
+(defn log-based-initial-full-table
+  [config catalog stream-name state]
+  (if (= false (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
+      (-> state
+          ((partial sync-full-table config catalog stream-name))
+          (assoc-in ["bookmarks" stream-name "initial_full_table_complete"] true)
+          ((partial write-state! stream-name)))
+      state))
+
+(defn get-change-tracking-databases* [config]
+  (set (map #(:db_name %)
+            (jdbc/query (config->conn-map config)
+                        [(str "SELECT DB_NAME(database_id) AS db_name "
+                              "FROM sys.change_tracking_databases")]))))
+
+(def get-change-tracking-databases (memoize get-change-tracking-databases*))
+
+(defn get-change-tracking-tables* [config db-name]
+  ;; TODO: What if it's the same named table in different schemas?
+  (set (map #(:table_name %)
+            (jdbc/query (assoc (config->conn-map config)
+                               :dbname db-name)
+                        [(str "SELECT OBJECT_NAME(object_id) AS table_name "
+                              "FROM sys.change_tracking_tables")]))))
+
+(def get-change-tracking-tables (memoize get-change-tracking-tables*))
+
+(defn log-based-sync
+  [config catalog stream-name state]
+  {:pre  [(= true (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))]
+   :post [(valid-state? %)]}
+  (let [record-keys   (get-selected-fields catalog stream-name)
+        bookmark-keys (get-bookmark-keys catalog stream-name)
+        dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])]
+    (-> (reduce (fn [st result]
+                  (let [record (as-> (select-keys result record-keys) rec
+                                 (if (= "D" (get result "sys_change_operation"))
+                                   (assoc rec "_sdc_deleted_at" (get result "commit_time"))
+                                   rec)
+                                 (transform catalog stream-name rec))]
+                    (write-record! stream-name state record)
+                    (->> (update-last-pk-fetched stream-name bookmark-keys st record)
+                         (update-current-log-version stream-name
+                                                     (get result "sys_change_version"))
+                         (write-state-buffered! stream-name))))
+                state
+                (jdbc/reducible-query (assoc (config->conn-map config)
+                                             :dbname dbname)
+                                      (build-log-based-sql-query catalog stream-name state)
+                                      {:raw? true}))
+        ;; last_pk_fetched indicates an interruption, and should be gone
+        ;; after a successful log sync
+        (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched"))
+    )
+  )
+
+(defn assert-log-based-is-enabled [config catalog stream-name state]
+  (let [table-name (get-in catalog ["streams" stream-name "table_name"])
+        dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])]
+    (when (not (contains? (get-change-tracking-databases config) dbname))
+      (throw (UnsupportedOperationException.
+              (format (str "Cannot sync stream: %s using log-based replication. "
+                           "Change Tracking is not enabled for database: %s")
+                      stream-name
+                      dbname))))
+    (when (not (contains? (get-change-tracking-tables config dbname) table-name))
+      (throw (UnsupportedOperationException.
+              (format (str "Cannot sync stream: %s using log-based replication. "
+                           "Change Tracking is not enabled for table: %s")
+                      stream-name
+                      table-name))))
+    state))
+
+(defn choose-sync-strategy [config catalog stream-name state]
+  {:post [(valid-state? %)]}
+  (condp = (get-in catalog ["streams" stream-name "metadata" "replication-method"])
+    "FULL_TABLE"
+    (sync-full-table config catalog stream-name state)
+
+    "LOG_BASED"
+    (->> state
+         (assert-log-based-is-enabled config catalog stream-name)
+         (log-based-init config catalog stream-name)
+         (log-based-initial-full-table config catalog stream-name)
+         (write-state! stream-name)
+         (log-based-sync config catalog stream-name))
+
+    "INCREMENTAL"
+    (throw (UnsupportedOperationException.
+            (format "Cannot sync stream %s. Incremental replication is not yet implemented."
+                    stream-name)))
+
+    ;; Default
+    (throw (IllegalArgumentException. (format "Replication Method for stream %s is invalid: %s"
+                                              stream-name
+                                              (get-in catalog ["streams" stream-name "metadata" "replication-method"]))))))
+
 (defn sync-stream!
   [config catalog state stream-name]
   (log/infof "Syncing stream %s" stream-name)
   (write-schema! catalog stream-name)
   (->> (maybe-write-activate-version! stream-name state)
-       (get-max-pk-values config catalog stream-name)
-       (write-state! stream-name)
-       (write-records-and-states! config catalog stream-name)
-       (write-activate-version! stream-name)
+       (choose-sync-strategy config catalog stream-name)
        (write-state! stream-name)))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))
-
-(defn valid-state?
-  [state]
-  (map? state))
 
 (defn maybe-sync-stream! [config catalog state stream-name]
   {:post [(valid-state? %)]}
