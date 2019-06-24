@@ -86,8 +86,11 @@
     (is (empty? (get-messages-from-output test-db-config)))))
 
 (defn select-stream
-  [catalog stream-name]
-  (assoc-in catalog ["streams" stream-name "metadata" "selected"] true))
+  ([catalog stream-name]
+   (select-stream catalog stream-name "FULL_TABLE"))
+  ([catalog stream-name method]
+   (-> (assoc-in catalog ["streams" stream-name "metadata" "selected"] true)
+       (assoc-in ["streams" stream-name "metadata" "replication-method"] method))))
 
 (defn deselect-field
   [catalog stream-name field-name]

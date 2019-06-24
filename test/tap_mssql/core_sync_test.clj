@@ -12,16 +12,16 @@
   (format "DROP DATABASE %s" (:table_cat database)))
 
 (defn maybe-destroy-test-db
-  []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
+  [config]
+  (let [destroy-database-commands (->> (get-databases config)
                                        (filter non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
-  []
-  (let [db-spec (config->conn-map test-db-config)]
+  [config]
+  (let [db-spec (config->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE full_table_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
                          [(jdbc/create-table-ddl
@@ -34,12 +34,16 @@
                            [[:id "uniqueidentifier NOT NULL DEFAULT NEWID()"]
                             [:second_id "int NOT NULL IDENTITY"]
                             [:value "int"]
-                            ["primary key (id, second_id)"]])])))
+                            ["primary key (id, second_id)"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
+                         [(jdbc/create-table-ddl
+                           "no_pk_table"
+                           [[:value "int"]])])))
 
-(defn test-db-fixture [f]
+(defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
-    (maybe-destroy-test-db)
-    (create-test-db)
+    (maybe-destroy-test-db config)
+    (create-test-db config)
     (f)))
 
 (deftest build-sync-query-test
@@ -70,6 +74,76 @@
                              {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
                               "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   )
+
+(deftest ^:integration build-log-based-sql-query-test
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; No PK
+    (is (thrown? AssertionError (build-log-based-sql-query
+                                 (discover-catalog test-db-config)
+                                 "full_table_sync_test-dbo-no_pk_table"
+                                 {} )))
+    ;; No current_log_version bookmark
+    (is (thrown? AssertionError (build-log-based-sql-query
+                                 (discover-catalog test-db-config)
+                                 "full_table_sync_test-dbo-basic_table"
+                                 {} )))
+    ;; Has primary key, no record Keys, no primary key bookmark
+    (is (=
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id FROM CHANGETABLE (CHANGES basic_table, 0) as c LEFT JOIN basic_table ON c.id=basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.sys_change_version = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.id"]
+         (build-log-based-sql-query
+          (update-in (discover-catalog test-db-config)
+                     ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
+                     assoc
+                     "selected" false)
+          "full_table_sync_test-dbo-basic_table"
+          {"bookmarks" {"full_table_sync_test-dbo-basic_table" {"current_log_version" 0}}})))
+    ;; Has PK, No Selected Fields, Has Bookmark
+    (is (=
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id FROM CHANGETABLE (CHANGES basic_table, 0) as c LEFT JOIN basic_table ON c.id=basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.sys_change_version = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id" "foo"]
+         (build-log-based-sql-query
+          (update-in (discover-catalog test-db-config)
+                     ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
+                     assoc
+                     "selected" false)
+          "full_table_sync_test-dbo-basic_table"
+          {"bookmarks"
+           {"full_table_sync_test-dbo-basic_table"
+            {"current_log_version" 0
+             "last_pk_fetched"     {"id" "foo"}}}})))
+    ;; Has primary key, selected fields, no primary key bookmark
+    (is (=
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, basic_table.value FROM CHANGETABLE (CHANGES basic_table, 0) as c LEFT JOIN basic_table ON c.id=basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.sys_change_version = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.id"]
+         (build-log-based-sql-query
+          (discover-catalog test-db-config)
+          "full_table_sync_test-dbo-basic_table"
+          {"bookmarks"
+           {"full_table_sync_test-dbo-basic_table"
+            {"current_log_version" 0}}})))
+
+    ;; Has primary key, selected fields, primary key bookmark
+    (is (=
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, basic_table.value FROM CHANGETABLE (CHANGES basic_table, 0) as c LEFT JOIN basic_table ON c.id=basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.sys_change_version = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id" "foo"]
+         (build-log-based-sql-query
+          (discover-catalog test-db-config)
+          "full_table_sync_test-dbo-basic_table"
+          {"bookmarks"
+           {"full_table_sync_test-dbo-basic_table"
+            {"current_log_version" 0
+             "last_pk_fetched"     {"id" "foo"}}}})))
+    ;; Has composite primary keys, selected fields, bookmarks for both pks
+    (is (=
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, c.second_id, composite_key_table.value FROM CHANGETABLE (CHANGES composite_key_table, 0) as c LEFT JOIN composite_key_table ON c.id=composite_key_table.id AND c.second_id=composite_key_table.second_id LEFT JOIN sys.dm_tran_commit_table tc on c.sys_change_version = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id, c.second_id" "foo" "bar"]
+         (build-log-based-sql-query
+          (discover-catalog test-db-config)
+          "full_table_sync_test-dbo-composite_key_table"
+          {"bookmarks"
+           {"full_table_sync_test-dbo-composite_key_table"
+            {"current_log_version" 0
+             "last_pk_fetched"     {"id"        "foo"
+                                    "second_id" "bar"}}}})))
+    )
+  )
+
 
 (deftest transform-rowversion-test
   ;; Convert to hex number (8 bytes)
