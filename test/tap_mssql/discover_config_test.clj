@@ -140,6 +140,7 @@
                (with-redefs [parse-config (constantly {"database" "master"})]
                  (parse-opts ["--config" "foobar.json"])))))
 
+
 (deftest ^:integration verify-ssl-activates-ssl-properties-on-conn-map
   ;; It would be best to somehow verify that we are _actually_ connected
   ;; over SSL rather than just that we intend to be connected over SSL. So
@@ -168,29 +169,44 @@
   ;;
   ;; For now, we'll stick with verifying that we've requested
   ;; authentication.
+  ;;
+  ;; Note - We are redef'ing config->conn-map to remove the connection
+  ;; check since it will try to connect using SSL and fail
   (is (= "SqlPassword"
-         (-> test-db-config
-             (assoc "ssl" "true")
-             config->conn-map
-             :authentication)))
-  (is (= true
-         (-> test-db-config
-             (assoc "ssl" "true")
-             config->conn-map
-             :trustServerCertificate))))
+         (with-redefs [check-connection (fn [conn-map] conn-map)]
+           (-> test-db-config
+               (assoc "ssl" "true")
+               config->conn-map*
+               :authentication))))
+  (is (= false
+         (with-redefs [check-connection (fn [conn-map] conn-map)]
+           (-> test-db-config
+               (assoc "ssl" "true")
+               config->conn-map*
+               :trustServerCertificate)))))
 
-(deftest ^:integration verify-ssl-returns-full-catalog
-  (let [ssl-config (assoc test-db-config "ssl" "true")
-        expected-stream-names #{"another_database_with_a_table-dbo-another_empty_table"
-                                "database_with_a_table-dbo-empty_table"
-                                "database_with_a_table-dbo-empty_table_ids"
-                                "datatyping-dbo-approximate_numerics"
-                                "datatyping-dbo-binary_strings"
-                                "datatyping-dbo-character_strings"
-                                "datatyping-dbo-date_and_time"
-                                "datatyping-dbo-exact_numerics"
-                                "datatyping-dbo-unicode_character_strings"}
-        discovered-streams ((discover-catalog ssl-config) "streams")]
-    (dorun
-     (for [expected-stream-name expected-stream-names]
-       (is (contains? discovered-streams expected-stream-name))))))
+(deftest ^:integration verify-ssl-true-throws-on-attempted-connection
+  (let [ssl-config (assoc test-db-config "ssl" "true")]
+    (is (thrown-with-msg?
+         com.microsoft.sqlserver.jdbc.SQLServerException
+         #"The driver could not establish a secure connection to SQL Server by using Secure Sockets Layer"
+         (config->conn-map* ssl-config)))))
+
+;; Once SSL support is implemented, the below test should be uncommented
+;; so that we are testing to verify that we can correctly discover a
+;; catalog with SSL enabled
+;; (deftest ^:integration verify-ssl-returns-full-catalog
+;;   (let [ssl-config (assoc test-db-config "ssl" "true")
+;;         expected-stream-names #{"another_database_with_a_table-dbo-another_empty_table"
+;;                                 "database_with_a_table-dbo-empty_table"
+;;                                 "database_with_a_table-dbo-empty_table_ids"
+;;                                 "datatyping-dbo-approximate_numerics"
+;;                                 "datatyping-dbo-binary_strings"
+;;                                 "datatyping-dbo-character_strings"
+;;                                 "datatyping-dbo-date_and_time"
+;;                                 "datatyping-dbo-exact_numerics"
+;;                                 "datatyping-dbo-unicode_character_strings"}
+;;         discovered-streams ((discover-catalog ssl-config) "streams")]
+;;     (dorun
+;;      (for [expected-stream-name expected-stream-names]
+;;        (is (contains? discovered-streams expected-stream-name))))))

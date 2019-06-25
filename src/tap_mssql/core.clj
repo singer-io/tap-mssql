@@ -17,6 +17,13 @@
 ;;; {"streams" (vals (get catalog "streams"))}.
 (def empty-catalog {"streams" {}})
 
+(defn check-connection [conn-map]
+  (do (jdbc/with-db-metadata [md conn-map]
+        (jdbc/metadata-result (.getCatalogs md)))
+      (log/info "Successfully connected to the instance")
+      conn-map)
+  )
+
 (defn config->conn-map*
   [config]
   (let [conn-map {:dbtype "sqlserver"
@@ -46,12 +53,10 @@
                           ;;
                           ;; [1]: https://docs.microsoft.com/en-us/sql/connect/jdbc/setting-the-connection-properties?view=sql-server-2017
                           :authentication "SqlPassword"
-                          :trustServerCertificate true)
+                          :trustServerCertificate false)
                    conn-map)]
-    (do (jdbc/with-db-metadata [md conn-map]
-          (jdbc/metadata-result (.getCatalogs md)))
-        (log/info "Successfully connected to the instance")
-        conn-map)))
+    ;; returns conn-map and logs on successful connection
+    (check-connection conn-map)))
 
 (def config->conn-map (memoize config->conn-map*))
 
