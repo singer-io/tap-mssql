@@ -21,8 +21,7 @@
   (do (jdbc/with-db-metadata [md conn-map]
         (jdbc/metadata-result (.getCatalogs md)))
       (log/info "Successfully connected to the instance")
-      conn-map)
-  )
+      conn-map))
 
 (defn config->conn-map*
   [config]
@@ -75,6 +74,20 @@
     (= (config "database") (:table_cat database))
     true))
 
+(defn get-schemas-for-db
+  ;; Returns a lazy seq of maps containing:
+  ;;   :table_catalog (database name)
+  ;;   :table_schem   (schema name)
+  [config database]
+  (conj (filter #(not (nil? (:table_catalog %)))
+                (jdbc/with-db-metadata [md (assoc (config->conn-map config)
+                                                  :dbname
+                                                  (:table_cat database))]
+                  (jdbc/metadata-result (.getSchemas md))))
+        ;; Calling getSchemas does not return dbo so that's added
+        ;; for each database
+        {:table_catalog (:table_cat database) :table_schem "dbo"}))
+
 (defn get-databases
   [config]
   (log/info "Discovering  databases...")
@@ -85,6 +98,14 @@
                             (jdbc/metadata-result (.getCatalogs md))))]
     (log/infof "Found %s non-system databases." (count databases))
     databases))
+
+(defn get-databases-with-schemas
+  [config]
+  (let [databases (get-databases config)
+        schemas (flatten (map (fn [db] (get-schemas-for-db config db)) databases))]
+    ;; Calling getSchemas returns :table_catalog instead of table_cat so
+    ;; that key is renamed for consistency
+    (map #(clojure.set/rename-keys % {:table_catalog :table_cat }) schemas)))
 
 (defn column->tap-stream-id [column]
   (format "%s-%s-%s"
@@ -238,7 +259,7 @@
   [conn-map database]
   (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
   (jdbc/with-db-metadata [md conn-map]
-    (jdbc/metadata-result (.getColumns md (:table_cat database) "dbo" nil nil))))
+    (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil))))
 
 (defn add-primary-key?-data
   [conn-map column]
@@ -249,9 +270,9 @@
     (assoc column :primary-key? (primary-keys (:column_name column)))))
 
 (defn get-column-database-view-names*
-  [conn-map table_cat]
+  [conn-map table_cat table_schem]
   (jdbc/with-db-metadata [md conn-map]
-    (->> (.getTables md table_cat "dbo" nil (into-array ["VIEW"]))
+    (->> (.getTables md table_cat table_schem nil (into-array ["VIEW"]))
          jdbc/metadata-result
          (map :table_name)
          (into #{}))))
@@ -262,7 +283,7 @@
 
 (defn add-is-view?-data
   [conn-map column]
-  (let [view-names (get-column-database-view-names conn-map (:table_cat column))]
+  (let [view-names (get-column-database-view-names conn-map (:table_cat column) (:table_schem column))]
     (assoc column :is-view? (if (view-names (:table_name column))
                               ;; Want to be explicit rather than punning
                               ;; here so that we're sure we serialize
@@ -289,7 +310,7 @@
 
 (defn get-columns
   [config]
-  (flatten (map (partial get-database-columns config) (get-databases config))))
+  (flatten (map (partial get-database-columns config) (get-databases-with-schemas config))))
 
 (defn discover-catalog
   [config]
