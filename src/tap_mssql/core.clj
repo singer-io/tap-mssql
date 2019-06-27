@@ -320,7 +320,10 @@
                (.getDatabaseProductVersion metadata)))
   ;; It's important to keep add-column pure and keep all database
   ;; interaction in get-columns for testability
-  (reduce add-column empty-catalog (get-columns config)))
+  (let [the-catalog (reduce add-column empty-catalog (get-columns config))]
+    (if (empty? (the-catalog "streams"))
+      (throw (ex-info "Empty Catalog: did not discover any streams" {}))
+      the-catalog)))
 
 (defn serialize-stream-metadata-property
   [[stream-metadata-property-name stream-metadata-property-metadata :as stream-metadata-property]]
