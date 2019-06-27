@@ -111,8 +111,9 @@
 
 (deftest ^:integration verify-database-config-limits-catalog
   (let [specific-db-config (assoc test-db-config "database" "empty_database")]
-    (is (= {"streams" {}}
-           (discover-catalog specific-db-config))))
+    (is (thrown-with-msg? java.lang.Exception
+                          #"Empty Catalog: did not discover any streams"
+                          (discover-catalog specific-db-config))))
   (is (= ["datatyping"]
          (let [specific-db-config (assoc test-db-config "database" "datatyping")]
            (->> ((discover-catalog specific-db-config) "streams")

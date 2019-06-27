@@ -34,15 +34,12 @@
     (create-test-db config)
     (f)))
 
-(deftest verify-mssql-version
+(deftest ^:integration verify-throw-on-empty-catalog
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (nil? (do-discovery test-db-config))
-        "Discovery ran succesfully and did not throw an exception")))
-
-(deftest ^:integration verify-empty-catalog
-  (with-matrix-assertions test-db-configs test-db-fixture
-    (is (= empty-catalog (discover-catalog test-db-config))
-       "Databases without any tables (like empty_database) do not show up in the catalog")))
+    (is (thrown-with-msg? java.lang.Exception
+                          #"Empty Catalog: did not discover any streams"
+                          (discover-catalog test-db-config))
+        )))
 
 (comment
   ;; TODO Can these be helper functions?
