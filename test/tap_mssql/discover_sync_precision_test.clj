@@ -33,79 +33,108 @@
                                                   [:numeric_9_3 "numeric(9,3)"]
                                                   [:numeric_19_8 "numeric(19,8)"]
                                                   [:numeric_28_1 "numeric(28,1)"]
-                                                  [:numeric_38_22 "numeric(38,22)"]])])))
+                                                  [:numeric_38_22 "numeric(38,22)"]])
+                          (jdbc/create-table-ddl :float_precisions
+                                                 [[:pk "int"]
+                                                  [:float_53 "float(53)"]
+                                                  [:float_24 "float(24)"]])])))
 
-(def test-data [[0
-                 (bigdec "-999999.999")
-                 (bigdec "-99999999999.99999999")
-                 (bigdec "-999999999999999999999999999.9")
-                 (bigdec "-9999999999999999.9999999999999999999999")]
-                [1 0 0 0 0]
-                [2 nil nil nil nil]
-                [3
-                 (bigdec "999999.999")
-                 (bigdec "99999999999.99999999")
-                 (bigdec "999999999999999999999999999.9")
-                 (bigdec "9999999999999999.9999999999999999999999")]
-                [4
-                 (bigdec "-5.667")
-                 (bigdec "99847407548.36066732")
-                 (bigdec "-331310880255879828202956905.1")
-                 (bigdec "-7187498962233394.3739812942138415666763")]
-                [5
-                 (bigdec "-634772.214")
-                 (bigdec "-74662665258.71477591")
-                 (bigdec "95964925502400625335154028.9")
-                 (bigdec "9273972760690975.2044306442955715221042")]
-                [6
-                 (bigdec "-930788.888")
-                 (bigdec "-16158665537.52793427")
-                 (bigdec "317128912264908522034101781.3")
-                 (bigdec "29515565286974.1188802122612813004366")]
-                [7
-                 (bigdec "297119.425")
-                 (bigdec "-18936997313.82878795")
-                 (bigdec "785790751998475189769700669.4")
-                 (bigdec "9176089101347578.2596296292040288441238")]
-                [8
-                 (bigdec "-979982.499")
-                 (bigdec "-16958207592.78259005")
-                 (bigdec "-443720922771981578168660472.3")
-                 (bigdec "-8416853039392703.306423225471199148379")]
-                [9
-                 (bigdec "-559083.613")
-                 (bigdec "-25617164075.05356027")
-                 (bigdec "53485768844071274332702409.4")
-                 (bigdec "1285266411314091.3002668125515694162268")]
-                [10
-                 (bigdec "649660.203")
-                 (bigdec "66112072142.9833074")
-                 (bigdec "670910153415438093285062942.2")
-                 (bigdec "6051872750342125.3812886238958681227336")]
-                [11
-                 (bigdec "416845.542")
-                 (bigdec "-26909145239.03955264")
-                 (bigdec "146681478952442530283844797.3")
-                 (bigdec "-1132031605459408.5571559429308939781468")]
-                [12
-                 (bigdec "605161.613")
-                 (bigdec "77104913216.30429458")
-                 (bigdec "-688544269586696335858539447.1")
-                 (bigdec "-6387836755056303.0038029604189860431045")]
-                [13
-                 (bigdec "-517647.884")
-                 (bigdec "39898978520.27084742")
-                 (bigdec "-810149456946558620902883940.6")
-                 (bigdec "4526059300505413.566511729263231254806")]
-                ])
+(def test-data-numerics [[0
+                          (bigdec "-999999.999")
+                          (bigdec "-99999999999.99999999")
+                          (bigdec "-999999999999999999999999999.9")
+                          (bigdec "-9999999999999999.9999999999999999999999")]
+                         [1 0 0 0 0]
+                         [2 nil nil nil nil]
+                         [3
+                          (bigdec "999999.999")
+                          (bigdec "99999999999.99999999")
+                          (bigdec "999999999999999999999999999.9")
+                          (bigdec "9999999999999999.9999999999999999999999")]
+                         [4
+                          (bigdec "-5.667")
+                          (bigdec "99847407548.36066732")
+                          (bigdec "-331310880255879828202956905.1")
+                          (bigdec "-7187498962233394.3739812942138415666763")]
+                         [5
+                          (bigdec "-634772.214")
+                          (bigdec "-74662665258.71477591")
+                          (bigdec "95964925502400625335154028.9")
+                          (bigdec "9273972760690975.2044306442955715221042")]
+                         [6
+                          (bigdec "-930788.888")
+                          (bigdec "-16158665537.52793427")
+                          (bigdec "317128912264908522034101781.3")
+                          (bigdec "29515565286974.1188802122612813004366")]
+                         [7
+                          (bigdec "297119.425")
+                          (bigdec "-18936997313.82878795")
+                          (bigdec "785790751998475189769700669.4")
+                          (bigdec "9176089101347578.2596296292040288441238")]
+                         [8
+                          (bigdec "-979982.499")
+                          (bigdec "-16958207592.78259005")
+                          (bigdec "-443720922771981578168660472.3")
+                          (bigdec "-8416853039392703.306423225471199148379")]
+                         [9
+                          (bigdec "-559083.613")
+                          (bigdec "-25617164075.05356027")
+                          (bigdec "53485768844071274332702409.4")
+                          (bigdec "1285266411314091.3002668125515694162268")]
+                         [10
+                          (bigdec "649660.203")
+                          (bigdec "66112072142.9833074")
+                          (bigdec "670910153415438093285062942.2")
+                          (bigdec "6051872750342125.3812886238958681227336")]
+                         [11
+                          (bigdec "416845.542")
+                          (bigdec "-26909145239.03955264")
+                          (bigdec "146681478952442530283844797.3")
+                          (bigdec "-1132031605459408.5571559429308939781468")]
+                         [12
+                          (bigdec "605161.613")
+                          (bigdec "77104913216.30429458")
+                          (bigdec "-688544269586696335858539447.1")
+                          (bigdec "-6387836755056303.0038029604189860431045")]
+                         [13
+                          (bigdec "-517647.884")
+                          (bigdec "39898978520.27084742")
+                          (bigdec "-810149456946558620902883940.6")
+                          (bigdec "4526059300505413.566511729263231254806")]
+                         ])
+
+(def test-data-floats [[0
+                        (bigdec "-8084.015625")
+                        (bigdec "-8084.017")]
+                       [1
+                        (bigdec "-8084.0156")
+                        (bigdec "-808.4018")]
+                       [2
+                        (bigdec "-2.4927882e+29")
+                        (bigdec "0.8084019")]
+                       [3
+                        (bigdec "-2.4927882284206863e+29")
+                        (bigdec "-3.201234E+37")]
+                       [4
+                        (bigdec "0.363981306552887")
+                        (bigdec "3.391234E+37")]
+                       [5
+                        (bigdec "9.99999993922529E-09")
+                        (bigdec "1.3E-37")]])
+
 
 (defn populate-data
   [config]
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "precision"))
                       "numeric_precisions"
-                      (->> test-data
-                           (map (partial zipmap[:pk :numeric_9_3 :numeric_19_8 :numeric_28_1 :numeric_38_22])))))
+                      (->> test-data-numerics
+                           (map (partial zipmap[:pk :numeric_9_3 :numeric_19_8 :numeric_28_1 :numeric_38_22]))))
+    (jdbc/insert-multi! (-> (config->conn-map config)
+                          (assoc :dbname "precision"))
+                      "float_precisions"
+                      (->> test-data-floats
+                           (map (partial zipmap[:pk :float_53 :float_24])))))
 
 (comment
   ;; To reach into core.clj and define a new config
@@ -168,6 +197,26 @@
                      (filter #(= "RECORD" (% "type")))
                      (map #(get % "record"))
                      (map #(% "numeric_38_22")))))))
+
+;; Floats
+(deftest precision-should-be-maintained-in-written-records-from-json-float
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (is (= (map second test-data-floats)
+           (->> (discover-catalog test-db-config)
+                (select-stream "precision-dbo-float_precisions")
+                (run-sync test-db-config {})
+                write-and-read
+                (filter #(= "RECORD" (% "type")))
+                (map #(get % "record"))
+                (map #(% "float_53")))))
+    (is (= (map #(nth % 2) test-data-floats)
+           (->> (discover-catalog test-db-config)
+                (select-stream "precision-dbo-float_precisions")
+                (run-sync test-db-config {})
+                write-and-read
+                (filter #(= "RECORD" (% "type")))
+                (map #(get % "record"))
+                (map #(% "float_24")))))))
 
 ;; Single/Float
 ;; TODO: Harrison had this case come up in testing.
