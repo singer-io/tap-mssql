@@ -38,7 +38,12 @@
                            "data_table_rowversion"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]
-                            [:rowversion "rowversion"]])])))
+                            [:rowversion "rowversion"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "table_with_unsupported_pk"
+                           [[:id "int NOT NULL IDENTITY PRIMARY KEY"]
+                            [:value "int"]])])))
 
 (defn populate-data
   [config]
@@ -49,6 +54,10 @@
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table_rowversion"
+                      (take 200 (map (partial hash-map :value) (range))))
+  (jdbc/insert-multi! (-> (config->conn-map config)
+                          (assoc :dbname "full_table_interruptible_sync_test"))
+                      "table_with_unsupported_pk"
                       (take 200 (map (partial hash-map :value) (range)))))
 
 (defn test-db-fixture [f config]
@@ -95,6 +104,24 @@
   (assoc-in catalog ["streams" stream-name "metadata" "properties" field-name "selected"] false))
 
 (def record-count (atom 0))
+
+
+(deftest ^:integration verify-unsupported-column-has-empty-schema
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (is (= {}
+           (get-in (first (filter #(= "SCHEMA" (% "type"))
+                                  (->> (discover-catalog test-db-config)
+                                       (select-stream "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk")
+                                       (get-messages-from-output test-db-config
+                                                                 "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk"))))
+                    ["schema" "properties" "id"])))))
+
+(deftest unsupported-primary-key-has-no-table-key-properties-metadata-test
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (is (empty? (-> (discover-catalog test-db-config)
+                    (get-in ["streams" "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk" "metadata" "table-key-properties"]))))))
+
+
 (deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:

@@ -29,6 +29,8 @@
   (let [db-spec (config->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE log_based_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE SCHEMA schema_with_table"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          [(jdbc/create-table-ddl
                            "data_table"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
@@ -38,38 +40,44 @@
                          [(jdbc/create-table-ddl
                            "data_table_2"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]])])))
+                            [:value "int"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE TABLE schema_with_table.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])))
 
 (defn populate-data
   [config]
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
-                      "data_table"
+                      "dbo.data_table"
                       (take 100 (map (partial hash-map :deselected_value nil :value) (range))))
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
-                      "data_table_2"
-                      (take 100 (map (partial hash-map :value) (range)))))
-
-(defn insert-data [config]
+                      "dbo.data_table_2"
+                      (take 100 (map (partial hash-map :value) (range))))
   (jdbc/insert-multi! (-> (config->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
-                      "data_table"
+                      "schema_with_table.data_table"
+                      (take 100 (map (partial hash-map :value) (range)))))
+
+(defn insert-data [config schema-name]
+  (jdbc/insert-multi! (-> (config->conn-map config)
+                          (assoc :dbname "log_based_sync_test"))
+                      (format "%s.data_table" schema-name)
                       (map (partial hash-map :deselected_value nil :value) (range 100 200)))
   )
 
-(defn update-data [config]
+(defn update-data [config schema-name]
   (jdbc/execute! (assoc (config->conn-map config)
                         :dbname "log_based_sync_test")
-                 [(str "UPDATE data_table "
+                 [(str (format "UPDATE %s.data_table " schema-name)
                        "SET value = value + 1 "
                        "WHERE value >= 90")])
   )
 
-(defn delete-data [config]
+(defn delete-data [config schema-name]
   (jdbc/execute! (assoc (config->conn-map config)
                         :dbname "log_based_sync_test")
-                 [(str "DELETE FROM data_table "
+                 [(str (format "DELETE FROM %s.data_table " schema-name)
                        "WHERE value >= 90")])
   )
 
@@ -84,7 +92,12 @@
 (defn setup-change-tracking-for-table [config]
   (jdbc/execute! (assoc (config->conn-map config)
                         :dbname "log_based_sync_test")
-                 [(str "ALTER TABLE data_table "
+                 [(str "ALTER TABLE dbo.data_table "
+                       "ENABLE CHANGE_TRACKING "
+                       "WITH (TRACK_COLUMNS_UPDATED = ON)")])
+  (jdbc/execute! (assoc (config->conn-map config)
+                        :dbname "log_based_sync_test")
+                 [(str "ALTER TABLE schema_with_table.data_table "
                        "ENABLE CHANGE_TRACKING "
                        "WITH (TRACK_COLUMNS_UPDATED = ON)")])
   config)
@@ -267,7 +280,7 @@
 
 (deftest ^:integration verify-log-based-replication-inserts
   (with-matrix-assertions test-db-configs test-db-fixture
-    (insert-data test-db-config)
+    (insert-data test-db-config "dbo")
     (is (= 100
            (let [test-state {"bookmarks"
                              {"log_based_sync_test-dbo-data_table"
@@ -311,7 +324,7 @@
 
 (deftest ^:integration verify-log-based-replication-updates
   (with-matrix-assertions test-db-configs test-db-fixture
-    (update-data test-db-config)
+    (update-data test-db-config "dbo")
     (is (= 10
            (let [test-state {"bookmarks"
                              {"log_based_sync_test-dbo-data_table"
@@ -355,7 +368,7 @@
 
 (deftest ^:integration verify-log-based-replication-deletes
   (with-matrix-assertions test-db-configs test-db-fixture
-    (delete-data test-db-config)
+    (delete-data test-db-config "dbo")
     (is (= 10
            (let [test-state {"bookmarks"
                              {"log_based_sync_test-dbo-data_table"

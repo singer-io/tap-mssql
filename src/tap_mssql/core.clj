@@ -238,7 +238,7 @@
 
 (defn add-column-to-primary-keys
   [catalog-stream column]
-  (if (:primary-key? column)
+  (if (and (not (:unsupported? column)) (:primary-key? column))
     (update-in catalog-stream ["metadata" "table-key-properties"] conj (:column_name column))
     catalog-stream))
 
@@ -454,6 +454,11 @@
     (write-schema! catalog stream-name))
   )
 
+(defn make-unsupported-schemas-empty [schema-message catalog stream-name]
+  (let [schema-keys (get-in catalog ["streams" stream-name "metadata" "properties"])
+        unsupported-keys (map first (filter #(= "unsupported" ((second %) "inclusion"))
+                                            (seq schema-keys)))] (reduce (fn [msg x] (assoc-in msg ["schema" "properties" x] {})) schema-message unsupported-keys)))
+
 (defn write-schema! [catalog stream-name]
   ;; TODO: Make sure that unsupported values are written with an empty schema
   (-> {"type" "SCHEMA"
@@ -465,6 +470,7 @@
        "schema" (get-in catalog ["streams" stream-name "schema"])}
       (maybe-add-bookmark-properties-to-schema catalog stream-name)
       (maybe-add-deleted-at-to-schema catalog stream-name)
+      (make-unsupported-schemas-empty catalog stream-name)
       write-message!))
 
 (defn write-state!
@@ -584,7 +590,7 @@
     (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
     true))
 
-(defn build-sync-query [stream-name table-name record-keys state]
+(defn build-sync-query [stream-name schema-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
@@ -604,8 +610,9 @@
                             (str " ORDER BY " (string/join ", "
                                                            (map #(format "%s" %)
                                                                 (keys max-pk-values)))))
-        sql-params        [(str (format "SELECT %s FROM %s"
+        sql-params        [(str (format "SELECT %s FROM %s.%s"
                                         (string/join ", " record-keys)
+                                        schema-name
                                         table-name)
                                 where-clause
                                 order-by)]]
@@ -660,7 +667,8 @@
         record-keys (get-selected-fields catalog stream-name)
         bookmark-keys (get-bookmark-keys catalog stream-name)
         table-name (get-in catalog ["streams" stream-name "table_name"])
-        sql-params (build-sync-query stream-name table-name record-keys state)]
+        schema-name (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+        sql-params (build-sync-query stream-name schema-name table-name record-keys state)]
     (-> (reduce (fn [acc result]
                (let [record (->> (select-keys result record-keys)
                                  (transform catalog stream-name))]
@@ -696,7 +704,8 @@
   )
 
 (defn build-log-based-sql-query [catalog stream-name state]
-  (let [table-name            (get-in catalog ["streams" stream-name "table_name"])
+  (let [schema-name           (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+        table-name            (get-in catalog ["streams" stream-name "table_name"])
         primary-keys          (set (get-in catalog ["streams"
                                                     stream-name
                                                     "metadata"
@@ -719,10 +728,10 @@
                                                       primary-keys))))
                 (when (not-empty record-keys)
                   (str ", " (clojure.string/join ", "
-                                                 (map #(format "%s.%s" table-name %)
+                                                 (map #(format "%s.%s.%s" schema-name table-name %)
                                                       record-keys))))
-                " FROM CHANGETABLE (CHANGES %s, %s) as c "
-                "LEFT JOIN %s ON %s LEFT JOIN %s on %s"
+                " FROM CHANGETABLE (CHANGES %s.%s, %s) as c "
+                "LEFT JOIN %s.%s ON %s LEFT JOIN %s on %s"
                 ;; Existence of PK Bookmark indicates that a single change
                 ;; was interrupted. Only get changes for this version to
                 ;; finish it out.
@@ -739,21 +748,23 @@
                   (str ", " (clojure.string/join ", "
                                                  (map #(format "c.%s" %)
                                                       (sort (vec primary-keys)))))))
+           schema-name
            table-name
            ;; CHANGETABLE is strictly greater than, so we decrement here
            ;; to keep the state showing the "current version"
            (if (> current-log-version 0)
              (dec current-log-version)
              0)
+           schema-name
            table-name
-           (clojure.string/join " AND "(map #(format "c.%s=%s.%s" % table-name %) primary-keys))
+           (clojure.string/join " AND "(map #(format "c.%s=%s.%s.%s" % schema-name table-name %) primary-keys))
            "sys.dm_tran_commit_table tc"
            "c.sys_change_version = tc.commit_ts")
         query-string
-        (if (not-empty primary-key-bookmarks)
-          (into [query-string] (-> (sort-by key primary-key-bookmarks)
-                                   vals))
-          [query-string]))
+      (if (not-empty primary-key-bookmarks)
+        (into [query-string] (-> (sort-by key primary-key-bookmarks)
+                                 vals))
+        [query-string]))
     )
   )
 
