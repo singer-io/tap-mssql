@@ -1076,10 +1076,14 @@
         (maybe-stop-nrepl-server args the-nrepl-server)
         (when (not (repl-arg-passed? args))
           (System/exit 0)))
-      (catch Exception ex
+
+      (catch Throwable ex
         (def ex ex)
-        (maybe-stop-nrepl-server args the-nrepl-server)
+        (.printStackTrace ex)
         (dorun (map #(log/fatal %) (string/split (or (.getMessage ex)
-                                                     (str ex)) #"\n")))
+                                                     (str ex)) #"\n"))))
+      (finally
+        ;; If we somehow skip the catch block, we need to always at least exit if not --repl
+        (maybe-stop-nrepl-server args the-nrepl-server)
         (when (not (repl-arg-passed? args))
           (System/exit 1))))))
