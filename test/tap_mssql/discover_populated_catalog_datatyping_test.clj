@@ -127,8 +127,7 @@
           "format" "date-time"}
          (get-in (discover-catalog test-db-config)
                  ["streams" "datatyping-dbo-date_and_time" "schema" "properties" "date"])))
-  (is (= {"type" ["string" "null"]
-          "format" "date-time"}
+  (is (= {"type" ["string" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "datatyping-dbo-date_and_time" "schema" "properties" "time"])))
   (is (= {"type" ["string" "null"]

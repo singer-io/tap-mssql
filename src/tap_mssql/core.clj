@@ -135,7 +135,7 @@
   (if (and column-schema
            (not (nil? (:decimal_digits column)))
            ;; Datetime columns have a precision, not a candidate for multipleOf
-           (not (= "date-time" (column-schema "format")))
+           (not (contains? #{"date" "time" "datetime"} (:type_name column)) #_(= "date-time" (column-schema "format")))
            (> (:decimal_digits column) 0))
     (assoc column-schema "multipleOf" (* 1 (Math/pow 10 (- (:decimal_digits column)))))
     column-schema))
@@ -162,8 +162,7 @@
           "numeric"          {"type" ["number"]}
           "date"             {"type"   ["string"]
                               "format" "date-time"}
-          "time"             {"type"   ["string"]
-                              "format" "date-time"}
+          "time"             {"type"   ["string"]}
           "datetime"         {"type"   ["string"]
                               "format" "date-time"}
           "char"             {"type"      ["string"]
@@ -457,7 +456,10 @@
 (defn make-unsupported-schemas-empty [schema-message catalog stream-name]
   (let [schema-keys (get-in catalog ["streams" stream-name "metadata" "properties"])
         unsupported-keys (map first (filter #(= "unsupported" ((second %) "inclusion"))
-                                            (seq schema-keys)))] (reduce (fn [msg x] (assoc-in msg ["schema" "properties" x] {})) schema-message unsupported-keys)))
+                                            (seq schema-keys)))]
+    (reduce (fn [msg x] (assoc-in msg ["schema" "properties" x] {}))
+            schema-message
+            unsupported-keys)))
 
 (defn write-schema! [catalog stream-name]
   ;; TODO: Make sure that unsupported values are written with an empty schema
