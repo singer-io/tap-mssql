@@ -46,7 +46,11 @@
                                                   [:tinyint "tinyint"]
                                                   [:bit "bit"]
                                                   [:decimal "decimal"]
-                                                  [:numeric "numeric"]])
+                                                  [:numeric "numeric"]
+                                                  [:numeric_9_3 "numeric(9,3)"]
+                                                  [:numeric_19_8 "numeric(19,8)"]
+                                                  [:numeric_28_1 "numeric(28,1)"]
+                                                  [:numeric_38_22 "numeric(38,22)"]])
                           (jdbc/create-table-ddl :approximate_numerics
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#approximate-numerics
                                                  [[:float "float"]
@@ -219,12 +223,54 @@
   (is (= {"type" ["boolean" "null"]}
          (get-in (discover-catalog test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "bit"])))
-  (is (= {"type" ["number" "null"]}
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 1.0,
+           "minimum" -1.0E18,
+           "maximum" 1.0E18,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
          (get-in (discover-catalog test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "decimal"])))
-  (is (= {"type" ["number" "null"]}
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 1.0,
+           "minimum" -1.0E18,
+           "maximum" 1.0E18,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
          (get-in (discover-catalog test-db-config)
-                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric"]))))
+                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric"])))
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 0.001,
+           "minimum" -1000000.0,
+           "maximum" 1000000.0,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_9_3"])))
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 1.0E-8,
+           "minimum" -1.0E11,
+           "maximum" 1.0E11,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_19_8"])))
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 0.1,
+           "minimum" -1.0E27,
+           "maximum" 1.0E27,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_28_1"])))
+  (is (= {"type" ["number" "null"],
+           "multipleOf" 1.0E-22,
+           "minimum" -1.0E16,
+           "maximum" 1.0E16,
+           "exclusiveMinimum" true,
+           "exclusiveMaximum" true}
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_38_22"]))))
 
 (deftest ^:integration verify-character-strings
   (is (= {"type" ["string" "null"]
