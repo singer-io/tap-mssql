@@ -146,61 +146,63 @@
 
 (defn column->schema
   [{:keys [type_name] :as column}]
-  (let [column-schema
-        ({"int"              {"type"    ["integer"]
-                              "minimum" -2147483648
-                              "maximum" 2147483647}
-          "bigint"           {"type"    ["integer"]
-                              "minimum" -9223372036854775808
-                              "maximum" 9223372036854775807}
-          "smallint"         {"type"    ["integer"]
-                              "minimum" -32768
-                              "maximum" 32767}
-          "tinyint"          {"type"    ["integer"]
-                              "minimum" 0
-                              "maximum" 255}
-          "float"            {"type" ["number"]}
-          "real"             {"type" ["number"]}
-          "bit"              {"type" ["boolean"]}
-          "decimal"          {"type" ["number"]}
-          "numeric"          {"type" ["number"]}
-          "date"             {"type"   ["string"]
-                              "format" "date-time"}
-          "time"             {"type"   ["string"]}
-          "datetime"         {"type"   ["string"]
-                              "format" "date-time"}
-          "char"             {"type"      ["string"]
-                              "minLength" (:column_size column)
-                              "maxLength" (:column_size column)}
-          "nchar"            {"type"      ["string"]
-                              "minLength" (:column_size column)
-                              "maxLength" (:column_size column)}
-          "varchar"          {"type"      ["string"]
-                              "minLength" 0
-                              "maxLength" (:column_size column)}
-          "nvarchar"         {"type"      ["string"]
-                              "minLength" 0
-                              "maxLength" (:column_size column)}
-          "binary"           {"type"      ["string"]
-                              "minLength" (:column_size column)
-                              "maxLength" (:column_size column)}
-          "varbinary"        {"type"      ["string"]
-                              "maxLength" (:column_size column)}
-          "uniqueidentifier" {"type"    ["string"]
-                              ;; a string constant in the form
-                              ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
-                              ;; each x is a hexadecimal digit in the range 0-9
-                              ;; or a-f. For example,
-                              ;; 6F9619FF-8B86-D011-B42D-00C04FC964FF is a valid
-                              ;; uniqueidentifier value.
-                              ;;
-                              ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
-                              "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-          ;; timestamp is a synonym for rowversion, which is automatically
-          ;; generated and guaranteed to be unique. It is _not_ a datetime
-          ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
-          "timestamp"         {"type" ["string"] }}
-         type_name)]
+  (let [type-name-lookup (if (string/ends-with? type_name "identity")
+                           (string/trim (string/replace type_name #"identity" ""))
+                           type_name)
+        column-schema ({"int"              {"type"    ["integer"]
+                                            "minimum" -2147483648
+                                            "maximum" 2147483647}
+                        "bigint"           {"type"    ["integer"]
+                                            "minimum" -9223372036854775808
+                                            "maximum" 9223372036854775807}
+                        "smallint"         {"type"    ["integer"]
+                                            "minimum" -32768
+                                            "maximum" 32767}
+                        "tinyint"          {"type"    ["integer"]
+                                            "minimum" 0
+                                            "maximum" 255}
+                        "float"            {"type" ["number"]}
+                        "real"             {"type" ["number"]}
+                        "bit"              {"type" ["boolean"]}
+                        "decimal"          {"type" ["number"]}
+                        "numeric"          {"type" ["number"]}
+                        "date"             {"type"   ["string"]
+                                            "format" "date-time"}
+                        "time"             {"type"   ["string"]}
+                        "datetime"         {"type"   ["string"]
+                                            "format" "date-time"}
+                        "char"             {"type"      ["string"]
+                                            "minLength" (:column_size column)
+                                            "maxLength" (:column_size column)}
+                        "nchar"            {"type"      ["string"]
+                                            "minLength" (:column_size column)
+                                            "maxLength" (:column_size column)}
+                        "varchar"          {"type"      ["string"]
+                                            "minLength" 0
+                                            "maxLength" (:column_size column)}
+                        "nvarchar"         {"type"      ["string"]
+                                            "minLength" 0
+                                            "maxLength" (:column_size column)}
+                        "binary"           {"type"      ["string"]
+                                            "minLength" (:column_size column)
+                                            "maxLength" (:column_size column)}
+                        "varbinary"        {"type"      ["string"]
+                                            "maxLength" (:column_size column)}
+                        "uniqueidentifier" {"type"    ["string"]
+                        ;; a string constant in the form
+                        ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
+                        ;; each x is a hexadecimal digit in the range 0-9
+                        ;; or a-f. For example,
+                        ;; 6F9619FF-8B86-D011-B42D-00C04FC964FF is a valid
+                        ;; uniqueidentifier value.
+                        ;;
+                        ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql?view=sql-server-2017
+                                            "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
+                        ;; timestamp is a synonym for rowversion, which is automatically
+                        ;; generated and guaranteed to be unique. It is _not_ a datetime
+                        ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
+                        "timestamp"         {"type" ["string"] }}
+                       type-name-lookup)]
     (-> column-schema
         (maybe-add-nullable-to-column-schema column)
         (maybe-add-precision-to-numerics-column-schema column))))
@@ -241,7 +243,7 @@
 
 (defn add-column-to-primary-keys
   [catalog-stream column]
-  (if (and (not (:unsupported? column)) (:primary-key? column))
+  (if (:primary-key? column)
     (update-in catalog-stream ["metadata" "table-key-properties"] conj (:column_name column))
     catalog-stream))
 
@@ -770,9 +772,7 @@
       (if (not-empty primary-key-bookmarks)
         (into [query-string] (-> (sort-by key primary-key-bookmarks)
                                  vals))
-        [query-string]))
-    )
-  )
+        [query-string]))))
 
 (defn update-current-log-version [stream-name version state]
   (let [previous-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
@@ -891,8 +891,21 @@
                                               stream-name
                                               (get-in catalog ["streams" stream-name "metadata" "replication-method"]))))))
 
+(defn valid-primary-keys? [catalog stream-name]
+  (let [stream-metadata (get-in catalog ["streams" stream-name "metadata"])
+        primary-keys (get-in stream-metadata ["table-key-properties"])
+        unsupported-primary-keys (filter #(= "unsupported"
+                                             (get-in stream-metadata ["properties" % "inclusion"]))
+                                         primary-keys)]
+    (if (not-empty unsupported-primary-keys)
+      (throw (ex-info (format "Stream %s has unsupported primary key(s): %s"
+                              stream-name
+                              (string/join ", " unsupported-primary-keys)) {}))
+      true)))
+
 (defn sync-stream!
   [config catalog state stream-name]
+  {:pre [(valid-primary-keys? catalog stream-name)]}
   (log/infof "Syncing stream %s" stream-name)
   (write-schema! catalog stream-name)
   (->> (maybe-write-activate-version! stream-name state)
