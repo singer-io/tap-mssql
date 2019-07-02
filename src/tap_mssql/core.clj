@@ -130,15 +130,19 @@
     (update column-schema "type" conj "null")
     column-schema))
 
-(defn maybe-add-precision-to-column-schema [column-schema column]
+(defn maybe-add-precision-to-numerics-column-schema [column-schema column]
   {:pre [(map? column)]}
-  (if (and column-schema
-           (not (nil? (:decimal_digits column)))
-           ;; Datetime columns have a precision, not a candidate for multipleOf
-           (not (contains? #{"date" "time" "datetime"} (:type_name column)) #_(= "date-time" (column-schema "format")))
-           (> (:decimal_digits column) 0))
-    (assoc column-schema "multipleOf" (* 1 (Math/pow 10 (- (:decimal_digits column)))))
-    column-schema))
+  (let [sql-type (:type_name column)
+        precision (:column_size column)
+        scale (:decimal_digits column)]
+    (if (contains? #{"numeric" "decimal"} sql-type)
+      (-> column-schema
+          (assoc "multipleOf" (* 1 (Math/pow 10 (- scale))))
+          (assoc "minimum" (* -1 (Math/pow 10 (- precision scale))))
+          (assoc "maximum" (Math/pow 10 (- precision scale)))
+          (assoc "exclusiveMinimum" true)
+          (assoc "exclusiveMaximum" true))
+      column-schema)))
 
 (defn column->schema
   [{:keys [type_name] :as column}]
@@ -199,7 +203,7 @@
          type_name)]
     (-> column-schema
         (maybe-add-nullable-to-column-schema column)
-        (maybe-add-precision-to-column-schema column))))
+        (maybe-add-precision-to-numerics-column-schema column))))
 
 (defn add-column-schema-to-catalog-stream-schema
   [catalog-stream-schema column]
