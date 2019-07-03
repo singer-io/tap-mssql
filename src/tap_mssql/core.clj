@@ -512,6 +512,7 @@
 (defn selected-field?
   [[field-name field-metadata]]
   (or (field-metadata "selected")
+      (= (field-metadata "inclusion") "automatic")
       (and (field-metadata "selected-by-default")
            (not (contains? field-metadata "selected")))))
 
