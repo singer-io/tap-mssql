@@ -678,6 +678,7 @@
         table-name (get-in catalog ["streams" stream-name "table_name"])
         schema-name (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         sql-params (build-sync-query stream-name schema-name table-name record-keys state)]
+    (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (reduce (fn [acc result]
                (let [record (->> (select-keys result record-keys)
                                  (transform catalog stream-name))]
@@ -828,7 +829,9 @@
    :post [(valid-state? %)]}
   (let [record-keys   (get-selected-fields catalog stream-name)
         bookmark-keys (get-bookmark-keys catalog stream-name)
-        dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])]
+        dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        sql-params    (build-log-based-sql-query catalog stream-name state)]
+    (log/infof "Executing query: %s" sql-params)
     (-> (reduce (fn [st result]
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
@@ -843,7 +846,7 @@
                 state
                 (jdbc/reducible-query (assoc (config->conn-map config)
                                              :dbname dbname)
-                                      (build-log-based-sql-query catalog stream-name state)
+                                      sql-params
                                       {:raw? true}))
         ;; last_pk_fetched indicates an interruption, and should be gone
         ;; after a successful log sync
