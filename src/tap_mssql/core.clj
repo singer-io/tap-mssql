@@ -661,7 +661,7 @@
         table-name (get-in catalog ["streams" stream-name "table_name"])
         sql-query [(format "SELECT %s FROM %s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) table-name)]]
     (if (not (nil? bookmark-keys))
-      (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false})
+      (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false :identifiers identity})
            first
            (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
        state))
@@ -832,6 +832,7 @@
         dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
         sql-params    (build-log-based-sql-query catalog stream-name state)]
     (log/infof "Executing query: %s" sql-params)
+    (write-activate-version! stream-name state)
     (-> (reduce (fn [st result]
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
