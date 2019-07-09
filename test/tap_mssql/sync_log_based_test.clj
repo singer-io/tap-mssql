@@ -325,6 +325,18 @@
 (deftest ^:integration verify-log-based-replication-updates
   (with-matrix-assertions test-db-configs test-db-fixture
     (update-data test-db-config "dbo")
+    ;; schema, state, activate_version
+    (is (= "ACTIVATE_VERSION"
+           (let [test-state {"bookmarks"
+                             {"log_based_sync_test-dbo-data_table"
+                              {"version" 1560965962084
+                               "initial_full_table_complete" true
+                               "current_log_version" 0}}}]
+             (-> (discover-catalog test-db-config)
+                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (get-messages-from-output test-db-config nil test-state)
+                 (nth 2)
+                 (get "type")))))
     (is (= 10
            (let [test-state {"bookmarks"
                              {"log_based_sync_test-dbo-data_table"
@@ -332,22 +344,22 @@
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (discover-catalog test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "RECORD" (% "type"))))
-                count))))
+                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (get-messages-from-output test-db-config nil test-state)
+                 ((partial filter #(= "RECORD" (% "type"))))
+                 count))))
     ;; Verify that they are all 91->100 value (since we incremented 90-99)
     (is (every? (set (range 91 101))
-           (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
-                              {"version" 1560965962084
-                               "initial_full_table_complete" true
-                               "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "RECORD" (% "type"))))
-                ((partial map #(get-in % ["record" "value"])))))))
+                (let [test-state {"bookmarks"
+                                  {"log_based_sync_test-dbo-data_table"
+                                   {"version" 1560965962084
+                                    "initial_full_table_complete" true
+                                    "current_log_version" 0}}}]
+                  (-> (discover-catalog test-db-config)
+                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                      (get-messages-from-output test-db-config nil test-state)
+                      ((partial filter #(= "RECORD" (% "type"))))
+                      ((partial map #(get-in % ["record" "value"])))))))
     ;; Verify current_log_version in state after sync
     (is (= 1
            (let [test-state {"bookmarks"
@@ -356,14 +368,14 @@
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (discover-catalog test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "STATE" (% "type"))))
-                last
-                (get-in ["value"
-                         "bookmarks"
-                         "log_based_sync_test-dbo-data_table"
-                         "current_log_version"])))))
+                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (get-messages-from-output test-db-config nil test-state)
+                 ((partial filter #(= "STATE" (% "type"))))
+                 last
+                 (get-in ["value"
+                          "bookmarks"
+                          "log_based_sync_test-dbo-data_table"
+                          "current_log_version"])))))
     ))
 
 (deftest ^:integration verify-log-based-replication-deletes
