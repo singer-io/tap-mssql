@@ -433,18 +433,23 @@
          "ACTIVATE_VERSION"
          (message "version"))))
 
-
-(defn serialize-datetime [k v]
-  (if (instance? java.sql.Timestamp v)
+;; Passed to the json serializer as value-converter fn
+;; Needed to convert java.sql.Date types to json strings
+(defn serialize-datetimes [k v]
+  (condp contains? (type v)
+    #{java.sql.Timestamp}
     (.. v toInstant toString)
-    v)
-  )
+
+    #{java.sql.Time java.sql.Date}
+    (.toString v)
+
+    v))
 
 (defn write-message!
   [message]
   {:pre [(message-valid? message)]}
   (-> message
-      (json/write-str :value-fn serialize-datetime)
+      (json/write-str :value-fn serialize-datetimes)
       println))
 
 (defn maybe-add-bookmark-properties-to-schema [schema-message catalog stream-name]
