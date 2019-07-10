@@ -122,7 +122,8 @@
    "metadata"      {"database-name"        (:table_cat column)
                     "schema-name"          (:table_schem column)
                     "table-key-properties" #{}
-                    "is-view"              (:is-view? column)}})
+                    "is-view"              (:is-view? column)
+                    "row-count"            (:approximate-row-count column)}})
 
 (defn maybe-add-nullable-to-column-schema [column-schema column]
   (if (and column-schema
@@ -302,6 +303,29 @@
     (assoc column :unsupported? true)
     column))
 
+(defn get-approximate-row-count*
+  [conn-map schema-name table-name is-view?]
+  (let [query (str  "SELECT CAST(p.rows AS int) as row_count "
+                    "FROM sys.tables AS tbl "
+                    "INNER JOIN sys.indexes AS idx ON idx.object_id = tbl.object_id and idx.index_id < 2 "
+                    "INNER JOIN sys.partitions AS p ON p.object_id=CAST(tbl.object_id AS int) "
+                    "AND p.index_id=idx.index_id "
+                    "WHERE ((tbl.name=? "
+                    "AND SCHEMA_NAME(tbl.schema_id)=?))")]
+    (if is-view?
+      0 ;; a view's count can only be done via count(*) which causes a table scan so just return 0
+      (-> (jdbc/query conn-map [query table-name schema-name])
+         first
+         :row_count))))
+
+;; Memoized so we only call this once per table
+(def get-approximate-row-count (memoize get-approximate-row-count*))
+
+(defn add-row-count-data
+  [conn-map column]
+  (let [approximate-row-count (get-approximate-row-count conn-map (:table_schem column) (:table_name column) (:is-view? column))]
+    (assoc column :approximate-row-count approximate-row-count)))
+
 (defn get-database-columns
   [config database]
   (let [conn-map (assoc (config->conn-map config)
@@ -311,6 +335,7 @@
     (->> raw-columns
          (map (partial add-primary-key?-data conn-map))
          (map (partial add-is-view?-data conn-map))
+         (map (partial add-row-count-data conn-map))
          (map add-unsupported?-data))))
 
 (defn get-columns
