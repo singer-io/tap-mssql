@@ -32,10 +32,18 @@
                            AS
                            SELECT id FROM table_with_a_primary_key"])))
 
+(defn populate-data
+  []
+  (jdbc/insert! (-> (config->conn-map test-db-config)
+                          (assoc :dbname "database_for_metadata"))
+                      "dbo.table_with_a_primary_key"
+                      {:id 1 :name "t"}))
+
 (defn test-db-fixture [f]
   (with-out-and-err-to-dev-null
     (maybe-destroy-test-db)
     (create-test-db)
+    (populate-data)
     (f)))
 
 (use-fixtures :each test-db-fixture)
@@ -73,4 +81,10 @@
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "table-key-properties"])))
   (is (= true
          (get-in (discover-catalog test-db-config)
-                 ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "is-view"]))))
+                 ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "is-view"])))
+  (is (= 1
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "row-count"])))
+  (is (= 0
+         (get-in (discover-catalog test-db-config)
+                 ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "row-count"]))))
