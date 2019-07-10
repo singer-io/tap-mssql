@@ -687,15 +687,15 @@
 
 (defn get-max-pk-values [config catalog stream-name state]
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        schema-name (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         bookmark-keys (get-bookmark-keys catalog stream-name)
         table-name (get-in catalog ["streams" stream-name "table_name"])
-        sql-query [(format "SELECT %s FROM %s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) table-name)]]
+        sql-query [(format "SELECT %s FROM %s.%s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) schema-name table-name)]]
     (if (not (nil? bookmark-keys))
       (->> (jdbc/query (assoc (config->conn-map config) :dbname dbname) sql-query {:keywordize? false :identifiers identity})
            first
            (assoc-in state ["bookmarks" stream-name "max_pk_values"]))
-       state))
-  )
+       state)))
 
 (defn write-records-and-states!
   "Syncs all records, states, returns the latest state. Ensures that the
