@@ -138,7 +138,7 @@
            table-name
            (string/join " AND "(map #(format "c.%s=%s.%s.%s" % schema-name table-name %) primary-keys))
            "sys.dm_tran_commit_table tc"
-           "c.sys_change_version = tc.commit_ts")
+           "c.SYS_CHANGE_VERSION = tc.commit_ts")
         query-string
       (if (not-empty primary-key-bookmarks)
         (into [query-string] (-> (sort-by key primary-key-bookmarks)
