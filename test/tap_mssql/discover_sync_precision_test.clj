@@ -1,5 +1,8 @@
 (ns tap-mssql.discover-sync-precision-test
-  (:require [clojure.test :refer [is deftest use-fixtures]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.data.json :as json]
@@ -17,15 +20,15 @@
 
 (defn maybe-destroy-test-db
   [config]
-  (let [destroy-database-commands (->> (get-databases config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map config)]
+    (let [db-spec (config/->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]
-  (let [db-spec (config->conn-map config)]
+  (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE precision"])
     (jdbc/db-do-commands (assoc db-spec :dbname "precision")
                          [(jdbc/create-table-ddl :numeric_precisions
@@ -125,12 +128,12 @@
 
 (defn populate-data
   [config]
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "precision"))
                       "numeric_precisions"
                       (->> test-data-numerics
                            (map (partial zipmap[:pk :numeric_9_3 :numeric_19_8 :numeric_28_1 :numeric_38_22]))))
-    (jdbc/insert-multi! (-> (config->conn-map config)
+    (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "precision"))
                       "float_precisions"
                       (->> test-data-floats
@@ -157,7 +160,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (every? #((set (keys (second %))) "multipleOf")
                 (filter #(string/starts-with? (first %) "numeric")
-                        (get-in (discover-catalog test-db-config)
+                        (get-in (catalog/discover test-db-config)
                                 ["streams"
                                  "precision-dbo-numeric_precisions"
                                  "schema"
@@ -165,7 +168,7 @@
     (is (= #{0.1 1.0E-22 0.001 1.0E-8}
            (set (map #((second %) "multipleOf")
                      (filter #(string/starts-with? (first %) "numeric")
-                             (get-in (discover-catalog test-db-config)
+                             (get-in (catalog/discover test-db-config)
                                      ["streams"
                                       "precision-dbo-numeric_precisions"
                                       "schema"
@@ -190,7 +193,7 @@
                      ;; Casting to bigdec for calculations to ensure that
                      ;; checking precision doesn't introduce error
                      (= (bigdec 0.0) (rem % (bigdec (Math/pow 10 -22)))))
-                (->> (discover-catalog test-db-config)
+                (->> (catalog/discover test-db-config)
                      (select-stream "precision-dbo-numeric_precisions")
                      (run-sync test-db-config {})
                      write-and-read
@@ -202,7 +205,7 @@
 (deftest precision-should-be-maintained-in-written-records-from-json-float
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (= (map second test-data-floats)
-           (->> (discover-catalog test-db-config)
+           (->> (catalog/discover test-db-config)
                 (select-stream "precision-dbo-float_precisions")
                 (run-sync test-db-config {})
                 write-and-read
@@ -210,7 +213,7 @@
                 (map #(get % "record"))
                 (map #(% "float_53")))))
     (is (= (map #(nth % 2) test-data-floats)
-           (->> (discover-catalog test-db-config)
+           (->> (catalog/discover test-db-config)
                 (select-stream "precision-dbo-float_precisions")
                 (run-sync test-db-config {})
                 write-and-read

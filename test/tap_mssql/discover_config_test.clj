@@ -5,6 +5,9 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config]]))
 
@@ -14,15 +17,15 @@
 
 (defn maybe-destroy-test-db
   []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases test-db-config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config/->conn-map test-db-config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   []
-  (let [db-spec (config->conn-map test-db-config)]
+  (let [db-spec (config/->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
                                   "CREATE DATABASE database_with_a_table"
                                   "CREATE DATABASE another_database_with_a_table"
@@ -113,10 +116,10 @@
   (let [specific-db-config (assoc test-db-config "database" "empty_database")]
     (is (thrown-with-msg? java.lang.Exception
                           #"Empty Catalog: did not discover any streams"
-                          (discover-catalog specific-db-config))))
+                          (catalog/discover specific-db-config))))
   (is (= ["datatyping"]
          (let [specific-db-config (assoc test-db-config "database" "datatyping")]
-           (->> ((discover-catalog specific-db-config) "streams")
+           (->> ((catalog/discover specific-db-config) "streams")
                 (map (fn [[stream-name catalog-entry]]
                        (get-in catalog-entry ["metadata" "database-name"])))
                 distinct)))))
@@ -131,14 +134,14 @@
                                 "datatyping-dbo-date_and_time"
                                 "datatyping-dbo-exact_numerics"
                                 "datatyping-dbo-unicode_character_strings"}
-        discovered-streams ((discover-catalog test-db-config) "streams")]
+        discovered-streams ((catalog/discover test-db-config) "streams")]
     (dorun
      (for [stream-name (keys discovered-streams)]
        (is (expected-stream-names stream-name))))))
 
 (deftest ^:integration verify-system-databases-are-undiscoverable
   (is (thrown? IllegalArgumentException
-               (with-redefs [parse-config (constantly {"database" "master"})]
+               (with-redefs [singer-parse/config (constantly {"database" "master"})]
                  (parse-opts ["--config" "foobar.json"])))))
 
 
@@ -171,19 +174,19 @@
   ;; For now, we'll stick with verifying that we've requested
   ;; authentication.
   ;;
-  ;; Note - We are redef'ing config->conn-map to remove the connection
+  ;; Note - We are redef'ing config/->conn-map to remove the connection
   ;; check since it will try to connect using SSL and fail
   (is (= "SqlPassword"
-         (with-redefs [check-connection (fn [conn-map] conn-map)]
+         (with-redefs [config/check-connection (fn [conn-map] conn-map)]
            (-> test-db-config
                (assoc "ssl" "true")
-               config->conn-map*
+               config/->conn-map*
                :authentication))))
   (is (= false
-         (with-redefs [check-connection (fn [conn-map] conn-map)]
+         (with-redefs [config/check-connection (fn [conn-map] conn-map)]
            (-> test-db-config
                (assoc "ssl" "true")
-               config->conn-map*
+               config/->conn-map*
                :trustServerCertificate)))))
 
 (deftest ^:integration verify-ssl-true-throws-on-attempted-connection
@@ -191,7 +194,7 @@
     (is (thrown-with-msg?
          com.microsoft.sqlserver.jdbc.SQLServerException
          #"The driver could not establish a secure connection to SQL Server by using Secure Sockets Layer"
-         (config->conn-map* ssl-config)))))
+         (config/->conn-map* ssl-config)))))
 
 ;; Once SSL support is implemented, the below test should be uncommented
 ;; so that we are testing to verify that we can correctly discover a
@@ -207,7 +210,7 @@
 ;;                                 "datatyping-dbo-date_and_time"
 ;;                                 "datatyping-dbo-exact_numerics"
 ;;                                 "datatyping-dbo-unicode_character_strings"}
-;;         discovered-streams ((discover-catalog ssl-config) "streams")]
+;;         discovered-streams ((catalog/discover ssl-config) "streams")]
 ;;     (dorun
 ;;      (for [expected-stream-name expected-stream-names]
 ;;        (is (contains? discovered-streams expected-stream-name))))))

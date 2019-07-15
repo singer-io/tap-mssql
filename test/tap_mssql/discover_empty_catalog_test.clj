@@ -5,6 +5,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
@@ -17,15 +19,15 @@
 
 (defn maybe-destroy-test-db
   [config]
-  (let [destroy-database-commands (->> (get-databases config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map config)]
+    (let [db-spec (config/->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]
-  (let [db-spec (config->conn-map config)]
+  (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"])))
 
 (defn test-db-fixture [f config]
@@ -38,7 +40,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (thrown-with-msg? java.lang.Exception
                           #"Empty Catalog: did not discover any streams"
-                          (discover-catalog test-db-config))
+                          (catalog/discover test-db-config))
         )))
 
 (comment

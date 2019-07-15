@@ -1,5 +1,8 @@
 (ns tap-mssql.discover-populated-catalog-datatyping-test
-  (:require [clojure.test :refer [is deftest use-fixtures]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
@@ -14,15 +17,15 @@
 
 (defn maybe-destroy-test-db
   []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases test-db-config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config/->conn-map test-db-config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   []
-  (let [db-spec (config->conn-map test-db-config)]
+  (let [db-spec (config/->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
                                   "CREATE DATABASE database_with_a_table"
                                   "CREATE DATABASE another_database_with_a_table"
@@ -129,99 +132,99 @@
 (deftest ^:integration verify-date-and-time
   (is (= {"type" ["string" "null"]
           "format" "date-time"}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-date_and_time" "schema" "properties" "date"])))
   (is (= {"type" ["string" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-date_and_time" "schema" "properties" "time"])))
   (is (= {"type" ["string" "null"]
           "format" "date-time"}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-date_and_time" "schema" "properties" "datetime"]))))
 
 (deftest ^:integration verify-approximate-numerics
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "float"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "float_1"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "float_24"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "float_25"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "float_53"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "double_precision"])))
   (is (= {"type" ["number" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-approximate_numerics" "schema" "properties" "real"]))))
 
 (deftest ^:integration verify-unicode-strings
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar"])))
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar_1"])))
   (is (= {"type" ["string" "null"]
           "minLength" 4000
           "maxLength" 4000}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar_4000"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_1"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 4000}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_4000"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 2147483647}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_max"]))))
 
 (deftest ^:integration verify-exact-numerics
   (is (= {"type" ["integer" "null"]
           "minimum" -2147483648
           "maximum"  2147483647}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "int"])))
   (is (= {"type" ["integer"]
           "minimum" -9223372036854775808
           "maximum"  9223372036854775807}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "bigint"])))
   (is (= {"type" ["integer" "null"]
           "minimum" -32768
           "maximum"  32767}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "smallint"])))
   (is (= {"type" ["integer" "null"]
           "minimum" 0
           "maximum" 255}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "tinyint"])))
   (is (= {"type" ["boolean" "null"]}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "bit"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 1.0,
@@ -229,7 +232,7 @@
            "maximum" 1.0E18,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "decimal"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 1.0,
@@ -237,7 +240,7 @@
            "maximum" 1.0E18,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 0.001,
@@ -245,7 +248,7 @@
            "maximum" 1000000.0,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_9_3"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 1.0E-8,
@@ -253,7 +256,7 @@
            "maximum" 1.0E11,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_19_8"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 0.1,
@@ -261,7 +264,7 @@
            "maximum" 1.0E27,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_28_1"])))
   (is (= {"type" ["number" "null"],
            "multipleOf" 1.0E-22,
@@ -269,124 +272,124 @@
            "maximum" 1.0E16,
            "exclusiveMinimum" true,
            "exclusiveMaximum" true}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "numeric_38_22"]))))
 
 (deftest ^:integration verify-character-strings
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char"])))
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char_one"])))
   (is (= {"type" ["string" "null"]
           "minLength" 8000
           "maxLength" 8000}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char_8000"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_one"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 8000}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_8000"])))
   (is (= {"type" ["string" "null"]
           "minLength" 0
           "maxLength" 2147483647}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_max"]))))
 
 (deftest ^:integration verify-binary-strings
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary"])))
   (is (= {"type" ["string" "null"]
           "minLength" 1
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary_one"])))
   (is (= {"type" ["string" "null"]
           "minLength" 10
           "maxLength" 10}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary_10"])))
   (is (= {"type" ["string" "null"]
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "varbinary"])))
   (is (= {"type" ["string" "null"]
           "maxLength" 1}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "varbinary_one"])))
   (is (= {"type" ["string" "null"]
           "maxLength" 2147483647}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "varbinary_max"]))))
 
 (deftest ^:integration verify-uniqueidentifiers-are-supported
   (is (= {"type" ["string" "null"]
           "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-uniqueidentifiers" "schema" "properties" "uniqueidentifier"])))
   (is (= "uniqueidentifier"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-uniqueidentifiers" "metadata" "properties"
                   "uniqueidentifier" "sql-datatype"])))
   (is (= "available"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-uniqueidentifiers" "metadata" "properties"
                   "uniqueidentifier" "inclusion"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-uniqueidentifiers" "metadata" "properties"
                   "uniqueidentifier" "selected-by-default"]))))
 
 (deftest ^:integration verify-timestamps-are-supported
   (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-timestamps" "schema" "properties" "timestamp"])))
   (is (= "timestamp"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-timestamps" "metadata" "properties"
                   "timestamp" "sql-datatype"])))
   (is (= "available"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-timestamps" "metadata" "properties"
                   "timestamp" "inclusion"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-timestamps" "metadata" "properties"
                   "timestamp" "selected-by-default"]))))
 
 (deftest ^:integration verify-rowversions-are-supported
   (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-rowversions" "schema" "properties" "rowversion"])))
   (is (= "timestamp" ;; rowversion is an alias for timestamp
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-rowversions" "metadata" "properties"
                   "rowversion" "sql-datatype"])))
   (is (= "available"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-rowversions" "metadata" "properties"
                   "rowversion" "inclusion"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-rowversions" "metadata" "properties"
                   "rowversion" "selected-by-default"]))))
 
@@ -394,7 +397,7 @@
   (map select-keys
        (get-columns test-db-config)
        (repeat ["column_name" "type_name" "sql_data_type"]))
-  (jdbc/with-db-metadata [md (assoc (config->conn-map test-db-config)
+  (jdbc/with-db-metadata [md (assoc (config/->conn-map test-db-config)
                                     "dbname" "another_database_with_a_table")]
     (jdbc/metadata-result (.getColumns md nil "dbo" nil nil)))
 
