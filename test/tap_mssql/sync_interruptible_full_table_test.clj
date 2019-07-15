@@ -1,11 +1,15 @@
 (ns tap-mssql.sync-interruptible-full-table-test
-  (:require [clojure.test :refer [is deftest]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.data.json :as json]
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
+            [tap-mssql.singer.messages :as singer-messages]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
@@ -17,15 +21,15 @@
 
 (defn maybe-destroy-test-db
   [config]
-  (let [destroy-database-commands (->> (get-databases config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map config)]
+    (let [db-spec (config/->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]
-  (let [db-spec (config->conn-map config)]
+  (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE full_table_interruptible_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
@@ -52,19 +56,19 @@
 
 (defn populate-data
   [config]
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table"
                       (take 200 (map (partial hash-map :deselected_value nil :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "data_table_rowversion"
                       (take 200 (map (partial hash-map :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_unsupported_pk"
                       (take 200 (map #(hash-map :id (+ % 0.05) :value %) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_unsupported_column"
                       (take 200 (map #(hash-map :value (+ % 0.05)) (range)))))
@@ -83,7 +87,7 @@
    (get-messages-from-output
     config
     table
-    (discover-catalog config)))
+    (catalog/discover config)))
   ([config table catalog]
    (get-messages-from-output config table {} catalog))
   ([config table state catalog]
@@ -119,7 +123,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (= {}
            (get-in (first (filter #(= "SCHEMA" (% "type"))
-                                  (->> (discover-catalog test-db-config)
+                                  (->> (catalog/discover test-db-config)
                                        (select-stream "full_table_interruptible_sync_test-dbo-table_with_unsupported_column")
                                        (get-messages-from-output test-db-config
                                                                  "full_table_interruptible_sync_test-dbo-table_with_unsupported_column"))))
@@ -130,7 +134,7 @@
     (is (thrown-with-msg? java.lang.Exception
                           #"has unsupported primary key"
                           (->> test-db-config
-                              (discover-catalog)
+                              (catalog/discover)
                               (select-stream "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk")
                               (get-messages-from-output test-db-config "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk"))))))
 
@@ -139,15 +143,15 @@
     ;; Steps:
     ;; Sync partially, a table with row version, interrupted at some point
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
-    (let [old-write-record write-record!]
-      (with-redefs [write-record! (fn [stream-name state record]
+    (let [old-write-record singer-messages/write-record!]
+      (with-redefs [singer-messages/write-record! (fn [stream-name state record]
                                     (swap! record-count inc)
                                     (if (> @record-count 120)
                                       (do
                                         (reset! record-count 0)
                                         (throw (ex-info "Interrupting!" {:ignore true})))
                                       (old-write-record stream-name state record)))]
-        (let [first-messages (->> (discover-catalog test-db-config)
+        (let [first-messages (->> (catalog/discover test-db-config)
                                   (select-stream "full_table_interruptible_sync_test-dbo-data_table_rowversion")
                                   (get-messages-from-output test-db-config
                                                             "full_table_interruptible_sync_test-dbo-data_table_rowversion"))

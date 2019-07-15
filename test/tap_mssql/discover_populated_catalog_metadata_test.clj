@@ -1,5 +1,8 @@
 (ns tap-mssql.discover-populated-catalog-metadata-test
-  (:require [clojure.test :refer [is deftest use-fixtures]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
@@ -14,15 +17,15 @@
 
 (defn maybe-destroy-test-db
   []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases test-db-config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config/->conn-map test-db-config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   []
-  (let [db-spec (config->conn-map test-db-config)]
+  (let [db-spec (config/->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE database_for_metadata"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_for_metadata")
                          [(jdbc/create-table-ddl :table_with_a_primary_key [[:id "int primary key"]
@@ -34,7 +37,7 @@
 
 (defn populate-data
   []
-  (jdbc/insert! (-> (config->conn-map test-db-config)
+  (jdbc/insert! (-> (config/->conn-map test-db-config)
                           (assoc :dbname "database_for_metadata"))
                       "dbo.table_with_a_primary_key"
                       {:id 1 :name "t"}))
@@ -50,41 +53,41 @@
 
 (deftest ^:integration verify-metadata
   (is (= "automatic"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "inclusion"])))
   (is (= "int"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "sql-datatype"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "selected-by-default"])))
   (is (= "available"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "inclusion"])))
   (is (= "varchar"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "sql-datatype"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "selected-by-default"])))
   (is (= "database_for_metadata"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "database-name"])))
   (is (= "dbo"
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "schema-name"])))
   (is (= false
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "is-view"])))
   (is (= #{"id"}
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "table-key-properties"])))
   (is (= true
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "is-view"])))
   (is (= 1
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "row-count"])))
   (is (= 0
-         (get-in (discover-catalog test-db-config)
+         (get-in (catalog/discover test-db-config)
                  ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "row-count"]))))

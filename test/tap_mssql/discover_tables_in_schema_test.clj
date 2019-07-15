@@ -1,5 +1,8 @@
 (ns tap-mssql.discover-tables-in-schema-test
-  (:require [clojure.test :refer [is deftest use-fixtures]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.set :as set]
@@ -13,16 +16,16 @@
 
 (defn maybe-destroy-test-db
   []
-  (let [destroy-database-commands (->> (get-databases test-db-config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases test-db-config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map test-db-config)]
+    (let [db-spec (config/->conn-map test-db-config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 
 (defn create-test-db
   []
-  (let [db-spec (config->conn-map test-db-config)]
+  (let [db-spec (config/->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE database_with_schema"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_schema") ["CREATE SCHEMA schema_with_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_schema") ["CREATE TABLE schema_with_table.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])
@@ -44,20 +47,20 @@
 
 (deftest ^:integration verify-populated-catalog-with-schema
   (is (let [stream-names (set (map #(get % "stream")
-                                   (vals ((discover-catalog test-db-config) "streams"))))]
+                                   (vals ((catalog/discover test-db-config) "streams"))))]
         (= stream-names #{"data_table" "data_table_without_schema"})))
   (is (let [tap-stream-ids (set (map #(get % "tap_stream_id")
-                                     (vals ((discover-catalog test-db-config) "streams"))))]
+                                     (vals ((catalog/discover test-db-config) "streams"))))]
         (= tap-stream-ids #{"database_with_schema-schema_with_table-data_table"
                             "database_with_schema-dbo-data_table_without_schema"})))
   (is (=
-       (get-in (discover-catalog test-db-config) ["streams"
+       (get-in (catalog/discover test-db-config) ["streams"
                                                   "database_with_schema-schema_with_table-data_table"
                                                   "metadata"
                                                   "schema-name"])
        "schema_with_table"))
   (is (=
-       (get-in (discover-catalog test-db-config) ["streams"
+       (get-in (catalog/discover test-db-config) ["streams"
                                                   "database_with_schema-dbo-data_table_without_schema"
                                                   "metadata"
                                                   "schema-name"])

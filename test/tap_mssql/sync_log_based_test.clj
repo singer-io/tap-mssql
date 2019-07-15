@@ -1,5 +1,8 @@
 (ns tap-mssql.sync-log-based-test
-  (:require [clojure.test :refer [is deftest]]
+  (:require
+            [tap-mssql.catalog :as catalog]
+            [tap-mssql.config :as config]
+            [clojure.test :refer [is deftest]]
             [clojure.java.io :as io]
             [clojure.java.jdbc :as jdbc]
             [clojure.data]
@@ -7,6 +10,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
+            [tap-mssql.sync-strategies.logical :as logical]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
@@ -18,15 +22,15 @@
 
 (defn maybe-destroy-test-db
   [config]
-  (let [destroy-database-commands (->> (get-databases config)
-                                       (filter non-system-database?)
+  (let [destroy-database-commands (->> (catalog/get-databases config)
+                                       (filter catalog/non-system-database?)
                                        (map get-destroy-database-command))]
-    (let [db-spec (config->conn-map config)]
+    (let [db-spec (config/->conn-map config)]
       (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]
-  (let [db-spec (config->conn-map config)]
+  (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE log_based_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE SCHEMA schema_with_table"])
@@ -46,28 +50,28 @@
 
 (defn populate-data
   [config]
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
                       "dbo.data_table"
                       (take 100 (map (partial hash-map :deselected_value nil :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
                       "dbo.data_table_2"
                       (take 100 (map (partial hash-map :value) (range))))
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
                       "schema_with_table.data_table"
                       (take 100 (map (partial hash-map :value) (range)))))
 
 (defn insert-data [config schema-name]
-  (jdbc/insert-multi! (-> (config->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "log_based_sync_test"))
                       (format "%s.data_table" schema-name)
                       (map (partial hash-map :deselected_value nil :value) (range 100 200)))
   )
 
 (defn update-data [config schema-name]
-  (jdbc/execute! (assoc (config->conn-map config)
+  (jdbc/execute! (assoc (config/->conn-map config)
                         :dbname "log_based_sync_test")
                  [(str (format "UPDATE %s.data_table " schema-name)
                        "SET value = value + 1 "
@@ -75,14 +79,14 @@
   )
 
 (defn delete-data [config schema-name]
-  (jdbc/execute! (assoc (config->conn-map config)
+  (jdbc/execute! (assoc (config/->conn-map config)
                         :dbname "log_based_sync_test")
                  [(str (format "DELETE FROM %s.data_table " schema-name)
                        "WHERE value >= 90")])
   )
 
 (defn setup-change-tracking-for-database [config]
-  (jdbc/execute! (assoc (config->conn-map config)
+  (jdbc/execute! (assoc (config/->conn-map config)
                         :dbname "log_based_sync_test")
                  [(str "ALTER DATABASE log_based_sync_test "
                        "SET CHANGE_TRACKING = ON "
@@ -90,12 +94,12 @@
   config)
 
 (defn setup-change-tracking-for-table [config]
-  (jdbc/execute! (assoc (config->conn-map config)
+  (jdbc/execute! (assoc (config/->conn-map config)
                         :dbname "log_based_sync_test")
                  [(str "ALTER TABLE dbo.data_table "
                        "ENABLE CHANGE_TRACKING "
                        "WITH (TRACK_COLUMNS_UPDATED = ON)")])
-  (jdbc/execute! (assoc (config->conn-map config)
+  (jdbc/execute! (assoc (config/->conn-map config)
                         :dbname "log_based_sync_test")
                  [(str "ALTER TABLE schema_with_table.data_table "
                        "ENABLE CHANGE_TRACKING "
@@ -120,7 +124,7 @@
    (get-messages-from-output config nil))
   ([config table]
    (get-messages-from-output
-    (discover-catalog config)
+    (catalog/discover config)
     config
     table
     {}))
@@ -154,8 +158,8 @@
 (defn null-fixture [f config]
   ;; Memoization messes with these because they are different
   (with-out-and-err-to-dev-null
-    (with-redefs [get-change-tracking-databases get-change-tracking-databases*
-                 get-change-tracking-tables get-change-tracking-tables*]
+    (with-redefs [logical/get-change-tracking-databases logical/get-change-tracking-databases*
+                 logical/get-change-tracking-tables logical/get-change-tracking-tables*]
      (f))))
 
 (deftest ^:integration verify-log-based-replication-throws-if-not-enabled-for-database
@@ -163,7 +167,7 @@
     (do (maybe-destroy-test-db test-db-config)
         (create-test-db test-db-config))
     (is (thrown? UnsupportedOperationException
-                 (-> (discover-catalog test-db-config)
+                 (-> (catalog/discover test-db-config)
                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                      (get-messages-from-output test-db-config nil))))))
 
@@ -173,7 +177,7 @@
         (create-test-db test-db-config)
         (setup-change-tracking-for-database test-db-config))
     (is (thrown? UnsupportedOperationException
-                 (-> (discover-catalog test-db-config)
+                 (-> (catalog/discover test-db-config)
                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                      (get-messages-from-output test-db-config nil))))))
 
@@ -182,7 +186,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Check that third state has all keys - log position and full table complete
     (is (nil?
-         (let [third-state (as-> (discover-catalog test-db-config)
+         (let [third-state (as-> (catalog/discover test-db-config)
                                x
                                (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
                                (get-messages-from-output x test-db-config nil)
@@ -196,7 +200,7 @@
              #{"max_pk_values" "version" "initial_full_table_complete" "current_log_version" "last_pk_fetched"})))))
     ;; Check that second state has false for fulltable complete
     (is (= false
-           (let [second-state (as-> (discover-catalog test-db-config)
+           (let [second-state (as-> (catalog/discover test-db-config)
                                   x
                                   (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
                                   (get-messages-from-output x test-db-config nil)
@@ -204,7 +208,7 @@
                                   (second x))]
              (get-in second-state ["value" "bookmarks" "log_based_sync_test-dbo-data_table" "initial_full_table_complete"]))))
     ;; Check that final state does not have full-table keys
-    (is (let [last-state (as-> (discover-catalog test-db-config)
+    (is (let [last-state (as-> (catalog/discover test-db-config)
                              x
                              (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
                              (get-messages-from-output x test-db-config nil)
@@ -213,7 +217,7 @@
           (= {} (select-keys (last-state "value") ["max_pk_values" "last_pk_fetched"]))))
     ;; Check that final state has full table complete
     (is (= true
-           (let [last-state (as-> (discover-catalog test-db-config)
+           (let [last-state (as-> (catalog/discover test-db-config)
                                 x
                                 (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
                                 (get-messages-from-output x test-db-config nil)
@@ -223,25 +227,25 @@
     ;; Verify qualities of an initial full table sync
     ;; Copied from sync_full_table_test.clj
     (is (= "log_based_sync_test-dbo-data_table"
-           ((-> (discover-catalog test-db-config)
+           ((-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
                 first)
             "stream")))
     (is (= ["id"]
-           ((-> (discover-catalog test-db-config)
+           ((-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
                 first)
             "key_properties")))
     (is (= {"type" ["string"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-           (get-in (-> (discover-catalog test-db-config)
+           (get-in (-> (catalog/discover test-db-config)
                        (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                        (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
                        first)
                    ["schema" "properties" "id"])))
-    (is (not (contains? ((-> (discover-catalog test-db-config)
+    (is (not (contains? ((-> (catalog/discover test-db-config)
                              (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                              (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
                              first)
@@ -249,26 +253,26 @@
                         "metadata")))
     ;; Emits the records expected
     (is (= 100
-           (-> (discover-catalog test-db-config)
+           (-> (catalog/discover test-db-config)
                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                (get-messages-from-output test-db-config nil)
                ((partial filter #(= "RECORD" (% "type"))))
                count)))
     (is (every? (fn [rec]
                   (= "log_based_sync_test-dbo-data_table" (rec "stream")))
-                (-> (discover-catalog test-db-config)
+                (-> (catalog/discover test-db-config)
                     (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                     (get-messages-from-output test-db-config nil))))
     ;; At the moment we're not ordering by anything so checking the actual
     ;; value here would be brittle, I think.
     (is (every? #(get-in % ["record" "value"])
-                (as-> (discover-catalog test-db-config)
+                (as-> (catalog/discover test-db-config)
                     x
                     (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
                     (get-messages-from-output x test-db-config nil)
                     (filter #(= "RECORD" (% "type")) x))))
     (is (= "STATE"
-           ((-> (discover-catalog test-db-config)
+           ((-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil)
                 last)
@@ -287,7 +291,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "RECORD" (% "type"))))
@@ -299,7 +303,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "RECORD" (% "type"))))
@@ -311,7 +315,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "STATE" (% "type"))))
@@ -332,7 +336,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                  (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  (nth 2)
@@ -343,7 +347,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                  (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  ((partial filter #(= "RECORD" (% "type"))))
@@ -355,7 +359,7 @@
                                    {"version" 1560965962084
                                     "initial_full_table_complete" true
                                     "current_log_version" 0}}}]
-                  (-> (discover-catalog test-db-config)
+                  (-> (catalog/discover test-db-config)
                       (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                       (get-messages-from-output test-db-config nil test-state)
                       ((partial filter #(= "RECORD" (% "type"))))
@@ -367,7 +371,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                  (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  ((partial filter #(= "STATE" (% "type"))))
@@ -387,7 +391,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "RECORD" (% "type"))))
@@ -399,7 +403,7 @@
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
-             (-> (discover-catalog test-db-config)
+             (-> (catalog/discover test-db-config)
                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "STATE" (% "type"))))
