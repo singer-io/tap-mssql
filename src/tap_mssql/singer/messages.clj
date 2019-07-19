@@ -109,7 +109,7 @@
                                                               replication-method))))]
     ;; Write an activate_version message when we havent and its full table
     (when (and (nil? version-bookmark)
-               (= replication-method "FULL_TABLE"))
+               (contains? #{"FULL_TABLE" "LOG_BASED"} replication-method))
       (write-activate-version! stream-name new-state))
     new-state))
 
