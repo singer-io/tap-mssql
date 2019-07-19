@@ -173,6 +173,12 @@
            (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}})))
       "Resuming an interrupted full table sync should keep the old state")
 
+  ;; LOG_BASED
+  (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
+         (with-redefs [singer-messages/now (constantly 1560363676948)]
+           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" {}))))
+      "Write activate version if no version has started loading yet and doing log based replication")
+
   ;; INCREMENTAL / LOG_BASED
   (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
          (with-redefs [singer-messages/now (constantly 1560363676948)]
