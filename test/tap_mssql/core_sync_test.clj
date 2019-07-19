@@ -158,23 +158,28 @@
          (singer-transform/transform-rowversion (byte-array [0 0 0 0 0 0 0 10])))))
 
 (deftest maybe-write-activate-version!-test
-  ;; Fresh State
+  ;; FULL_TABLE replication
   (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
          (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" {}))))
-      "Write activate version if no version has started loading yet (none exists in state)")
-  (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
-         (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-and-err-to-dev-null
-             (singer-messages/maybe-write-activate-version! "jet_stream" {}))))
-      "Add a version into the state if none exists already")
-  ;; State with existing version
+           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {}))))
+      "Write activate version if no version has started loading yet and doing full table replication")
   (is (= ""
          (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" {"bookmarks" {"jet_stream" {"version" 999}}}))))
-      "Don't emit an activate_version message if a version exists in state.")
+           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {"bookmarks" {"jet_stream" {"version" 999}}}))))
+      "Don't emit an activate_version message if a version exists in state and syncning full table replication")
+  ;; Resuming an interrupted full table sync
+  (is (= {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}}
+         (with-out-and-err-to-dev-null
+           (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}})))
+      "Resuming an interrupted full table sync should keep the old state")
+
+  ;; INCREMENTAL / LOG_BASED
   (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
          (with-redefs [singer-messages/now (constantly 1560363676948)]
            (with-out-and-err-to-dev-null
-             (singer-messages/maybe-write-activate-version! "jet_stream" {"bookmarks" {"jet_stream" {"version" 999}}}))))
-      "Always add a new version into state"))
+             (singer-messages/maybe-write-activate-version! "jet_stream" "INCREMENTAL" {}))))
+      "Add a version into the state if none exists already and syncing incrementally")
+  (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
+         (with-out-and-err-to-dev-null
+           (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" {"bookmarks" {"jet_stream" {"version" 1560363676948}}})))
+      "Keep the version in the state and syncing incrementally or log based"))
