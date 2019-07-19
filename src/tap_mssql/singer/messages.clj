@@ -85,21 +85,31 @@
 
 (defn maybe-write-activate-version!
   "Writes activate version message if not in state"
-  [stream-name state]
-  ;; TODO: This assumes that uninterruptible full-table is the only mode,
-  ;; this will need modified for incremental, CDC, and interruptible full
-  ;; table to not change the table version in those modes unless needed
-  ;; For now, always generate and return a new version
+  [stream-name replication-method state]
   (let [version-bookmark (get-in state ["bookmarks" stream-name "version"])
-        new-state        (assoc-in state
-                                   ["bookmarks" stream-name "version"]
-                                   (now))]
-    ;; Write activate version on first sync to get records flowing, and
-    ;; never again so that the table only truncates at the end of the load
-    ;; TODO: This will need changed (?), assumes that a full-table sync runs
-    ;; 100% in a single tap run. It will need to be smarter than `nil?`
-    ;; for these cases (?)
-    (when (nil? version-bookmark)
+        resuming? (get-in state ["bookmarks"
+                                 stream-name "last_pk_fetched"] nil)
+        new-state (condp contains? replication-method
+                    #{"FULL_TABLE"}
+                    (if resuming?
+                      state
+                      (assoc-in state
+                                ["bookmarks" stream-name "version"]
+                                (now)))
+
+                    #{"INCREMENTAL" "LOG_BASED"}
+                    (if version-bookmark
+                      state
+                      (assoc-in state
+                                ["bookmarks" stream-name "version"]
+                                (now)))
+
+                    (throw (IllegalArgumentException. (format "Replication Method for stream %s is invalid: %s"
+                                                              stream-name
+                                                              replication-method))))]
+    ;; Write an activate_version message when we havent and its full table
+    (when (and (nil? version-bookmark)
+               (= replication-method "FULL_TABLE"))
       (write-activate-version! stream-name new-state))
     new-state))
 
@@ -112,4 +122,3 @@
       (reset! records-since-last-state 0)
       (write-state! stream-name state))
     state))
-

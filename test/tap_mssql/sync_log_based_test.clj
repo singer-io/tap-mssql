@@ -292,39 +292,44 @@
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "RECORD" (% "type"))))
-                count))))
+                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (get-messages-from-output test-db-config nil test-state)
+                 ((partial filter #(= "RECORD" (% "type"))))
+                 count))))
     ;; Verify that they are all 100->199 value
     (is (every? (set (range 100 200))
-           (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
-                              {"version" 1560965962084
-                               "initial_full_table_complete" true
-                               "current_log_version" 0}}}]
-             (-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "RECORD" (% "type"))))
-                ((partial map #(get-in % ["record" "value"])))))))
+                (let [test-state {"bookmarks"
+                                  {"log_based_sync_test-dbo-data_table"
+                                   {"version" 1560965962084
+                                    "initial_full_table_complete" true
+                                    "current_log_version" 0}}}]
+                  (-> (catalog/discover test-db-config)
+                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                      (get-messages-from-output test-db-config nil test-state)
+                      ((partial filter #(= "RECORD" (% "type"))))
+                      ((partial map #(get-in % ["record" "value"])))))))
     ;; Verify current_log_version in state after sync
-    (is (= 1
-           (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
-                              {"version" 1560965962084
-                               "initial_full_table_complete" true
-                               "current_log_version" 0}}}]
-             (-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil test-state)
-                ((partial filter #(= "STATE" (% "type"))))
-                last
-                (get-in ["value"
-                         "bookmarks"
-                         "log_based_sync_test-dbo-data_table"
-                         "current_log_version"])))))
-    ))
+    (let [test-state {"bookmarks"
+                      {"log_based_sync_test-dbo-data_table"
+                       {"version" 1560965962084
+                        "initial_full_table_complete" true
+                        "current_log_version" 0}}}
+          end-state (-> (catalog/discover test-db-config)
+                        (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                        (get-messages-from-output test-db-config nil test-state)
+                        ((partial filter #(= "STATE" (% "type"))))
+                        last)]
+      (is (= 1
+             (get-in end-state ["value"
+                                "bookmarks"
+                                "log_based_sync_test-dbo-data_table"
+                                "current_log_version"])))
+      ;; The end-state's version needs to stay the same
+      (is (= 1560965962084
+             (get-in end-state ["value"
+                                "bookmarks"
+                                "log_based_sync_test-dbo-data_table"
+                                "version"]))))))
 
 (deftest ^:integration verify-log-based-replication-updates
   (with-matrix-assertions test-db-configs test-db-fixture

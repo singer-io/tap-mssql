@@ -3,6 +3,7 @@
             [tap-mssql.serialized-catalog :as serialized-catalog]
             [tap-mssql.sync-strategies.full :as full]
             [tap-mssql.sync-strategies.logical :as logical]
+            [tap-mssql.sync-strategies.incremental :as incremental]
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.singer.messages :as singer-messages]
             [clojure.tools.logging :as log]
@@ -104,10 +105,8 @@
     "LOG_BASED"
     (logical/sync! config catalog stream-name state)
 
-    "INCREMENTAL" ;; incremental/sync
-    (throw (UnsupportedOperationException.
-            (format "Cannot sync stream %s. Incremental replication is not yet implemented."
-                    stream-name)))
+    "INCREMENTAL"
+    (incremental/sync! config catalog stream-name state)
 
     ;; Default
     (throw (IllegalArgumentException. (format "Replication Method for stream %s is invalid: %s"
@@ -119,9 +118,10 @@
   {:pre [(valid-primary-keys? catalog stream-name)]}
   (log/infof "Syncing stream %s" stream-name)
   (singer-messages/write-schema! catalog stream-name)
-  (->> (singer-messages/maybe-write-activate-version! stream-name state)
-       (dispatch-sync-by-strategy config catalog stream-name)
-       (singer-messages/write-state! stream-name)))
+  (let [replication-method (get-in catalog ["streams" stream-name "metadata" "replication-method"])]
+   (->> (singer-messages/maybe-write-activate-version! stream-name replication-method state)
+        (dispatch-sync-by-strategy config catalog stream-name)
+        (singer-messages/write-state! stream-name))))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))
