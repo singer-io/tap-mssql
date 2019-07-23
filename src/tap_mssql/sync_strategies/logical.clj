@@ -6,6 +6,7 @@
             [tap-mssql.singer.messages :as singer-messages]
             [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.full :as full]
+            [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
             [clojure.java.jdbc :as jdbc]))
@@ -84,15 +85,16 @@
 
 (defn build-log-based-sql-query [catalog stream-name state]
   (let [schema-name           (get-in catalog ["streams" stream-name "metadata" "schema-name"])
-        table-name            (get-in catalog ["streams" stream-name "table_name"])
-        primary-keys          (set (get-in catalog ["streams"
-                                                    stream-name
-                                                    "metadata"
-                                                    "table-key-properties"]))
+        table-name            (-> (get-in catalog ["streams" stream-name "table_name"])
+                                  (common/sanitize-names))
+        primary-keys          (map common/sanitize-names (set (get-in catalog ["streams"
+                                                                               stream-name
+                                                                               "metadata"
+                                                                               "table-key-properties"])))
         primary-key-bookmarks (get-in state ["bookmarks" stream-name "last_pk_fetched"])
         current-log-version   (get-in state ["bookmarks" stream-name "current_log_version"])
-        record-keys           (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
-                                                      primary-keys)]
+        record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
+                                                                                 primary-keys))]
     ;; Assert state of the world
     (assert (or (not-empty primary-keys)
                 (not-empty record-keys))
@@ -103,12 +105,12 @@
            (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
                 (when (not-empty primary-keys)
                   (str ", " (string/join ", "
-                                                 (map #(format "c.%s" %)
-                                                      primary-keys))))
+                                         (map #(format "c.%s" %)
+                                              primary-keys))))
                 (when (not-empty record-keys)
                   (str ", " (string/join ", "
-                                                 (map #(format "%s.%s.%s" schema-name table-name %)
-                                                      record-keys))))
+                                         (map #(format "%s.%s.%s" schema-name table-name %)
+                                              record-keys))))
                 " FROM CHANGETABLE (CHANGES %s.%s, %s) as c "
                 "LEFT JOIN %s.%s ON %s LEFT JOIN %s on %s"
                 ;; Existence of PK Bookmark indicates that a single change
@@ -118,15 +120,15 @@
                   (str (format " WHERE c.SYS_CHANGE_VERSION = %s AND "
                                current-log-version)
                        (string/join " AND "
-                                            (map #(format "c.%s >= ?" %)
-                                                 (-> (keys primary-key-bookmarks)
-                                                     sort
-                                                     vec)))))
+                                    (map #(format "c.%s >= ?" %)
+                                         (-> (keys primary-key-bookmarks)
+                                             sort
+                                             vec)))))
                 " ORDER BY c.SYS_CHANGE_VERSION"
                 (when (not-empty primary-keys)
                   (str ", " (string/join ", "
-                                                 (map #(format "c.%s" %)
-                                                      (sort (vec primary-keys)))))))
+                                         (map #(format "c.%s" %)
+                                              (sort (vec primary-keys)))))))
            schema-name
            table-name
            ;; CHANGETABLE is strictly greater than, so we decrement here
@@ -140,10 +142,10 @@
            "sys.dm_tran_commit_table tc"
            "c.SYS_CHANGE_VERSION = tc.commit_ts")
         query-string
-      (if (not-empty primary-key-bookmarks)
-        (into [query-string] (-> (sort-by key primary-key-bookmarks)
-                                 vals))
-        [query-string]))))
+        (if (not-empty primary-key-bookmarks)
+          (into [query-string] (-> (sort-by key primary-key-bookmarks)
+                                   vals))
+          [query-string]))))
 
 (defn log-based-sync
   [config catalog stream-name state]

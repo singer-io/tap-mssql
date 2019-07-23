@@ -116,12 +116,12 @@
 (defn sync-stream!
   [config catalog state stream-name]
   {:pre [(valid-primary-keys? catalog stream-name)]}
-  (log/infof "Syncing stream %s" stream-name)
-  (singer-messages/write-schema! catalog stream-name)
   (let [replication-method (get-in catalog ["streams" stream-name "metadata" "replication-method"])]
-   (->> (singer-messages/maybe-write-activate-version! stream-name replication-method state)
-        (dispatch-sync-by-strategy config catalog stream-name)
-        (singer-messages/write-state! stream-name))))
+    (log/infof "Syncing stream %s using replication method %s" stream-name replication-method)
+    (singer-messages/write-schema! catalog stream-name)
+    (->> (singer-messages/maybe-write-activate-version! stream-name replication-method state)
+         (dispatch-sync-by-strategy config catalog stream-name)
+         (singer-messages/write-state! stream-name))))
 
 (defn selected? [catalog stream-name]
   (get-in catalog ["streams" stream-name "metadata" "selected"]))

@@ -57,10 +57,10 @@
   (is (thrown? AssertionError
                (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" [] {})))
   ;; No bookmark, no pk = Full Table sync query
-  (is (= ["SELECT legs, tabletop, leaf FROM dbo.mahogany"]
+  (is (= ["SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany]"]
          (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"] {})))
   ;; No bookmark, yes pk = First FT Interruptible query
-  (is (= '("SELECT legs, tabletop, leaf FROM dbo.mahogany WHERE legs <= ? AND leaf <= ? ORDER BY legs, leaf"
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
           4
           "birch")
          (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
@@ -70,7 +70,7 @@
                (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
                                  {"bookmarks" {"craftsmanship-dbo-mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
   ;; Bookmark and PK = Resuming Full Table Sync
-  (is (= '("SELECT legs, tabletop, leaf FROM dbo.mahogany WHERE legs >= ? AND leaf >= ? AND legs <= ? AND leaf <= ? ORDER BY legs, leaf"
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] >= ? AND [leaf] >= ? AND [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
           2
           "balsa"
           4
@@ -96,7 +96,7 @@
                                  {} )))
     ;; Has primary key, no record Keys, no primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id FROM CHANGETABLE (CHANGES dbo.basic_table, 0) as c LEFT JOIN dbo.basic_table ON c.id=dbo.basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.id"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
                      ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
@@ -106,7 +106,7 @@
           {"bookmarks" {"full_table_sync_test-dbo-basic_table" {"current_log_version" 0}}})))
     ;; Has PK, No Selected Fields, Has Bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id FROM CHANGETABLE (CHANGES dbo.basic_table, 0) as c LEFT JOIN dbo.basic_table ON c.id=dbo.basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id" "foo"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
                      ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
@@ -119,7 +119,7 @@
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has primary key, selected fields, no primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, dbo.basic_table.value FROM CHANGETABLE (CHANGES dbo.basic_table, 0) as c LEFT JOIN dbo.basic_table ON c.id=dbo.basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.id"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test-dbo-basic_table"
@@ -129,7 +129,7 @@
 
     ;; Has primary key, selected fields, primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, dbo.basic_table.value FROM CHANGETABLE (CHANGES dbo.basic_table, 0) as c LEFT JOIN dbo.basic_table ON c.id=dbo.basic_table.id LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id" "foo"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test-dbo-basic_table"
@@ -139,7 +139,7 @@
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has composite primary keys, selected fields, bookmarks for both pks
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.id, c.second_id, dbo.composite_key_table.value FROM CHANGETABLE (CHANGES dbo.composite_key_table, 0) as c LEFT JOIN dbo.composite_key_table ON c.id=dbo.composite_key_table.id AND c.second_id=dbo.composite_key_table.second_id LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.id, c.second_id" "foo" "bar"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], c.[second_id], dbo.[composite_key_table].[id], dbo.[composite_key_table].[second_id], dbo.[composite_key_table].[value] FROM CHANGETABLE (CHANGES dbo.[composite_key_table], 0) as c LEFT JOIN dbo.[composite_key_table] ON c.[id]=dbo.[composite_key_table].[id] AND c.[second_id]=dbo.[composite_key_table].[second_id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id], c.[second_id]" "foo" "bar"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test-dbo-composite_key_table"

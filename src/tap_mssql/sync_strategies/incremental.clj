@@ -4,6 +4,7 @@
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
             [tap-mssql.singer.transform :as singer-transform]
+            [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
             [clojure.java.jdbc :as jdbc]))
@@ -18,9 +19,9 @@
                                 (str " WHERE " bookmarking-clause))
         order-by              (str " ORDER BY " replication-key)
         sql-params            [(str (format "SELECT %s FROM %s.%s"
-                                            (string/join ", " record-keys)
+                                            (string/join ", " (map common/sanitize-names record-keys))
                                             schema-name
-                                            table-name)
+                                            (common/sanitize-names table-name))
                                     where-clause
                                     order-by)]]
     (if add-where-clause?
