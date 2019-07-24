@@ -419,9 +419,40 @@
                          "current_log_version"])))))
     ))
 
+(deftest ^:integration verify-min-valid-version-out-of-date?
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (let [test-state {"bookmarks" {"log_based_sync_test-dbo-data_table"{"version" 1560965962084
+                                                                        "initial_full_table_complete" true}}}
+          catalog (catalog/discover test-db-config)
+          stream-name "log_based_sync_test-dbo-data_table"]
+      (is (= true
+             (logical/min-valid-version-out-of-date? test-db-config catalog stream-name test-state))
+          "Missing current_log_version means we never synced using change tracking")
+      (is (= false
+             (logical/min-valid-version-out-of-date? test-db-config catalog stream-name (assoc-in test-state ["bookmarks" stream-name "current_log_version"] 0)))
+          "CHANGE_TRACKING_MIN_VALID_VERSION function returned a value greater than current_log_version"))))
 
+(deftest ^:integration verify-min-valid-version-behavior
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (let [test-state {"bookmarks" {"log_based_sync_test-dbo-data_table"{"version" 1560965962084
+                                                                        "initial_full_table_complete" true
+                                                                        "current_log_version" 0}}}
+          messages (with-redefs [logical/min-valid-version-out-of-date? (constantly true)]
+                     (-> (catalog/discover test-db-config)
+                         (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                         (get-messages-from-output test-db-config nil test-state)))]
+      ;; Assert that records came out
+      (is (= 100
+             (->> messages
+                  (filter #(= "RECORD" (% "type")))
+                  count)))
 
-(comment
-  (intern 'tap-mssql.core 'config test-db-config)
-  (map #(ns-unmap *ns* (.sym (second %))) (filter #(fn? (:test (meta (second %)))) (ns-publics *ns*)))
-  )
+      ;; Assert the state looks like we think it should
+      (is (= {"bookmarks"
+              {"log_based_sync_test-dbo-data_table"
+               {"version" 1560965962084,
+                "initial_full_table_complete" true,
+                "current_log_version" 0}}}
+             (get (->> messages
+                       (filter #(= "STATE" (% "type")))
+                       last) "value"))))))
