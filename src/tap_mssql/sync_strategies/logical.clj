@@ -64,7 +64,7 @@
           (update-in new-state ["bookmarks" stream-name] dissoc "last_pk_fetched")
           new-state))))
 
-(defn log-based-init
+(defn log-based-init-state
   [config catalog stream-name state]
   (if (nil? (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
     (-> state
@@ -74,9 +74,32 @@
         ((partial singer-messages/write-state! stream-name)))
     state))
 
+(defn min-valid-version-out-of-date?
+  "Uses the CHANGE_TRACKING_MIN_VALID_VERSION function to check if our current log version is out of date and lost.
+  Returns true if we have no current log version."
+  [config catalog stream-name state]
+  (let [schema-name         (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+        table-name          (-> (get-in catalog ["streams" stream-name "table_name"])
+                                (common/sanitize-names))
+        dbname              (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])
+        sql-query           (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('%s.%s')) as min_valid_version" schema-name table-name)
+        _                   (log/infof "Executing query: %s" sql-query)
+        min-valid-version   (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+                                first
+                                :min_valid_version)]
+
+    (if (nil? current-log-version)
+      true
+      (let [out-of-date? (> min-valid-version current-log-version)]
+        (when out-of-date?
+          (log/warn "CHANGE_TRACKING_MIN_VALID_VERSION has reported a value greater than current-log-version. Executing a full table sync."))
+        out-of-date?))))
+
 (defn log-based-initial-full-table
   [config catalog stream-name state]
-  (if (= false (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
+  (if (or (= false (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
+          (min-valid-version-out-of-date? config catalog stream-name state))
       (-> state
           ((partial full/sync! config catalog stream-name))
           (assoc-in ["bookmarks" stream-name "initial_full_table_complete"] true)
@@ -181,7 +204,7 @@
   [config catalog stream-name state]
   (->> state
        (assert-log-based-is-enabled config catalog stream-name)
-       (log-based-init config catalog stream-name)
+       (log-based-init-state config catalog stream-name)
        (log-based-initial-full-table config catalog stream-name)
        (singer-messages/write-state! stream-name)
        (log-based-sync config catalog stream-name)))
