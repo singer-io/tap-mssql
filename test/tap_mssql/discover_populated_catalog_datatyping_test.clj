@@ -167,37 +167,30 @@
 
 (deftest ^:integration verify-unicode-strings
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar_1"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 4000
           "maxLength" 4000}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nchar_4000"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_1"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 4000}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_4000"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 2147483647}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-unicode_character_strings" "schema" "properties" "nvarchar_max"]))))
@@ -277,54 +270,44 @@
 
 (deftest ^:integration verify-character-strings
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char_one"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 8000
           "maxLength" 8000}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "char_8000"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_one"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 8000}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_8000"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 0
           "maxLength" 2147483647}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-character_strings" "schema" "properties" "varchar_max"]))))
 
 (deftest ^:integration verify-binary-strings
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 1
           "maxLength" 1}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary_one"])))
   (is (= {"type" ["string" "null"]
-          "minLength" 10
           "maxLength" 10}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-binary_strings" "schema" "properties" "binary_10"])))

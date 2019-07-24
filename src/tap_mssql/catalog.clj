@@ -130,19 +130,14 @@
                         "datetime"         {"type"   ["string"]
                                             "format" "date-time"}
                         "char"             {"type"      ["string"]
-                                            "minLength" (:column_size column)
                                             "maxLength" (:column_size column)}
                         "nchar"            {"type"      ["string"]
-                                            "minLength" (:column_size column)
                                             "maxLength" (:column_size column)}
                         "varchar"          {"type"      ["string"]
-                                            "minLength" 0
                                             "maxLength" (:column_size column)}
                         "nvarchar"         {"type"      ["string"]
-                                            "minLength" 0
                                             "maxLength" (:column_size column)}
                         "binary"           {"type"      ["string"]
-                                            "minLength" (:column_size column)
                                             "maxLength" (:column_size column)}
                         "varbinary"        {"type"      ["string"]
                                             "maxLength" (:column_size column)}
@@ -285,7 +280,7 @@
 
 (defn get-database-columns
   [config database]
-  (let [conn-map (assoc (config/->conn-map config) ;;(->conn-map config)
+  (let [conn-map (assoc (config/->conn-map config)
                         :dbname
                         (:table_cat database))
         raw-columns (get-database-raw-columns conn-map database)]
