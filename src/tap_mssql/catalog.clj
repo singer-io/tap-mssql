@@ -166,18 +166,6 @@
              merge
              (column->schema column)))
 
-(defn column->table-primary-keys*
-  [conn-map table_cat table_schem table_name]
-  (jdbc/with-db-metadata [md conn-map]
-    (->> (.getPrimaryKeys md table_cat table_schem table_name)
-         jdbc/metadata-result
-         (map :column_name)
-         (into #{}))))
-
-;;; Not memoizing this proves to have prohibitively bad performance
-;;; characteristics.
-(def column->table-primary-keys (memoize column->table-primary-keys*))
-
 (defn column->metadata
   [column]
   {"inclusion"           (if (:unsupported? column)
@@ -219,13 +207,19 @@
   (jdbc/with-db-metadata [md conn-map]
     (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil))))
 
+(defn get-primary-keys
+  [conn-map]
+  (let [sql-query (str "SELECT kcu.table_name as table_name, kcu.column_name as primary_key, kcu.table_schema as table_schema, kcu.table_catalog as table_catalog "
+                       "FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS tc "
+                       "INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS kcu ON tc.CONSTRAINT_TYPE = 'PRIMARY KEY' AND tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME")]
+    (log/infof "Executing query: %s" sql-query)
+    (jdbc/query conn-map [sql-query])))
+
 (defn add-primary-key?-data
-  [conn-map column]
-  (let [primary-keys (column->table-primary-keys conn-map
-                                                 (:table_cat column)
-                                                 (:table_schem column)
-                                                 (:table_name column))]
-    (assoc column :primary-key? (primary-keys (:column_name column)))))
+  [primary-key-data column]
+  (let [key-format (format "%s.%s.%s" (:table_cat column) (:table_schem column) (:table_name column))
+        pk-row (get primary-key-data key-format)]
+    (assoc column :primary-key? (true? (some #(= (:column_name column) (:primary_key %)) pk-row)))))
 
 (defn get-column-database-view-names*
   [conn-map table_cat table_schem]
@@ -255,39 +249,43 @@
     (assoc column :unsupported? true)
     column))
 
-(defn get-approximate-row-count*
-  [conn-map schema-name table-name is-view?]
-  (let [query (str  "SELECT CAST(p.rows AS int) as row_count "
+(defn get-approximate-row-count
+  [conn-map]
+  (let [sql-query (str  "SELECT tbl.name as table_name, SCHEMA_NAME(tbl.schema_id) as schema_name, CAST(p.rows AS int) as row_count "
                     "FROM sys.tables AS tbl "
                     "INNER JOIN sys.indexes AS idx ON idx.object_id = tbl.object_id and idx.index_id < 2 "
                     "INNER JOIN sys.partitions AS p ON p.object_id=CAST(tbl.object_id AS int) "
-                    "AND p.index_id=idx.index_id "
-                    "WHERE ((tbl.name=? "
-                    "AND SCHEMA_NAME(tbl.schema_id)=?))")]
-    (if is-view?
-      0 ;; a view's count can only be done via count(*) which causes a table scan so just return 0
-      (-> (jdbc/query conn-map [query table-name schema-name])
-         first
-         :row_count))))
-
-;; Memoized so we only call this once per table
-(def get-approximate-row-count (memoize get-approximate-row-count*))
+                    "AND p.index_id=idx.index_id")]
+    (log/infof "Executing query: %s" sql-query)
+    (jdbc/query conn-map [sql-query])))
 
 (defn add-row-count-data
-  [conn-map column]
-  (let [approximate-row-count (get-approximate-row-count conn-map (:table_schem column) (:table_name column) (:is-view? column))]
-    (assoc column :approximate-row-count approximate-row-count)))
+  [row-count-data column]
+  (if (:is-view? column)
+    ;; a view's count can only be done via count(*) which causes a table scan so just return 0
+    (assoc column :approximate-row-count 0)
+    (let [row-count-key (format "%s.%s" (:table_schem column) (:table_name column))
+          approximate-row-count (-> (get row-count-data row-count-key)
+                                    first
+                                    :row_count)]
+      (assoc column :approximate-row-count approximate-row-count))))
 
 (defn get-database-columns
   [config database]
   (let [conn-map (assoc (config/->conn-map config)
                         :dbname
                         (:table_cat database))
-        raw-columns (get-database-raw-columns conn-map database)]
+        raw-columns (get-database-raw-columns conn-map database)
+        ;; group by "schema_name.table_name" so we can look it up
+        row-count-data (->> (get-approximate-row-count conn-map)
+                            (group-by #(format "%s.%s" (:schema_name %) (:table_name %))))
+        ;; group by "database.schema.table" so we can look it up
+        primary-key-data (->> (get-primary-keys conn-map)
+                              (group-by #(format "%s.%s.%s" (:table_catalog %) (:table_schema %) (:table_name %))))]
     (->> raw-columns
-         (map (partial add-primary-key?-data conn-map))
+         (map (partial add-primary-key?-data primary-key-data))
          (map (partial add-is-view?-data conn-map))
-         (map (partial add-row-count-data conn-map))
+         (map (partial add-row-count-data row-count-data))
          (map add-unsupported?-data))))
 
 (defn get-columns
