@@ -19,7 +19,7 @@
    "metadata"))
 
 (deftest add-int-column-to-catalog
-  (is (= ["integer"]
+  (is (= ["integer" "null"]
          (let [catalog (catalog/add-column nil {:table_name   "theologians"
                                         :table_cat    "test"
                                         :table_schem  "bar"
@@ -76,16 +76,16 @@
         serialized-catalog (catalog/->serialized-catalog catalog)]
     (is (= catalog (serialized-catalog/->catalog serialized-catalog)))
     ;; Property Validation
-    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog/->catalog serialized-catalog)
                    ["streams" "null-null-invalid_characters" "schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
-    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog/->catalog serialized-catalog)
                    ["streams" "null-null-invalid_characters" "schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
-    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
                    ["schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
-    (is (= {"type" ["integer"], "minimum" -2147483648, "maximum" 2147483647}
+    (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
                    ["schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
     ;; Metadata Validation
