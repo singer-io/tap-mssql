@@ -238,7 +238,7 @@
                 (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
                 first)
             "key_properties")))
-    (is (= {"type" ["string" "null"]
+    (is (= {"type" ["string"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
            (get-in (-> (catalog/discover test-db-config)
                        (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
