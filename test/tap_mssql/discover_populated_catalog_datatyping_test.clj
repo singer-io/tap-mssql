@@ -201,7 +201,7 @@
           "maximum"  2147483647}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-exact_numerics" "schema" "properties" "int"])))
-  (is (= {"type" ["integer"]
+  (is (= {"type" ["integer" "null"]
           "minimum" -9223372036854775808
           "maximum"  9223372036854775807}
          (get-in (catalog/discover test-db-config)
@@ -343,7 +343,7 @@
                   "uniqueidentifier" "selected-by-default"]))))
 
 (deftest ^:integration verify-timestamps-are-supported
-  (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-timestamps" "schema" "properties" "timestamp"])))
   (is (= "timestamp"
@@ -360,7 +360,7 @@
                   "timestamp" "selected-by-default"]))))
 
 (deftest ^:integration verify-rowversions-are-supported
-  (is (= {"type" ["string"]} ;; Note timestamps are not nullable by default
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping-dbo-rowversions" "schema" "properties" "rowversion"])))
   (is (= "timestamp" ;; rowversion is an alias for timestamp

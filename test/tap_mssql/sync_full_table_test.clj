@@ -120,7 +120,7 @@
                 (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
             "key_properties")))
-    (is (= {"type" ["string"]
+    (is (= {"type" ["string" "null"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
            (get-in (-> (catalog/discover test-db-config)
                        (select-stream "full_table_sync_test-dbo-data_table")
@@ -177,7 +177,7 @@
                 (get-messages-from-output test-db-config "full_table_sync_test-dbo-data_table")
                 first)
             "key_properties")))
-    (is (= {"type" ["string"]
+    (is (= {"type" ["string" "null"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
            (get-in (-> (catalog/discover test-db-config)
                        (select-stream "full_table_sync_test-dbo-data_table")

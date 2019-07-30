@@ -82,9 +82,8 @@
                     "is-view"              (:is-view? column)
                     "row-count"            (:approximate-row-count column)}})
 
-(defn maybe-add-nullable-to-column-schema [column-schema column]
-  (if (and column-schema
-           (= "YES" (:is_nullable column)))
+(defn maybe-add-nullable-to-column-schema [column-schema]
+  (if column-schema
     (update column-schema "type" conj "null")
     column-schema))
 
@@ -157,7 +156,7 @@
                         "timestamp"         {"type" ["string"] }}
                        type-name-lookup)]
     (-> column-schema
-        (maybe-add-nullable-to-column-schema column)
+        (maybe-add-nullable-to-column-schema)
         (maybe-add-precision-to-numerics-column-schema column))))
 
 (defn add-column-schema-to-catalog-stream-schema
