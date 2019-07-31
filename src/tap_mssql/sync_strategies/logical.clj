@@ -74,16 +74,25 @@
         ((partial singer-messages/write-state! stream-name)))
     state))
 
+
+(defn get-object-id-by-table-name [config dbname table-name]
+  (let [sql-query "SELECT name, object_id FROM sys.tables"]
+    (log/infof "Executing query: %s" sql-query)
+    (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+         (filter #(= table-name (:name %)))
+         first
+         :object_id)))
+
 (defn min-valid-version-out-of-date?
   "Uses the CHANGE_TRACKING_MIN_VALID_VERSION function to check if our current log version is out of date and lost.
   Returns true if we have no current log version."
   [config catalog stream-name state]
   (let [schema-name         (get-in catalog ["streams" stream-name "metadata" "schema-name"])
-        table-name          (-> (get-in catalog ["streams" stream-name "table_name"])
-                                (common/sanitize-names))
+        table-name          (get-in catalog ["streams" stream-name "table_name"])
         dbname              (get-in catalog ["streams" stream-name "metadata" "database-name"])
         current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])
-        sql-query           (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(OBJECT_ID('%s.%s')) as min_valid_version" schema-name table-name)
+        object-id           (get-object-id-by-table-name config dbname table-name)
+        sql-query           (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)
         _                   (log/infof "Executing query: %s" sql-query)
         min-valid-version   (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
                                 first
@@ -124,51 +133,42 @@
             "No selected keys found, you must have a primary key and/or select columns to replicate.")
     (assert (not (nil? current-log-version))
             "Invalid log-based state, need a value for `current-log-version`.")
-    (as-> (format
-           (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
-                (when (not-empty primary-keys)
-                  (str ", " (string/join ", "
-                                         (map #(format "c.%s" %)
-                                              primary-keys))))
-                (when (not-empty record-keys)
-                  (str ", " (string/join ", "
-                                         (map #(format "%s.%s.%s" schema-name table-name %)
-                                              record-keys))))
-                " FROM CHANGETABLE (CHANGES %s.%s, %s) as c "
-                "LEFT JOIN %s.%s ON %s LEFT JOIN %s on %s"
-                ;; Existence of PK Bookmark indicates that a single change
-                ;; was interrupted. Only get changes for this version to
-                ;; finish it out.
-                (when (not-empty primary-key-bookmarks)
-                  (str (format " WHERE c.SYS_CHANGE_VERSION = %s AND "
-                               current-log-version)
-                       (string/join " AND "
-                                    (map #(format "c.%s >= ?" %)
-                                         (-> (keys primary-key-bookmarks)
-                                             sort
-                                             vec)))))
-                " ORDER BY c.SYS_CHANGE_VERSION"
-                (when (not-empty primary-keys)
-                  (str ", " (string/join ", "
-                                         (map #(format "c.%s" %)
-                                              (sort (vec primary-keys)))))))
-           schema-name
-           table-name
-           ;; CHANGETABLE is strictly greater than, so we decrement here
-           ;; to keep the state showing the "current version"
-           (if (> current-log-version 0)
-             (dec current-log-version)
-             0)
-           schema-name
-           table-name
-           (string/join " AND "(map #(format "c.%s=%s.%s.%s" % schema-name table-name %) primary-keys))
-           "sys.dm_tran_commit_table tc"
-           "c.SYS_CHANGE_VERSION = tc.commit_ts")
-        query-string
-        (if (not-empty primary-key-bookmarks)
-          (into [query-string] (-> (sort-by key primary-key-bookmarks)
-                                   vals))
-          [query-string]))))
+    (let [select-clause (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
+                             (when (not-empty primary-keys)
+                               (str ", " (string/join ", "
+                                                      (map #(format "c.%s" %)
+                                                           primary-keys))))
+                             (when (not-empty record-keys)
+                               (str ", " (string/join ", "
+                                                      (map #(format "%s.%s.%s" schema-name table-name %)
+                                                           record-keys)))))
+          from-clause (format " FROM CHANGETABLE (CHANGES %s.%s, %s) as c " schema-name table-name (if (> current-log-version 0)
+                                                                                                     (dec current-log-version)
+                                                                                                     0))
+          join-clause (format "LEFT JOIN %s.%s ON %s LEFT JOIN %s on %s"
+                              schema-name
+                              table-name
+                              (string/join " AND "(map #(format "c.%s=%s.%s.%s" % schema-name table-name %) primary-keys))
+                              "sys.dm_tran_commit_table tc"
+                              "c.SYS_CHANGE_VERSION = tc.commit_ts")
+          join-where-clause (when (not-empty primary-key-bookmarks)
+                              (str (format " WHERE c.SYS_CHANGE_VERSION = %s AND "
+                                           current-log-version)
+                                   (string/join " AND "
+                                                (map #(format "c.%s >= ?" %)
+                                                     (-> (keys primary-key-bookmarks)
+                                                         sort
+                                                         vec)))))
+          order-by-clause (str " ORDER BY c.SYS_CHANGE_VERSION"
+                               (when (not-empty primary-keys)
+                                 (str ", " (string/join ", "
+                                                        (map #(format "c.%s" %)
+                                                             (sort (vec primary-keys)))))))
+          query-string (str select-clause from-clause join-clause join-where-clause order-by-clause)]
+      (if (not-empty primary-key-bookmarks)
+        (into [query-string] (-> (sort-by key primary-key-bookmarks)
+                                 vals))
+        [query-string]))))
 
 (defn log-based-sync
   [config catalog stream-name state]
