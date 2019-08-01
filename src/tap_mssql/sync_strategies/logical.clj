@@ -48,10 +48,11 @@
 
 (defn get-current-log-version [config catalog stream-name]
   (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])]
-    (:current_version (first
-                       (jdbc/query (assoc (config/->conn-map config)
-                                          :dbname dbname)
-                                   ["SELECT current_version = CHANGE_TRACKING_CURRENT_VERSION()"])))))
+    (-> (jdbc/query (assoc (config/->conn-map config)
+                           :dbname dbname)
+                    ["SELECT current_version = CHANGE_TRACKING_CURRENT_VERSION()"])
+        first
+        :current_version)))
 
 ;; belongs in singer?
 (defn update-current-log-version [stream-name version state]
@@ -125,6 +126,7 @@
                                                                                "table-key-properties"])))
         primary-key-bookmarks (get-in state ["bookmarks" stream-name "last_pk_fetched"])
         current-log-version   (get-in state ["bookmarks" stream-name "current_log_version"])
+        _                     (log/infof "Syncing log-based stream at version: %d" current-log-version)
         record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
                                                                                  primary-keys))]
     ;; Assert state of the world
@@ -170,6 +172,13 @@
                                  vals))
         [query-string]))))
 
+(defn maybe-update-current-log-version [state stream-name db-log-version]
+  "Updates the state's bookmark when current-log-version lags behind db-log-version and a sync has been executed"
+  (let [current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
+    (if (< current-log-version db-log-version)
+      (update-current-log-version stream-name db-log-version state)
+      state)))
+
 (defn log-based-sync
   [config catalog stream-name state]
   {:pre  [(= true (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))]
@@ -177,6 +186,7 @@
   (let [record-keys   (singer-fields/get-selected-fields catalog stream-name)
         bookmark-keys (singer-bookmarks/get-bookmark-keys catalog stream-name)
         dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        db-log-version (get-current-log-version config catalog stream-name)
         sql-params    (build-log-based-sql-query catalog stream-name state)]
     (log/infof "Executing query: %s" sql-params)
     (singer-messages/write-activate-version! stream-name state)
@@ -196,6 +206,8 @@
                                              :dbname dbname)
                                       sql-params
                                       {:raw? true}))
+        ;; maybe-update in case no rows were synced
+        (maybe-update-current-log-version stream-name db-log-version)
         ;; last_pk_fetched indicates an interruption, and should be gone
         ;; after a successful log sync
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched"))))
