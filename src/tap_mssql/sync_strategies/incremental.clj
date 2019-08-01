@@ -12,7 +12,7 @@
 (defn build-incremental-sync-query
   [stream-name schema-name table-name record-keys replication-key state]
   {:pre [(not (empty? record-keys))]} ;; Is there more incoming state that we think is worth asserting?
-  (let [replication-key-value (get-in state ["bookmarks" stream-name replication-key])
+  (let [replication-key-value (get-in state ["bookmarks" stream-name "replication_key_value"])
         bookmarking-clause    (format "%s >= ?" replication-key)
         add-where-clause?     (some? replication-key-value)
         where-clause          (when add-where-clause?
