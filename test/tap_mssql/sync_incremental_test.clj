@@ -116,4 +116,4 @@
         (is (= 2 (->> second-messages
                       (filter #(= "RECORD" (% "type")))
                       count)))
-        (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test-dbo-data_table" "value"])))))))
+        (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test-dbo-data_table" "replication_key_value"])))))))
