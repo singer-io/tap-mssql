@@ -31,14 +31,15 @@
                          [(jdbc/create-table-ddl
                            "data_table"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]])])))
+                            [:value "int"]
+                            [:other_value "int"]])])))
 
 (defn populate-data
   [config]
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "incremental_sync_test"))
                       "data_table"
-                      (take 200 (map (partial hash-map :value) (range)))))
+                      (take 200 (map #(hash-map :value % :other_value % ) (range)))))
 
 (defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
@@ -117,3 +118,22 @@
                       (filter #(= "RECORD" (% "type")))
                       count)))
         (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test-dbo-data_table" "replication_key_value"])))))))
+
+(deftest ^:integration verify-changing-replication-key-resyncs-table
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (let [selected-catalog (->> (catalog/discover test-db-config)
+                                (select-stream "incremental_sync_test-dbo-data_table")
+                                (set-replication-key "incremental_sync_test-dbo-data_table" "value"))
+          first-messages (->> selected-catalog
+                              (get-messages-from-output test-db-config nil))
+          end-state (->> first-messages
+                         (filter #(= "STATE" (% "type")))
+                         last)]
+      ;; Change the replication key, sync again, and inspect the results
+      (let [second-messages (->> selected-catalog
+                                 (set-replication-key "incremental_sync_test-dbo-data_table" "other_value")
+                                 (get-messages-from-output test-db-config nil (get end-state "value")))]
+        (is (= 200
+             (->> second-messages
+                 (filter #(= "RECORD" (% "type")))
+                 count)))))))

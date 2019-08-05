@@ -12,9 +12,11 @@
 (defn build-incremental-sync-query
   [stream-name schema-name table-name record-keys replication-key state]
   {:pre [(not (empty? record-keys))]} ;; Is there more incoming state that we think is worth asserting?
-  (let [replication-key-value (get-in state ["bookmarks" stream-name "replication_key_value"])
+  (let [replication-key-name (get-in state ["bookmarks" stream-name "replication_key_name"])
+        replication-key-value (get-in state ["bookmarks" stream-name "replication_key_value"])
         bookmarking-clause    (format "%s >= ?" replication-key)
-        add-where-clause?     (some? replication-key-value)
+        add-where-clause?     (and (some? replication-key-value)
+                                   (= replication-key replication-key-name)) ;; if the replication-key in metadata changes, we negate our bookmark
         where-clause          (when add-where-clause?
                                 (str " WHERE " bookmarking-clause))
         order-by              (str " ORDER BY " replication-key)
@@ -36,7 +38,6 @@
   [config catalog stream-name state]
   (let [dbname          (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys     (singer-fields/get-selected-fields catalog stream-name)
-        bookmark-keys   (singer-bookmarks/get-bookmark-keys catalog stream-name)
         table-name      (get-in catalog ["streams" stream-name "table_name"])
         schema-name     (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         replication-key (get-in catalog ["streams" stream-name "metadata" "replication-key"])
@@ -62,7 +63,7 @@
 (defn sync!
   [config catalog stream-name state]
   (->> state
-         (singer-messages/write-activate-version! stream-name)
-         (singer-messages/write-state! stream-name)
-         (sync-and-write-messages! config catalog stream-name)
-         (singer-messages/write-activate-version! stream-name)))
+       (singer-messages/write-activate-version! stream-name)
+       (singer-messages/write-state! stream-name)
+       (sync-and-write-messages! config catalog stream-name)
+       (singer-messages/write-activate-version! stream-name)))

@@ -196,7 +196,7 @@
                                    (assoc rec "_sdc_deleted_at" (get result "commit_time"))
                                    rec)
                                  (singer-transform/transform catalog stream-name rec))]
-                    (singer-messages/write-record! stream-name state record)
+                    (singer-messages/write-record! stream-name st record)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys st record)
                          (update-current-log-version stream-name
                                                      (get result "sys_change_version"))
