@@ -31,9 +31,11 @@
           table-key-properties)))))
 
 (defn update-state [stream-name replication-key record state]
-  (assoc-in state
-            ["bookmarks" stream-name "replication_key_value"]
-            (get record replication-key)))
+  (-> state
+   (assoc-in ["bookmarks" stream-name "replication_key_value"]
+             (get record replication-key))
+   (assoc-in ["bookmarks" stream-name "replication_key_name"]
+             replication-key)))
 
 (defn update-last-pk-fetched [stream-name bookmark-keys state record]
   (assoc-in state
