@@ -56,46 +56,46 @@
 (deftest ^:integration verify-metadata
   (is (= "automatic"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "inclusion"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "id" "inclusion"])))
     (is (= "int"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "sql-datatype"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "id" "sql-datatype"])))
     (is (= true
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "id" "selected-by-default"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "id" "selected-by-default"])))
     (is (= "available"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "inclusion"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "name" "inclusion"])))
     (is (= "varchar"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "sql-datatype"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "name" "sql-datatype"])))
     (is (= true
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "properties" "name" "selected-by-default"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "properties" "name" "selected-by-default"])))
     (is (= "database_for_metadata"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "database-name"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata"  "database-name"])))
     (is (= "dbo"
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "schema-name"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata"  "schema-name"])))
     (is (= false
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "is-view"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata"  "is-view"])))
     (is (= #{"id"}
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata"  "table-key-properties"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata"  "table-key-properties"])))
     (is (= true
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "is-view"])))
+                   ["streams" "database_for_metadata_dbo_view_of_table_with_a_primary_key_id" "metadata" "is-view"])))
     (is (= 1
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-table_with_a_primary_key" "metadata" "row-count"])))
+                   ["streams" "database_for_metadata_dbo_table_with_a_primary_key" "metadata" "row-count"])))
     (is (= 0
            (get-in (catalog/discover test-db-config)
-                   ["streams" "database_for_metadata-dbo-view_of_table_with_a_primary_key_id" "metadata" "row-count"]))))
+                   ["streams" "database_for_metadata_dbo_view_of_table_with_a_primary_key_id" "metadata" "row-count"]))))
 
 (deftest ^:integration verify-metadata-when-composite-keys
   (let [catalog (catalog/discover test-db-config)]
     (is (= #{"id" "col_b"}
            (get-in catalog
-                   ["streams" "database_for_metadata-dbo-table_with_a_composite_key" "metadata"  "table-key-properties"])))))
+                   ["streams" "database_for_metadata_dbo_table_with_a_composite_key" "metadata"  "table-key-properties"])))))

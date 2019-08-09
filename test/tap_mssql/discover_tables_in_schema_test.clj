@@ -1,6 +1,5 @@
 (ns tap-mssql.discover-tables-in-schema-test
-  (:require
-            [tap-mssql.catalog :as catalog]
+  (:require [tap-mssql.catalog :as catalog]
             [tap-mssql.config :as config]
             [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
@@ -51,17 +50,17 @@
         (= stream-names #{"data_table" "data_table_without_schema"})))
   (is (let [tap-stream-ids (set (map #(get % "tap_stream_id")
                                      (vals ((catalog/discover test-db-config) "streams"))))]
-        (= tap-stream-ids #{"database_with_schema-schema_with_table-data_table"
-                            "database_with_schema-dbo-data_table_without_schema"})))
+        (= tap-stream-ids #{"database_with_schema_schema_with_table_data_table"
+                            "database_with_schema_dbo_data_table_without_schema"})))
   (is (=
        (get-in (catalog/discover test-db-config) ["streams"
-                                                  "database_with_schema-schema_with_table-data_table"
+                                                  "database_with_schema_schema_with_table_data_table"
                                                   "metadata"
                                                   "schema-name"])
        "schema_with_table"))
   (is (=
        (get-in (catalog/discover test-db-config) ["streams"
-                                                  "database_with_schema-dbo-data_table_without_schema"
+                                                  "database_with_schema_dbo_data_table_without_schema"
                                                   "metadata"
                                                   "schema-name"])
        "dbo"))

@@ -1,6 +1,5 @@
 (ns tap-mssql.discover-populated-catalog-with-multiple-non-system-databases-test
-  (:require
-            [tap-mssql.catalog :as catalog]
+  (:require [tap-mssql.catalog :as catalog]
             [tap-mssql.config :as config]
             [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]

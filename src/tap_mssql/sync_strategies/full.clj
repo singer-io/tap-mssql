@@ -74,24 +74,24 @@
   bookmark we have for this stream matches our understanding of the fields
   defined in the catalog that are bookmark-able."
   [config catalog stream-name state]
-  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        record-keys (singer-fields/get-selected-fields catalog stream-name)
+  (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        record-keys   (singer-fields/get-selected-fields catalog stream-name)
         bookmark-keys (singer-bookmarks/get-bookmark-keys catalog stream-name)
-        table-name (get-in catalog ["streams" stream-name "table_name"])
-        schema-name (get-in catalog ["streams" stream-name "metadata" "schema-name"])
-        sql-params (build-sync-query stream-name schema-name table-name record-keys state)]
+        table-name    (get-in catalog ["streams" stream-name "table_name"])
+        schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+        sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (reduce (fn [acc result]
-               (let [record (->> (select-keys result record-keys)
-                                 (singer-transform/transform catalog stream-name))]
-                 (singer-messages/write-record! stream-name state record)
-                 (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
-                      (singer-messages/write-state-buffered! stream-name))))
-             state
-             (jdbc/reducible-query (assoc (config/->conn-map config)
-                                          :dbname dbname)
-                                   sql-params
-                                   {:raw? true}))
+                  (let [record (->> (select-keys result record-keys)
+                                    (singer-transform/transform catalog stream-name))]
+                    (singer-messages/write-record! stream-name state record catalog)
+                    (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
+                         (singer-messages/write-state-buffered! stream-name))))
+                state
+                (jdbc/reducible-query (assoc (config/->conn-map config)
+                                             :dbname dbname)
+                                      sql-params
+                                      {:raw? true}))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!
@@ -101,4 +101,4 @@
        (get-max-pk-values config catalog stream-name)
        (singer-messages/write-state! stream-name)
        (sync-and-write-messages! config catalog stream-name)
-       (singer-messages/write-activate-version! stream-name)))
+       (singer-messages/write-activate-version! stream-name catalog)))

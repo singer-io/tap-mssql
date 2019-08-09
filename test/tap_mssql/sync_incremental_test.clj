@@ -89,8 +89,8 @@
 (deftest ^:integration verify-incremental-sync-works
   (with-matrix-assertions test-db-configs test-db-fixture
     (let [selected-catalog (->> (catalog/discover test-db-config)
-                                (select-stream "incremental_sync_test-dbo-data_table")
-                                (set-replication-key "incremental_sync_test-dbo-data_table" "value"))
+                                (select-stream "incremental_sync_test_dbo_data_table")
+                                (set-replication-key "incremental_sync_test_dbo_data_table" "value"))
           first-messages (->> selected-catalog
                               (get-messages-from-output test-db-config nil))
           end-state (->> first-messages
@@ -117,13 +117,13 @@
         (is (= 2 (->> second-messages
                       (filter #(= "RECORD" (% "type")))
                       count)))
-        (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test-dbo-data_table" "replication_key_value"])))))))
+        (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test_dbo_data_table" "replication_key_value"])))))))
 
 (deftest ^:integration verify-changing-replication-key-resyncs-table
   (with-matrix-assertions test-db-configs test-db-fixture
     (let [selected-catalog (->> (catalog/discover test-db-config)
-                                (select-stream "incremental_sync_test-dbo-data_table")
-                                (set-replication-key "incremental_sync_test-dbo-data_table" "value"))
+                                (select-stream "incremental_sync_test_dbo_data_table")
+                                (set-replication-key "incremental_sync_test_dbo_data_table" "value"))
           first-messages (->> selected-catalog
                               (get-messages-from-output test-db-config nil))
           end-state (->> first-messages
@@ -131,7 +131,7 @@
                          last)]
       ;; Change the replication key, sync again, and inspect the results
       (let [second-messages (->> selected-catalog
-                                 (set-replication-key "incremental_sync_test-dbo-data_table" "other_value")
+                                 (set-replication-key "incremental_sync_test_dbo_data_table" "other_value")
                                  (get-messages-from-output test-db-config nil (get end-state "value")))]
         (is (= 200
              (->> second-messages

@@ -12,7 +12,8 @@
             [tap-mssql.catalog :as catalog]
             [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.config :as config]))
+            [tap-mssql.config :as config])
+  (:import [java.sql Date]))
 
 (defn get-destroy-database-command
   [database]
@@ -55,66 +56,65 @@
 
 (deftest build-sync-query-test
   (is (thrown? AssertionError
-               (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" [] {})))
+               (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" [] {})))
   ;; No bookmark, no pk = Full Table sync query
   (is (= ["SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany]"]
-         (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"] {})))
+         (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"] {})))
   ;; No bookmark, yes pk = First FT Interruptible query
   (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
           4
           "birch")
-         (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                           {"bookmarks" {"craftsmanship-dbo-mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
+         (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
+                           {"bookmarks" {"craftsmanship_dbo_mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   ;; Bookmark, no pk = ??? Invalid state
   (is (thrown? AssertionError
-               (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                                 {"bookmarks" {"craftsmanship-dbo-mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
+               (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
+                                 {"bookmarks" {"craftsmanship_dbo_mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
   ;; Bookmark and PK = Resuming Full Table Sync
   (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] >= ? AND [leaf] >= ? AND [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
           2
           "balsa"
           4
           "birch")
-         (full/build-sync-query "craftsmanship-dbo-mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
+         (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
                            {"bookmarks"
-                            {"craftsmanship-dbo-mahogany"
+                            {"craftsmanship_dbo_mahogany"
                              {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
-                              "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
-  )
+                              "max_pk_values" {"legs" 4 "leaf" "birch"}}}}))))
 
 (deftest ^:integration build-log-based-sql-query-test
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; No PK
     (is (thrown? AssertionError (logical/build-log-based-sql-query
                                  (catalog/discover test-db-config)
-                                 "full_table_sync_test-dbo-no_pk_table"
+                                 "full_table_sync_test_dbo_no_pk_table"
                                  {} )))
     ;; No current_log_version bookmark
     (is (thrown? AssertionError (logical/build-log-based-sql-query
                                  (catalog/discover test-db-config)
-                                 "full_table_sync_test-dbo-basic_table"
+                                 "full_table_sync_test_dbo_basic_table"
                                  {} )))
     ;; Has primary key, no record Keys, no primary key bookmark
     (is (=
          ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
-                     ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
+                     ["streams" "full_table_sync_test_dbo_basic_table" "metadata" "properties" "value"]
                      assoc
                      "selected" false)
-          "full_table_sync_test-dbo-basic_table"
-          {"bookmarks" {"full_table_sync_test-dbo-basic_table" {"current_log_version" 0}}})))
+          "full_table_sync_test_dbo_basic_table"
+          {"bookmarks" {"full_table_sync_test_dbo_basic_table" {"current_log_version" 0}}})))
     ;; Has PK, No Selected Fields, Has Bookmark
     (is (=
          ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
-                     ["streams" "full_table_sync_test-dbo-basic_table" "metadata" "properties" "value"]
+                     ["streams" "full_table_sync_test_dbo_basic_table" "metadata" "properties" "value"]
                      assoc
                      "selected" false)
-          "full_table_sync_test-dbo-basic_table"
+          "full_table_sync_test_dbo_basic_table"
           {"bookmarks"
-           {"full_table_sync_test-dbo-basic_table"
+           {"full_table_sync_test_dbo_basic_table"
             {"current_log_version" 0
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has primary key, selected fields, no primary key bookmark
@@ -122,9 +122,9 @@
          ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
-          "full_table_sync_test-dbo-basic_table"
+          "full_table_sync_test_dbo_basic_table"
           {"bookmarks"
-           {"full_table_sync_test-dbo-basic_table"
+           {"full_table_sync_test_dbo_basic_table"
             {"current_log_version" 0}}})))
 
     ;; Has primary key, selected fields, primary key bookmark
@@ -132,9 +132,9 @@
          ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
-          "full_table_sync_test-dbo-basic_table"
+          "full_table_sync_test_dbo_basic_table"
           {"bookmarks"
-           {"full_table_sync_test-dbo-basic_table"
+           {"full_table_sync_test_dbo_basic_table"
             {"current_log_version" 0
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has composite primary keys, selected fields, bookmarks for both pks
@@ -142,9 +142,9 @@
          ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], c.[second_id], dbo.[composite_key_table].[id], dbo.[composite_key_table].[second_id], dbo.[composite_key_table].[value] FROM CHANGETABLE (CHANGES dbo.[composite_key_table], 0) as c LEFT JOIN dbo.[composite_key_table] ON c.[id]=dbo.[composite_key_table].[id] AND c.[second_id]=dbo.[composite_key_table].[second_id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id], c.[second_id]" "foo" "bar"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
-          "full_table_sync_test-dbo-composite_key_table"
+          "full_table_sync_test_dbo_composite_key_table"
           {"bookmarks"
-           {"full_table_sync_test-dbo-composite_key_table"
+           {"full_table_sync_test_dbo_composite_key_table"
             {"current_log_version" 0
              "last_pk_fetched"     {"id"        "foo"
                                     "second_id" "bar"}}}})))
@@ -157,35 +157,41 @@
   (is (= "0x000000000000000A"
          (singer-transform/transform-rowversion (byte-array [0 0 0 0 0 0 0 10])))))
 
+(deftest transform-date-test
+  ;; Convert to string and add time and tz offset (T00:00:00+00:00)
+  (is (= "2019-08-08T00:00:00+00:00"
+         (singer-transform/transform-date (Date. 1565222400000)))))
+
 (deftest maybe-write-activate-version!-test
   ;; FULL_TABLE replication
-  (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
-         (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {}))))
-      "Write activate version if no version has started loading yet and doing full table replication")
-  (is (= ""
-         (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {"bookmarks" {"jet_stream" {"version" 999}}}))))
-      "Don't emit an activate_version message if a version exists in state and syncning full table replication")
-  ;; Resuming an interrupted full table sync
-  (is (= {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}}
-         (with-out-and-err-to-dev-null
-           (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}})))
-      "Resuming an interrupted full table sync should keep the old state")
-
-  ;; LOG_BASED
-  (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
-         (with-redefs [singer-messages/now (constantly 1560363676948)]
-           (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" {}))))
-      "Write activate version if no version has started loading yet and doing log based replication")
-
-  ;; INCREMENTAL / LOG_BASED
-  (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
-         (with-redefs [singer-messages/now (constantly 1560363676948)]
+  (let [catalog {"streams" {"jet_stream" {"tap_stream_id" "jet_stream" "table_name" "jet_stream"}}}]
+    (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
+           (with-redefs [singer-messages/now (constantly 1560363676948)]
+             (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" catalog {}))))
+        "Write activate version if no version has started loading yet and doing full table replication")
+    (is (= ""
+           (with-redefs [singer-messages/now (constantly 1560363676948)]
+             (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" catalog {"bookmarks" {"jet_stream" {"version" 999}}}))))
+        "Don't emit an activate_version message if a version exists in state and syncning full table replication")
+    ;; Resuming an interrupted full table sync
+    (is (= {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}}
            (with-out-and-err-to-dev-null
-             (singer-messages/maybe-write-activate-version! "jet_stream" "INCREMENTAL" {}))))
-      "Add a version into the state if none exists already and syncing incrementally")
-  (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
-         (with-out-and-err-to-dev-null
-           (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" {"bookmarks" {"jet_stream" {"version" 1560363676948}}})))
-      "Keep the version in the state and syncing incrementally or log based"))
+             (singer-messages/maybe-write-activate-version! "jet_stream" "FULL_TABLE" catalog {"bookmarks" {"jet_stream" {"last_pk_fetched" 1 "version" 1560363676948}}})))
+        "Resuming an interrupted full table sync should keep the old state")
+
+    ;; LOG_BASED
+    (is (= "{\"type\":\"ACTIVATE_VERSION\",\"stream\":\"jet_stream\",\"version\":1560363676948}\n"
+           (with-redefs [singer-messages/now (constantly 1560363676948)]
+             (with-out-str (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" catalog {}))))
+        "Write activate version if no version has started loading yet and doing log based replication")
+
+    ;; INCREMENTAL / LOG_BASED
+    (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
+           (with-redefs [singer-messages/now (constantly 1560363676948)]
+             (with-out-and-err-to-dev-null
+               (singer-messages/maybe-write-activate-version! "jet_stream" "INCREMENTAL" catalog {}))))
+        "Add a version into the state if none exists already and syncing incrementally")
+    (is (= {"bookmarks" {"jet_stream" {"version" 1560363676948}}}
+           (with-out-and-err-to-dev-null
+             (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" catalog {"bookmarks" {"jet_stream" {"version" 1560363676948}}})))
+        "Keep the version in the state and syncing incrementally or log based")))

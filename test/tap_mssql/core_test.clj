@@ -28,7 +28,7 @@
                                         :primary-key? false
                                         :is-view?     false})]
            (get-in catalog
-                   ["streams" "test-bar-theologians" "schema" "properties" "name" "type"])))))
+                   ["streams" "test_bar_theologians" "schema" "properties" "name" "type"])))))
 
 (deftest catalog->serialized-catalog-test
   (let [catalog (reduce catalog/add-column nil [{:table_name "catalog_test"
@@ -51,16 +51,16 @@
     ;; Unsupported Type Replacement
     (is (and (contains? (get (serialized-catalog/->catalog serialized-catalog)
                              "streams")
-                        "null-null-unsupported_data_types")
+                        "null_null_unsupported_data_types")
              (nil? (get-in (serialized-catalog/->catalog serialized-catalog)
-                           ["streams" "null-null-unsupported_data_types" "schema" "properties" "rowversion"]))))
-    (is (= {} (get-in (get-serialized-catalog-entry serialized-catalog "null-null-unsupported_data_types")
+                           ["streams" "null_null_unsupported_data_types" "schema" "properties" "rowversion"]))))
+    (is (= {} (get-in (get-serialized-catalog-entry serialized-catalog "null_null_unsupported_data_types")
                       ["schema" "properties" "rowversion"])))
     (is (= {"inclusion" "unsupported",
             "sql-datatype" "rowversion",
             "selected-by-default" false}
            (get-serialized-catalog-metadata-for-breadcrumb
-            (get-serialized-catalog-entry serialized-catalog "null-null-unsupported_data_types")
+            (get-serialized-catalog-entry serialized-catalog "null_null_unsupported_data_types")
             ["properties" "rowversion"]))))
   )
 
@@ -78,30 +78,30 @@
     ;; Property Validation
     (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog/->catalog serialized-catalog)
-                   ["streams" "null-null-invalid_characters" "schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+                   ["streams" "null_null_invalid_characters" "schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
     (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
            (get-in (serialized-catalog/->catalog serialized-catalog)
-                   ["streams" "null-null-invalid_characters" "schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
+                   ["streams" "null_null_invalid_characters" "schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
     (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
-           (get-in (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
+           (get-in (get-serialized-catalog-entry serialized-catalog "null_null_invalid_characters")
                    ["schema" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
     (is (= {"type" ["integer" "null"], "minimum" -2147483648, "maximum" 2147483647}
-           (get-in (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
+           (get-in (get-serialized-catalog-entry serialized-catalog "null_null_invalid_characters")
                    ["schema" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
     ;; Metadata Validation
     (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
            (get-in (serialized-catalog/->catalog serialized-catalog)
-                   ["streams" "null-null-invalid_characters" "metadata" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
+                   ["streams" "null_null_invalid_characters" "metadata" "properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
     (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
            (get-in (serialized-catalog/->catalog serialized-catalog)
-                   ["streams" "null-null-invalid_characters" "metadata" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
+                   ["streams" "null_null_invalid_characters" "metadata" "properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))
     (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
            (get-serialized-catalog-metadata-for-breadcrumb
-            (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
+            (get-serialized-catalog-entry serialized-catalog "null_null_invalid_characters")
             ["properties" "invalid_characters_ !#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"])))
     (is (= {"inclusion" "available", "sql-datatype" "int", "selected-by-default" true}
            (get-serialized-catalog-metadata-for-breadcrumb
-            (get-serialized-catalog-entry serialized-catalog "null-null-invalid_characters")
+            (get-serialized-catalog-entry serialized-catalog "null_null_invalid_characters")
             ["properties" "invalid_characters_ !\"#$%&'()*+,-./:;<=>?@\\^_`{|}~"])))))
 
 (deftest verify-extra-arguments-does-not-throw

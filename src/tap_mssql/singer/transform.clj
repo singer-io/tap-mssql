@@ -7,11 +7,17 @@
                                (partial format "%02x"))
                          rowversion))))
 
+(defn transform-date [^java.sql.Date date]
+  (when date
+    (str date "T00:00:00+00:00")))
+
 (defn transform-field [catalog stream-name [k v]]
   (condp = (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
     "timestamp"
     [k (transform-rowversion v)]
-    ;; Other cases?
+
+    "date"
+    [k (transform-date v)]
     [k v]))
 
 (defn transform [catalog stream-name record]

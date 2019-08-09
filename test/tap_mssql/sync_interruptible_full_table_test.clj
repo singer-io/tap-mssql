@@ -124,9 +124,9 @@
     (is (= {}
            (get-in (first (filter #(= "SCHEMA" (% "type"))
                                   (->> (catalog/discover test-db-config)
-                                       (select-stream "full_table_interruptible_sync_test-dbo-table_with_unsupported_column")
+                                       (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_column")
                                        (get-messages-from-output test-db-config
-                                                                 "full_table_interruptible_sync_test-dbo-table_with_unsupported_column"))))
+                                                                 "full_table_interruptible_sync_test_dbo_table_with_unsupported_column"))))
                     ["schema" "properties" "value"])))))
 
 (deftest ^:integration verify-unsupported-primary-key-throws
@@ -135,8 +135,8 @@
                           #"has unsupported primary key"
                           (->> test-db-config
                               (catalog/discover)
-                              (select-stream "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk")
-                              (get-messages-from-output test-db-config "full_table_interruptible_sync_test-dbo-table_with_unsupported_pk"))))))
+                              (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
+                              (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"))))))
 
 (deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
@@ -144,17 +144,17 @@
     ;; Sync partially, a table with row version, interrupted at some point
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
     (let [old-write-record singer-messages/write-record!]
-      (with-redefs [singer-messages/write-record! (fn [stream-name state record]
+      (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
                                     (swap! record-count inc)
                                     (if (> @record-count 120)
                                       (do
                                         (reset! record-count 0)
                                         (throw (ex-info "Interrupting!" {:ignore true})))
-                                      (old-write-record stream-name state record)))]
+                                      (old-write-record stream-name state record catalog)))]
         (let [first-messages (->> (catalog/discover test-db-config)
-                                  (select-stream "full_table_interruptible_sync_test-dbo-data_table_rowversion")
+                                  (select-stream "full_table_interruptible_sync_test_dbo_data_table_rowversion")
                                   (get-messages-from-output test-db-config
-                                                            "full_table_interruptible_sync_test-dbo-data_table_rowversion"))
+                                                            "full_table_interruptible_sync_test_dbo_data_table_rowversion"))
               first-state (last first-messages)]
           (def first-messages first-messages) ;; Convenience def for debugging
           (is (valid-state? first-state))
@@ -180,7 +180,7 @@
                                                   (partition 2 1)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
                                                   first)]
-                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "last_pk_fetched" "rowversion"])))
+                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"])))
               "Either no state emitted, or state does not match previous record")
           ;; Next state emitted has the version of the last record emitted before that state
           (is (let [[last-record last-state] (->> first-messages
@@ -188,7 +188,7 @@
                                                   (partition 2 1)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
                                                   first)]
-                (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test-dbo-data_table_rowversion" "version"]))))
+                (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages

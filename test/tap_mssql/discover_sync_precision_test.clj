@@ -1,6 +1,5 @@
 (ns tap-mssql.discover-sync-precision-test
-  (:require
-            [tap-mssql.catalog :as catalog]
+  (:require [tap-mssql.catalog :as catalog]
             [tap-mssql.config :as config]
             [clojure.test :refer [is deftest use-fixtures]]
             [clojure.java.io :as io]
@@ -162,7 +161,7 @@
                 (filter #(string/starts-with? (first %) "numeric")
                         (get-in (catalog/discover test-db-config)
                                 ["streams"
-                                 "precision-dbo-numeric_precisions"
+                                 "precision_dbo_numeric_precisions"
                                  "schema"
                                  "properties"]))))
     (is (= #{0.1 1.0E-22 0.001 1.0E-8}
@@ -170,7 +169,7 @@
                      (filter #(string/starts-with? (first %) "numeric")
                              (get-in (catalog/discover test-db-config)
                                      ["streams"
-                                      "precision-dbo-numeric_precisions"
+                                      "precision_dbo_numeric_precisions"
                                       "schema"
                                       "properties"]))))))))
 
@@ -194,7 +193,7 @@
                      ;; checking precision doesn't introduce error
                      (= (bigdec 0.0) (rem % (bigdec (Math/pow 10 -22)))))
                 (->> (catalog/discover test-db-config)
-                     (select-stream "precision-dbo-numeric_precisions")
+                     (select-stream "precision_dbo_numeric_precisions")
                      (run-sync test-db-config {})
                      write-and-read
                      (filter #(= "RECORD" (% "type")))
@@ -206,7 +205,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (= (map second test-data-floats)
            (->> (catalog/discover test-db-config)
-                (select-stream "precision-dbo-float_precisions")
+                (select-stream "precision_dbo_float_precisions")
                 (run-sync test-db-config {})
                 write-and-read
                 (filter #(= "RECORD" (% "type")))
@@ -214,7 +213,7 @@
                 (map #(% "float_53")))))
     (is (= (map #(nth % 2) test-data-floats)
            (->> (catalog/discover test-db-config)
-                (select-stream "precision-dbo-float_precisions")
+                (select-stream "precision_dbo_float_precisions")
                 (run-sync test-db-config {})
                 write-and-read
                 (filter #(= "RECORD" (% "type")))
