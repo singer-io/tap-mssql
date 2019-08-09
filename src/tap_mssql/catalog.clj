@@ -65,10 +65,9 @@
     (map #(clojure.set/rename-keys % {:table_catalog :table_cat }) schemas)))
 
 (defn column->tap-stream-id [column]
-  (format "%s-%s-%s"
-          (:table_cat column)
-          (:table_schem column)
-          (:table_name column)))
+  ;; This used to use format and hyphens but we changed it to underscore
+  ;; and when the column is missing a key format would use "null"
+  (string/join "_" [(:table_cat column "null") (:table_schem column "null") (:table_name column "null")]))
 
 (defn column->catalog-entry
   [column]

@@ -40,8 +40,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (is (thrown-with-msg? java.lang.Exception
                           #"Empty Catalog: did not discover any streams"
-                          (catalog/discover test-db-config))
-        )))
+                          (catalog/discover test-db-config)))))
 
 (comment
   ;; TODO Can these be helper functions?

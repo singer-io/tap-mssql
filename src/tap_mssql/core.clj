@@ -85,8 +85,8 @@
       println))
 
 (defn valid-primary-keys? [catalog stream-name]
-  (let [stream-metadata (get-in catalog ["streams" stream-name "metadata"])
-        primary-keys (get-in stream-metadata ["table-key-properties"])
+  (let [stream-metadata          (get-in catalog ["streams" stream-name "metadata"])
+        primary-keys             (get-in stream-metadata ["table-key-properties"])
         unsupported-primary-keys (filter #(= "unsupported"
                                              (get-in stream-metadata ["properties" % "inclusion"]))
                                          primary-keys)]
@@ -119,7 +119,7 @@
   (let [replication-method (get-in catalog ["streams" stream-name "metadata" "replication-method"])]
     (log/infof "Syncing stream %s using replication method %s" stream-name replication-method)
     (singer-messages/write-schema! catalog stream-name)
-    (->> (singer-messages/maybe-write-activate-version! stream-name replication-method state)
+    (->> (singer-messages/maybe-write-activate-version! stream-name replication-method catalog state)
          (dispatch-sync-by-strategy config catalog stream-name)
          (singer-messages/write-state! stream-name))))
 
@@ -146,6 +146,11 @@
                vals
                (map #(get % "tap_stream_id")))))
 
+(defn set-include-db-and-schema-names-in-messages!
+  [config]
+  (reset! singer-messages/include-db-and-schema-names-in-messages? (= "true"
+                                                                      (get config "include_schemas_in_destination_stream_name"))))
+
 (defn -main [& args]
   (let [the-nrepl-server (start-nrepl-server args)]
     ;; This and the other defs here are not accidental. These are required
@@ -155,6 +160,7 @@
     (try
       (let [{{:keys [discover repl config catalog state]} :options}
             (parse-opts args)]
+        (set-include-db-and-schema-names-in-messages! config)
         (cond
           discover
           (do-discovery config)

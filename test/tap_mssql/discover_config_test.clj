@@ -125,15 +125,15 @@
                 distinct)))))
 
 (deftest ^:integration verify-full-catalog
-  (let [expected-stream-names #{"another_database_with_a_table-dbo-another_empty_table"
-                                "database_with_a_table-dbo-empty_table"
-                                "database_with_a_table-dbo-empty_table_ids"
-                                "datatyping-dbo-approximate_numerics"
-                                "datatyping-dbo-binary_strings"
-                                "datatyping-dbo-character_strings"
-                                "datatyping-dbo-date_and_time"
-                                "datatyping-dbo-exact_numerics"
-                                "datatyping-dbo-unicode_character_strings"}
+  (let [expected-stream-names #{"another_database_with_a_table_dbo_another_empty_table"
+                                "database_with_a_table_dbo_empty_table"
+                                "database_with_a_table_dbo_empty_table_ids"
+                                "datatyping_dbo_approximate_numerics"
+                                "datatyping_dbo_binary_strings"
+                                "datatyping_dbo_character_strings"
+                                "datatyping_dbo_date_and_time"
+                                "datatyping_dbo_exact_numerics"
+                                "datatyping_dbo_unicode_character_strings"}
         discovered-streams ((catalog/discover test-db-config) "streams")]
     (dorun
      (for [stream-name (keys discovered-streams)]

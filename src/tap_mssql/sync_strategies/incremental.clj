@@ -51,7 +51,7 @@
     (reduce (fn [acc result]
               (let [record (->> (select-keys result record-keys)
                                 (singer-transform/transform catalog stream-name))]
-                (singer-messages/write-record! stream-name acc record)
+                (singer-messages/write-record! stream-name acc record catalog)
                 (->> (singer-bookmarks/update-state stream-name replication-key record acc)
                      (singer-messages/write-state-buffered! stream-name))))
             state
@@ -63,7 +63,7 @@
 (defn sync!
   [config catalog stream-name state]
   (->> state
-       (singer-messages/write-activate-version! stream-name)
+       (singer-messages/write-activate-version! stream-name catalog)
        (singer-messages/write-state! stream-name)
        (sync-and-write-messages! config catalog stream-name)
-       (singer-messages/write-activate-version! stream-name)))
+       (singer-messages/write-activate-version! stream-name catalog)))

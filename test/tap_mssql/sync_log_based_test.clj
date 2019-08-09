@@ -168,7 +168,7 @@
         (create-test-db test-db-config))
     (is (thrown? UnsupportedOperationException
                  (-> (catalog/discover test-db-config)
-                     (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                     (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                      (get-messages-from-output test-db-config nil))))))
 
 (deftest ^:integration verify-log-based-replication-throws-if-not-enabled-for-table
@@ -178,7 +178,7 @@
         (setup-change-tracking-for-database test-db-config))
     (is (thrown? UnsupportedOperationException
                  (-> (catalog/discover test-db-config)
-                     (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                     (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                      (get-messages-from-output test-db-config nil))))))
 
 (deftest ^:integration verify-log-based-replication-performs-initial-full-table
@@ -188,7 +188,7 @@
     (is (nil?
          (let [third-state (as-> (catalog/discover test-db-config)
                                x
-                               (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                               (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
                                (get-messages-from-output x test-db-config nil)
                                (filter #(= "STATE" (% "type")) x)
                                (nth x 2))]
@@ -196,21 +196,21 @@
             (clojure.data/diff
              (set (keys (get-in third-state ["value"
                                              "bookmarks"
-                                             "log_based_sync_test-dbo-data_table"])))
+                                             "log_based_sync_test_dbo_data_table"])))
              #{"max_pk_values" "version" "initial_full_table_complete" "current_log_version" "last_pk_fetched"})))))
     ;; Check that second state has false for fulltable complete
     (is (= false
            (let [second-state (as-> (catalog/discover test-db-config)
                                   x
-                                  (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                                  (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
                                   (get-messages-from-output x test-db-config nil)
                                   (filter #(= "STATE" (% "type")) x)
                                   (second x))]
-             (get-in second-state ["value" "bookmarks" "log_based_sync_test-dbo-data_table" "initial_full_table_complete"]))))
+             (get-in second-state ["value" "bookmarks" "log_based_sync_test_dbo_data_table" "initial_full_table_complete"]))))
     ;; Check that final state does not have full-table keys
     (is (let [last-state (as-> (catalog/discover test-db-config)
                              x
-                             (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                             (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
                              (get-messages-from-output x test-db-config nil)
                              (filter #(= "STATE" (% "type")) x)
                              (last x))]
@@ -219,61 +219,61 @@
     (is (= true
            (let [last-state (as-> (catalog/discover test-db-config)
                                 x
-                                (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                                (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
                                 (get-messages-from-output x test-db-config nil)
                                 (filter #(= "STATE" (% "type")) x)
                                 (last x))]
-             (get-in last-state ["value" "bookmarks" "log_based_sync_test-dbo-data_table" "initial_full_table_complete"]))))
+             (get-in last-state ["value" "bookmarks" "log_based_sync_test_dbo_data_table" "initial_full_table_complete"]))))
     ;; Verify qualities of an initial full table sync
     ;; Copied from sync_full_table_test.clj
-    (is (= "log_based_sync_test-dbo-data_table"
+    (is (= "log_based_sync_test_dbo_data_table"
            ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
+                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
                 first)
             "stream")))
     (is (= ["id"]
            ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
+                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
                 first)
             "key_properties")))
     (is (= {"type" ["string"]
             "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
            (get-in (-> (catalog/discover test-db-config)
-                       (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                       (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
+                       (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                       (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
                        first)
                    ["schema" "properties" "id"])))
     (is (not (contains? ((-> (catalog/discover test-db-config)
-                             (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
-                             (get-messages-from-output test-db-config "log_based_sync_test-dbo-data_table")
+                             (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                             (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
                              first)
                          "schema")
                         "metadata")))
     ;; Emits the records expected
     (is (= 100
            (-> (catalog/discover test-db-config)
-               (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+               (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                (get-messages-from-output test-db-config nil)
                ((partial filter #(= "RECORD" (% "type"))))
                count)))
     (is (every? (fn [rec]
-                  (= "log_based_sync_test-dbo-data_table" (rec "stream")))
+                  (= "log_based_sync_test_dbo_data_table" (rec "stream")))
                 (-> (catalog/discover test-db-config)
-                    (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                    (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                     (get-messages-from-output test-db-config nil))))
     ;; At the moment we're not ordering by anything so checking the actual
     ;; value here would be brittle, I think.
     (is (every? #(get-in % ["record" "value"])
                 (as-> (catalog/discover test-db-config)
                     x
-                    (select-stream x "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                    (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
                     (get-messages-from-output x test-db-config nil)
                     (filter #(= "RECORD" (% "type")) x))))
     (is (= "STATE"
            ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil)
                 last)
             "type"))
@@ -287,48 +287,48 @@
     (insert-data test-db-config "dbo")
     (is (= 100
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  ((partial filter #(= "RECORD" (% "type"))))
                  count))))
     ;; Verify that they are all 100->199 value
     (is (every? (set (range 100 200))
                 (let [test-state {"bookmarks"
-                                  {"log_based_sync_test-dbo-data_table"
+                                  {"log_based_sync_test_dbo_data_table"
                                    {"version" 1560965962084
                                     "initial_full_table_complete" true
                                     "current_log_version" 0}}}]
                   (-> (catalog/discover test-db-config)
-                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                      (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                       (get-messages-from-output test-db-config nil test-state)
                       ((partial filter #(= "RECORD" (% "type"))))
                       ((partial map #(get-in % ["record" "value"])))))))
     ;; Verify current_log_version in state after sync
     (let [test-state {"bookmarks"
-                      {"log_based_sync_test-dbo-data_table"
+                      {"log_based_sync_test_dbo_data_table"
                        {"version" 1560965962084
                         "initial_full_table_complete" true
                         "current_log_version" 0}}}
           end-state (-> (catalog/discover test-db-config)
-                        (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                        (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                         (get-messages-from-output test-db-config nil test-state)
                         ((partial filter #(= "STATE" (% "type"))))
                         last)]
       (is (= 1
              (get-in end-state ["value"
                                 "bookmarks"
-                                "log_based_sync_test-dbo-data_table"
+                                "log_based_sync_test_dbo_data_table"
                                 "current_log_version"])))
       ;; The end-state's version needs to stay the same
       (is (= 1560965962084
              (get-in end-state ["value"
                                 "bookmarks"
-                                "log_based_sync_test-dbo-data_table"
+                                "log_based_sync_test_dbo_data_table"
                                 "version"]))))))
 
 (deftest ^:integration verify-log-based-replication-updates
@@ -337,53 +337,53 @@
     ;; schema, state, activate_version
     (is (= "ACTIVATE_VERSION"
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  (nth 2)
                  (get "type")))))
     (is (= 10
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  ((partial filter #(= "RECORD" (% "type"))))
                  count))))
     ;; Verify that they are all 91->100 value (since we incremented 90-99)
     (is (every? (set (range 91 101))
                 (let [test-state {"bookmarks"
-                                  {"log_based_sync_test-dbo-data_table"
+                                  {"log_based_sync_test_dbo_data_table"
                                    {"version" 1560965962084
                                     "initial_full_table_complete" true
                                     "current_log_version" 0}}}]
                   (-> (catalog/discover test-db-config)
-                      (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                      (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                       (get-messages-from-output test-db-config nil test-state)
                       ((partial filter #(= "RECORD" (% "type"))))
                       ((partial map #(get-in % ["record" "value"])))))))
     ;; Verify current_log_version in state after sync
     (is (= 1
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                 (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                 (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                  (get-messages-from-output test-db-config nil test-state)
                  ((partial filter #(= "STATE" (% "type"))))
                  last
                  (get-in ["value"
                           "bookmarks"
-                          "log_based_sync_test-dbo-data_table"
+                          "log_based_sync_test_dbo_data_table"
                           "current_log_version"])))))
     ))
 
@@ -392,39 +392,39 @@
     (delete-data test-db-config "dbo")
     (is (= 10
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "RECORD" (% "type"))))
                 count))))
     ;; Verify current_log_version in state after sync
     (is (= 1
            (let [test-state {"bookmarks"
-                             {"log_based_sync_test-dbo-data_table"
+                             {"log_based_sync_test_dbo_data_table"
                               {"version" 1560965962084
                                "initial_full_table_complete" true
                                "current_log_version" 0}}}]
              (-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                 (get-messages-from-output test-db-config nil test-state)
                 ((partial filter #(= "STATE" (% "type"))))
                 last
                 (get-in ["value"
                          "bookmarks"
-                         "log_based_sync_test-dbo-data_table"
+                         "log_based_sync_test_dbo_data_table"
                          "current_log_version"])))))
     ))
 
 (deftest ^:integration verify-min-valid-version-out-of-date?
   (with-matrix-assertions test-db-configs test-db-fixture
-    (let [test-state {"bookmarks" {"log_based_sync_test-dbo-data_table"{"version" 1560965962084
+    (let [test-state {"bookmarks" {"log_based_sync_test_dbo_data_table"{"version" 1560965962084
                                                                         "initial_full_table_complete" true}}}
           catalog (catalog/discover test-db-config)
-          stream-name "log_based_sync_test-dbo-data_table"]
+          stream-name "log_based_sync_test_dbo_data_table"]
       (is (= true
              (logical/min-valid-version-out-of-date? test-db-config catalog stream-name test-state))
           "Missing current_log_version means we never synced using change tracking")
@@ -434,12 +434,12 @@
 
 (deftest ^:integration verify-min-valid-version-behavior
   (with-matrix-assertions test-db-configs test-db-fixture
-    (let [test-state {"bookmarks" {"log_based_sync_test-dbo-data_table"{"version" 1560965962084
+    (let [test-state {"bookmarks" {"log_based_sync_test_dbo_data_table"{"version" 1560965962084
                                                                         "initial_full_table_complete" true
                                                                         "current_log_version" 0}}}
           messages (with-redefs [logical/min-valid-version-out-of-date? (constantly true)]
                      (-> (catalog/discover test-db-config)
-                         (select-stream "log_based_sync_test-dbo-data_table" "LOG_BASED")
+                         (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                          (get-messages-from-output test-db-config nil test-state)))]
       ;; Assert that records came out
       (is (= 100
@@ -449,7 +449,7 @@
 
       ;; Assert the state looks like we think it should
       (is (= {"bookmarks"
-              {"log_based_sync_test-dbo-data_table"
+              {"log_based_sync_test_dbo_data_table"
                {"version" 1560965962084,
                 "initial_full_table_complete" true,
                 "current_log_version" 0}}}
