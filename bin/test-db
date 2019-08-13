@@ -5,17 +5,22 @@ import argparse
 import subprocess
 from argparse import RawTextHelpFormatter
 
+TEST_PASSWORD="Password1!"
+TEST_USER="SA"
+TEST_PORT="1433"
+TEST_HOST="localhost"
+
 def start_container(name):
     START_COMMAND = """
     sudo docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD={0}" \
         -p {1}:{1} --name {2} \
         -d mcr.microsoft.com/mssql/server:2017-latest
-    """.format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD'),
-               os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433),
+    """.format(TEST_PASSWORD,
+               TEST_PORT,
                name)
 
     print("Starting Docker process sql1 using container: mcr.microsoft.com/mssql/server:2017-latest")
-    proc = subprocess.run(START_COMMAND.format(name), shell=True)
+    proc = subprocess.run(START_COMMAND, shell=True)
     if proc.returncode != 0:
         sys.exit("Exited with code: {}, the docker process failed to start.".format(proc.returncode))
     print("Process started successfully, connect on localhost port 1433")
@@ -30,8 +35,9 @@ def stop_container(name):
     print("Process stopped successfully")
 
 def connect_to_db():
-    CONNECT_COMMAND = "mssql-cli -P '{}' -S 127.0.0.1,{} -U SA".format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD'),
-                                                                       os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433))
+    CONNECT_COMMAND = "mssql-cli -P '{}' -S {},{} -U SA".format(TEST_HOST,
+                                                                TEST_PASSWORD,
+                                                                TEST_PORT)
 
     print("Attempting to connect to running container using mssql-cli")
     # NB: Using call instead of run here because it is blocking
@@ -43,10 +49,6 @@ def connect_to_db():
 
 DESCRIPTION = """
 Manage docker instance for tap-mssql testing.
-
-Uses environment variables:
-    STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD (required)
-    STITCH_TAP_MSSQL_TEST_DATABASE_PORT (default 1433)
 """
 parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
 parser.add_argument('action', choices=['start','stop', 'connect'], help='action to perform with the container')
