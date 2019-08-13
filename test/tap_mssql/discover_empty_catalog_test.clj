@@ -10,7 +10,6 @@
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
-                                          def-matrix-tests
                                           with-matrix-assertions]]))
 
 (defn get-destroy-database-command
