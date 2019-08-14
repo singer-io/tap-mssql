@@ -1,3 +1,13 @@
 #!/usr/bin/env bash
 
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
+then
+  cat <<EOF
+Missing required environment variables. Have you sourced
+/etc/default/tap-mssql?
+EOF
+  exit 1
+fi
+
 LEIN_SUPPRESS_USER_LEVEL_REPO_WARNINGS=true lein test
