@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-if [[ -z $AWS_ACCESS_KEY_ID ]] \
+source /etc/default/tap-mssql
+if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
+     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]] \
+     || [[ -z $AWS_ACCESS_KEY_ID ]] \
      || [[ -z $AWS_SECRET_ACCESS_KEY ]] \
      || [[ -z $AWS_SESSION_TOKEN ]]
 then

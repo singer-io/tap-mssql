@@ -17,11 +17,11 @@
            ~@body)))))
 
 (def test-db-config
-  "Default to local docker instance. Hard coded dummy values."
+  "Default to local docker instance."
   {"host"     "localhost"
-   "user"     "SA"
-   "password" "Password1!"
-   "port"     "1433"})
+   "user"     (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_USER")
+   "password" (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
+   "port"     (or (System/getenv "STITCH_TAP_MSSQL_TEST_DATABASE_PORT") "1433")})
 
 (def test-db-configs
   "Maps over `bin/testing-resources.json` and creates a list of tap config
