@@ -14,6 +14,8 @@ jobs:
       - run:
           name: Test
           command: |
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
+            source tap-mssql.env
             bin/test
       - save_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
