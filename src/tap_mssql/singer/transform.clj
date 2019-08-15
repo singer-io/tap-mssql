@@ -1,23 +1,24 @@
 (ns tap-mssql.singer.transform
   (:require [clojure.string :as string]))
 
-(defn transform-rowversion [rowversion]
-  (when rowversion
+(defn transform-binary [binary]
+  (when binary
     (apply str "0x" (map (comp string/upper-case
                                (partial format "%02x"))
-                         rowversion))))
+                         binary))))
 
 (defn transform-date [^java.sql.Date date]
   (when date
     (str date "T00:00:00+00:00")))
 
 (defn transform-field [catalog stream-name [k v]]
-  (condp = (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
-    "timestamp"
-    [k (transform-rowversion v)]
+  (condp contains? (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
+    #{"timestamp" "varbinary"}
+    [k (transform-binary v)]
 
-    "date"
+    #{"date"}
     [k (transform-date v)]
+
     [k v]))
 
 (defn transform [catalog stream-name record]
