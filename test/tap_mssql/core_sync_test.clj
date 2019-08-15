@@ -62,25 +62,31 @@
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"] {})))
   ;; No bookmark, yes pk = First FT Interruptible query
   (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
-          4
-          "birch")
+           4
+           "birch")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                           {"bookmarks" {"craftsmanship_dbo_mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
+                                {"bookmarks" {"craftsmanship_dbo_mahogany" {"max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   ;; Bookmark, no pk = ??? Invalid state
   (is (thrown? AssertionError
                (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                                 {"bookmarks" {"craftsmanship_dbo_mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
+                                      {"bookmarks" {"craftsmanship_dbo_mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
   ;; Bookmark and PK = Resuming Full Table Sync
   (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] >= ? AND [leaf] >= ? AND [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
-          2
-          "balsa"
-          4
-          "birch")
+           2
+           "balsa"
+           4
+           "birch")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                           {"bookmarks"
-                            {"craftsmanship_dbo_mahogany"
-                             {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
-                              "max_pk_values" {"legs" 4 "leaf" "birch"}}}}))))
+                                {"bookmarks"
+                                 {"craftsmanship_dbo_mahogany"
+                                  {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
+                                   "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
+  ;; Max-pk-value is _actually_ null (e.g., empty table)
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] ORDER BY [legs]")
+         (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
+                                {"bookmarks"
+                                 {"craftsmanship_dbo_mahogany"
+                                  {"max_pk_values" {"legs" nil}}}}))))
 
 (deftest ^:integration build-log-based-sql-query-test
   (with-matrix-assertions test-db-configs test-db-fixture
@@ -151,11 +157,27 @@
     )
   )
 
+(deftest transform-test
+  (is (= (singer-transform/transform
+          {"streams"
+           {"cuyahoga" {"metadata" {"properties" {"test1" {"sql-datatype" "varbinary"}
+                                                  "test2" {"sql-datatype" "timestamp"}
+                                                  "test3" {"sql-datatype" "date"}
+                                                  "regular" {"sql-datatype" "fish"}}}}}}
+          "cuyahoga"
+          {"test1" (byte-array [0 0 0 0 0 0 0 10])
+           "test2" (byte-array [0 0 0 0 0 0 0 10])
+           "test3" (Date. 1565222400000)
+           "regular" {"should be" "unchanged"}})
+         {"test1" "0x000000000000000A"
+          "test2" "0x000000000000000A"
+          "test3" "2019-08-08T00:00:00+00:00"
+          "regular" {"should be" "unchanged"}})))
 
-(deftest transform-rowversion-test
+(deftest transform-binary-test
   ;; Convert to hex number (8 bytes)
   (is (= "0x000000000000000A"
-         (singer-transform/transform-rowversion (byte-array [0 0 0 0 0 0 0 10])))))
+         (singer-transform/transform-binary (byte-array [0 0 0 0 0 0 0 10])))))
 
 (deftest transform-date-test
   ;; Convert to string and add time and tz offset (T00:00:00+00:00)
