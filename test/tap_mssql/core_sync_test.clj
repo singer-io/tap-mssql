@@ -82,7 +82,7 @@
                                   {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
                                    "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
   ;; Max-pk-value is _actually_ null (e.g., empty table)
-  (is (= "SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] ORDER BY [legs]"
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] ORDER BY [legs]")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
                                 {"bookmarks"
                                  {"craftsmanship_dbo_mahogany"
