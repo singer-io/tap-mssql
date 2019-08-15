@@ -31,34 +31,42 @@
     (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
     true))
 
+(defn- remove-nil-values
+  [record]
+  (into {} (remove (comp nil? second) record)))
+
 (defn build-sync-query [stream-name schema-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
-  (let [last-pk-fetched   (get-in state ["bookmarks" stream-name "last_pk_fetched"])
-        bookmark-keys     (map (fn [col] (->> (common/sanitize-names col)
-                                             (format "%s >= ?")))
-                               (keys last-pk-fetched))
-        max-pk-values     (get-in state ["bookmarks" stream-name "max_pk_values"])
-        sanitized-mpkv    (map common/sanitize-names (keys max-pk-values))
-        limiting-keys     (map #(format "%s <= ?" %)
-                               sanitized-mpkv)
-        add-where-clause? (or (not (empty? bookmark-keys))
-                              (not (empty? limiting-keys)))
-        where-clause      (when add-where-clause?
-                            (str " WHERE " (string/join " AND "
-                                                        (concat bookmark-keys
-                                                                limiting-keys))))
-        order-by           (when (not (empty? limiting-keys))
-                             (str " ORDER BY " (string/join ", "
-                                                            (map #(format "%s" %)
-                                                                 sanitized-mpkv))))
-        sql-params        [(str (format "SELECT %s FROM %s.%s"
-                                        (string/join ", " (map common/sanitize-names record-keys))
-                                        schema-name
-                                        (common/sanitize-names table-name))
-                                where-clause
-                                order-by)]]
+  (let [last-pk-fetched           (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+        bookmark-query-text       (map (fn [col] (->> (common/sanitize-names col)
+                                                      (format "%s >= ?")))
+                                       (keys last-pk-fetched))
+        max-pk-values             (get-in state ["bookmarks" stream-name "max_pk_values"])
+        limiting-keys             (map common/sanitize-names (keys max-pk-values))
+        limiting-keys-with-values (->> max-pk-values
+                                       remove-nil-values
+                                       keys
+                                       (map common/sanitize-names))
+        limiting-query-text       (map #(format "%s <= ?" %)
+                                       limiting-keys-with-values)
+        add-where-clause?         (or (not (empty?  bookmark-query-text))
+                                      (not (empty? limiting-query-text)))
+        where-clause              (when add-where-clause?
+                                    (str " WHERE " (string/join " AND "
+                                                                (concat bookmark-query-text
+                                                                        limiting-query-text))))
+        order-by                  (when (not (empty? limiting-keys))
+                                    (str " ORDER BY " (string/join ", "
+                                                                   (map #(format "%s" %)
+                                                                        limiting-keys))))
+        sql-params                [(str (format "SELECT %s FROM %s.%s"
+                                                (string/join ", " (map common/sanitize-names record-keys))
+                                                schema-name
+                                                (common/sanitize-names table-name))
+                                        where-clause
+                                        order-by)]]
     (if add-where-clause?
       (concat sql-params
               (vals last-pk-fetched)
