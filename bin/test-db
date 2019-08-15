@@ -1,353 +1,66 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+import subprocess
+from argparse import RawTextHelpFormatter
 
-set -o pipefail
+def start_container(name):
+    START_COMMAND = """
+    sudo docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD={0}" \
+        -p {1}:{1} --name {2} \
+        -d mcr.microsoft.com/mssql/server:2017-latest
+    """.format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD'),
+               os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433),
+               name)
 
-logf() {
-  printf "$1\n" "${@:2}" >&2
-}
-export -f logf
+    print("Starting Docker process sql1 using container: mcr.microsoft.com/mssql/server:2017-latest")
+    proc = subprocess.run(START_COMMAND, shell=True)
+    if proc.returncode != 0:
+        sys.exit("Exited with code: {}, the docker process failed to start.".format(proc.returncode))
+    print("Process started successfully, connect on localhost port 1433")
 
-warnf() {
-  logf "WARN: ${1}" "${@:2}"
-}
-export -f warnf
+def stop_container(name):
+    STOP_COMMAND = "sudo docker stop {0} && sudo docker rm {0}"
 
-infof() {
-  logf "INFO: ${1}" "${@:2}"
-}
-export -f infof
+    print("Stopping Docker process sql1")
+    proc = subprocess.run(STOP_COMMAND.format(name), shell=True)
+    if proc.returncode != 0:
+        sys.exit("Exited with code: {}, the docker process failed to stop.".format(proc.returncode))
+    print("Process stopped successfully")
 
-errorf() {
-  logf "ERROR: ${1}" "${@:2}"
-  exit 1
-}
-export -f errorf
+def connect_to_db():
+    CONNECT_COMMAND = "mssql-cli -P '{}' -S 127.0.0.1,{} -U SA".format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD'),
+                                                                       os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433))
 
-while :
-do
-  case $1 in
-    destroy)
-      command=destroy
-      ;;
-    create)
-      command=create
-      ;;
-    describe)
-      command=describe
-      ;;
-    connect)
-      command=connect
-      ;;
-    -l)
-      long_output=true
-      ;;
-    -?*|--?*=?*)
-      warnf 'Unknown option (ignored): %s\n' "$1"
-      ;;
-    *)
-      break
-  esac
-  shift
-done
+    print("Attempting to connect to running container using mssql-cli")
+    # NB: Using call instead of run here because it is blocking
+    #     This returns only an exit code.
+    returncode = subprocess.call(CONNECT_COMMAND,
+                           shell=True)
+    if returncode != 0:
+        sys.exit("Exited with code: {}, could not connect.".format(returncode))
 
-source /etc/default/tap-mssql
+DESCRIPTION = """
+Manage docker instance for tap-mssql testing.
 
-if [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_USER ]] \
-     || [[ -z $STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD ]]
-then
-  errorf 'Missing required environment variables STITCH_TAP_MSSQL_TEST_DATABASE_{USER,PASSWORD}. Have you sourced `/etc/default/tap-mssql`?'
-fi
+Uses environment variables:
+    STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD (required)
+    STITCH_TAP_MSSQL_TEST_DATABASE_PORT (default 1433)
+"""
+parser = argparse.ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
+parser.add_argument('action', choices=['start','stop', 'connect'], help='action to perform with the container')
+parser.add_argument('--name', help="name assigned to running docker process", default='sql1')
 
-get_stable_dns_name() {
-  local instance_identifier=$1
-  printf "%s-test-mssql-%s.db.test.stitchdata.com" \
-         "$HOSTNAME" \
-         "$instance_identifier"
-}
-export -f get_stable_dns_name
+def main():
+    parsed_args = parser.parse_args()
+    # Potential arguments to add: pull, changing docker cointainer, changing password
+    if parsed_args.action == 'start':
+        start_container(parsed_args.name)
+    elif parsed_args.action == 'stop':
+        stop_container(parsed_args.name)
+    elif parsed_args.action == 'connect':
+        connect_to_db()
 
-describe_instance() {
-  local instance_identifier_name=$1
-  local instance_identifier="$(get_instance_identifier "$instance_identifier_name")"
-  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
-  if [[ -z $instance_identifier ]]
-  then
-    # Support old calls for now
-    instance_identifier=$identifier
-  fi
-  local jq_filter
-  jq_filter='.DBInstances[]
-             | {stable_address: "'"$stable_dns_name"'",
-                address: .Endpoint.Address,
-                identifier: .DBInstanceIdentifier,
-                status: .DBInstanceStatus,
-                master_username: .MasterUsername,
-                master_password: "'"$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD"'"}'
-  if [[ $long_output == true ]] || [[ $2 == full ]]
-  then
-    jq_filter='.DBInstances[]'
-  fi
-  aws rds describe-db-instances --db-instance-identifier "${instance_identifier}" \
-    | jq "$jq_filter"
-}
-export -f describe_instance
-
-instance_status() {
-  local instance_identifier_name=$1
-  describe_instance "${instance_identifier_name}" full | jq -r '.DBInstanceStatus'
-}
-export -f instance_status
-
-get_instance_identifier() {
-  printf '%s-test-mssql-%s' \
-         "$HOSTNAME" \
-         "$1"
-}
-export -f instance_status
-
-test_db_not_online() {
-  local instance_identifier_name=$1
-  local instance_identifier="$(get_instance_identifier "${instance_identifier_name}")"
-  db_instance_status=$(aws rds describe-db-instances --db-instance-identifier "${instance_identifier}" \
-                         | jq -r '.DBInstances[].DBInstanceStatus')
-  if (( $? != 0 ))
-  then
-    warnf 'Failed to describe %s' "$instance_identifier"
-  fi
-  [[ $db_instance_status != available ]]
-}
-export -f test_db_not_online
-
-get_actual_dns_name() {
-  local instance_identifier_name=$1
-  describe_instance "${instance_identifier_name}" | jq -r '.address'
-}
-export -f get_actual_dns_name
-
-dns_entry_up_to_date() {
-  local instance_identifier_name=$1
-  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
-  local actual_dns_name="$(get_actual_dns_name "$instance_identifier_name")"
-  nslookup "$stable_dns_name" 8.8.8.8 \
-    | grep -q -E -- "$stable_dns_name"'[[:blank:]]+canonical name = '"$actual_dns_name"
-}
-export -f dns_entry_up_to_date
-
-get_instance_identifier() {
-  local instance_identifier_name=$1
-  printf '%s-test-mssql-%s' \
-         "$HOSTNAME" \
-         "$instance_identifier_name"
-}
-export -f get_instance_identifier
-
-create_test_instance() {
-  local instance_identifier_name=$1
-  local instance_identifier=$(get_instance_identifier "${instance_identifier_name}")
-  local stable_dns_name=$(get_stable_dns_name "${instance_identifier_name}")
-
-  source <(jq -r '.[]
-                  | select(.name == "'"$instance_identifier_name"'")
-                  | .properties
-                  | to_entries[]
-                  | "export \(.key)=\(.value)"' \
-                    bin/testing-resources.json)
-
-  if [[ -z $engine ]] || [[ -z $engine_version ]]
-  then
-    # FIXME This doesn't trigger properly
-    errorf 'Unable to read inputs from bin/testing-resources.json'
-  fi
-
-  infof 'Creating test instance %s' "$instance_identifier_name"
-
-  if test_db_not_online "${instance_identifier_name}"
-  then
-    # Create instance if it's not already created
-    if ! describe_instance "${instance_identifier_name}" >/dev/null
-    then
-      logf "Creating db instance %s" "${instance_identifier_name}"
-      if ! aws --region us-east-1 \
-           rds create-db-instance \
-           --vpc-security-group-ids sg-089b5962b0c44592f \
-           --db-instance-identifier "${instance_identifier}" \
-           --db-instance-class db.m4.large \
-           --engine "${engine}" \
-           --engine-version "${engine_version}" \
-           --allocated-storage 100 \
-           --master-username "$STITCH_TAP_MSSQL_TEST_DATABASE_USER" \
-           --master-user-password "$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD" \
-           --backup-retention-period 0 \
-           --no-auto-minor-version-upgrade \
-           --license-model license-included
-      then
-        errorf  "Failed to initiate creation of %s" "${instance_identifier_name}"
-      fi
-    fi
-    # Wait for instance to be online
-    wait_time=600
-    SECONDS=0
-    while test_db_not_online "${instance_identifier_name}"
-    do
-      infof "Waiting for db instance %s to come up for %s seconds (current status: %s)" \
-            "${instance_identifier_name}" \
-            "$SECONDS" \
-            "$(instance_status "${instance_identifier_name}")"
-      sleep 30
-      if (( wait_time < SECONDS ))
-      then
-        errorf 'DB instance %s failed to come up in %d seconds.' \
-               "$instance_identifier_name" \
-               "$SECONDS"
-      fi
-    done
-  fi
-
-  if ! dns_entry_up_to_date "$instance_identifier_name"
-  then
-    infof 'Upserting route53 entry %s' "$(get_stable_dns_name "$instance_identifier_name")"
-    # Upsert route53 entry
-    actual_dns_name="$(get_actual_dns_name "$instance_identifier_name")"
-    change_batch='
-  {
-    "Comment": "'"${instance_identifier_name}"' deployment '"$(date -u)"'",
-    "Changes": [
-      {
-        "Action": "UPSERT",
-        "ResourceRecordSet": {
-          "Name": "'"$stable_dns_name"'",
-          "Type": "CNAME",
-          "TTL": 300,
-          "ResourceRecords": [
-            {
-              "Value": "'"$actual_dns_name"'"
-            }
-          ]
-        }
-      }
-    ]
-  }
-  '
-    if ! aws route53 change-resource-record-sets \
-         --hosted-zone-id '/hostedzone/ZENICS0BKW1AD' \
-         --change-batch "$change_batch"
-    then
-      errorf 'Failed to create DNS entry: %s' "$stable_dns_name"
-    fi
-  fi
-
-  wait_time=600
-  SECONDS=0
-  while ! dns_entry_up_to_date "$instance_identifier_name"
-  do
-    echo "Waiting for DNS cutover to take effect for ${SECONDS}s"
-    sleep 30
-    if (( wait_time < SECONDS ))
-    then
-      errorf 'DNS cutover failed to take effect in %d seconds.' "$SECONDS"
-    fi
-  done
-
-  infof 'DB instance %s created' "${instance_identifier_name}"
-  describe_instance "${instance_identifier_name}"
-}
-export -f create_test_instance
-
-do_create() {
-  local instance_identifier_names
-  while read -r instance_identifier_name
-  do
-    instance_identifier_names+=("${instance_identifier_name}")
-  done < <(jq -r '.[].name' bin/testing-resources.json)
-
-  parallel --will-cite --line-buffer -j 0 "set -o pipefail; create_test_instance '{}'" ::: "${instance_identifier_names[@]}"
-}
-
-destroy_test_instance() {
-  local instance_identifier_name=$1
-  local instance_identifier="$(get_instance_identifier "$instance_identifier_name")"
-
-  if describe_instance "$instance_identifier_name" >/dev/null 2>&1
-  then
-    infof 'Destroying %s' "$instance_identifier_name"
-    if [[ $(instance_status "$instance_identifier_name") != deleting ]]
-    then
-      if ! aws --region us-east-1 \
-           rds delete-db-instance \
-           --db-instance-identifier "$instance_identifier" \
-           --skip-final-snapshot
-      then
-        errorf "Failed to initiate destruction of %s" "$instance_identifier_name"
-      fi
-    fi
-    while describe_instance "$instance_identifier_name" >/dev/null
-    do
-      infof "Waiting for %s to be destroyed for %s seconds (current status: %s)" \
-            "$instance_identifier_name" \
-            "$SECONDS" \
-            "$(instance_status "$instance_identifier_name")"
-      sleep 30
-    done
-    infof 'Successfully destroyed %s' "$instance_identifier_name"
-  else
-    infof '%s is already offline' "$instance_identifier_name"
-  fi
-}
-export -f destroy_test_instance
-
-do_destroy() {
-  local instance_identifier_names
-  while read -r instance_identifier_name
-  do
-    instance_identifier_names+=("${instance_identifier_name}")
-  done < <(jq -r '.[].name' bin/testing-resources.json)
-
-  parallel --will-cite --line-buffer -j 0 "set -o pipefail; destroy_test_instance '{}'" ::: "${instance_identifier_names[@]}"
-}
-
-do_describe() {
-  while read -r instance_identifier_name
-  do
-    infof "Describing instance %s" "$instance_identifier_name"
-    describe_instance "${instance_identifier_name}"
-  done < <(jq -r '.[].name' bin/testing-resources.json)
-}
-
-do_connect() {
-  local instance_identifier_name=$1
-  local stable_dns_name="$(get_stable_dns_name "$instance_identifier_name")"
-
-  if [[ -z $instance_identifier_name ]]
-  then
-    errorf 'Must specify instance identifier to connect to (e.g., 2017)'
-  fi
-
-  if test_db_not_online "$instance_identifier_name" >/dev/null 2>&1
-  then
-    errorf 'Test instance %s is not online. Perhaps you need to assume_read_only?' "$instance_identifier_name"
-  fi
-
-  infof 'Connecting to %s' "$instance_identifier_name"
-  exec mssql-cli \
-       -U "$STITCH_TAP_MSSQL_TEST_DATABASE_USER" \
-       -P "$STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD" \
-       -S "$stable_dns_name"
-}
-
-case $command in
-  destroy)
-    do_destroy
-    ;;
-  create)
-    do_create
-    ;;
-  describe)
-    do_describe
-    ;;
-  connect)
-    do_connect "$1"
-    ;;
-  *)
-    errorf "Unknown or no command passed"
-    ;;
-esac
+if __name__ == "__main__":
+    main()

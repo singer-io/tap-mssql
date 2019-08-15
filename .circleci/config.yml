@@ -3,6 +3,10 @@ jobs:
   build:
     docker:
       - image: clojure:lein-2.5.3
+      - image: mcr.microsoft.com/mssql/server:2017-latest
+        environment:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: Password1!
     steps:
       - checkout
       - restore_cache:
@@ -18,6 +22,10 @@ jobs:
   tap_tester:
     docker:
       - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
+      - image: mcr.microsoft.com/mssql/server:2017-latest
+        environment:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: Password1!
     steps:
       - checkout
       - run:
