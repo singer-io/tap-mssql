@@ -50,7 +50,9 @@ The environment variables are:
 To interact with the container, these commands are available:
 
 `bin/test-db start` - Starts the container under the name `sql1`
+
 `bin/test-db connect` - Uses `mssql-cli` to open a shell to the local MSSQL instance
+
 `bin/test-db stop` - Tears down and removes the container
 
 **Note:** There is no volume binding, so all of the data and state in the
