@@ -32,29 +32,26 @@ failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
 
 Each actor (developer, CI, etc.) needs their own testing infrastructure so
 that development can proceed and be verified independently of each other.
+In order to provide this isolation, we've migrated towards a Docker-based
+solution.
 
-To accomplish this a script, `bin/test-db` has been provided that will
-honor several environment variables and create the various resources
-required by the development and testing.
+A script, `bin/test-db` has been provided that will honor several
+environment variables and manage the container required by the development
+and testing.
 
 The environment variables are:
 
 | name | description |
 | --- | --- |
-| `STITCH_TAP_MSSQL_TEST_DATABASE_USER` | The admin user that should be used to connect to the test database |
-| `STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD` | The password for the admin user |
+| `STITCH_TAP_MSSQL_TEST_DATABASE_USER` | The admin user that should be used to connect to the test database (for docker, this is SA) |
+| `STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD` | The password for the user (if docker, the SA user will be configured with this password) |
+| `STITCH_TAP_MSSQL_TEST_DATABASE_PORT` | The port for hosting the server. (Default 1433)|
 
-The resources created are accessed through DNS. Each DNS entry looks like
-the following:
+To interact with the container, these commands are available:
 
-`<actor name>-test-mssql-<configuration name>.db.test.stitchdata.com`
+`bin/test-db start` - Starts the container under the name `sql1`
+`bin/test-db connect` - Uses `mssql-cli` to open a shell to the local MSSQL instance
+`bin/test-db stop` - Tears down and removes the container
 
-`actor name` defaults to your `HOSTNAME` if your `HOSTNAME` starts with
-`taps-` or `circleci` otherwise.
-
-These resources are driven by the `bin/testing-resources.json` file.
-
-To create the circleci servers run `HOSTNAME=circle bin/test-db create`.
-
-To create your own testing servers run `bin/test-db create`.
-
+**Note:** There is no volume binding, so all of the data and state in the
+  running container is entirely ephemeral
