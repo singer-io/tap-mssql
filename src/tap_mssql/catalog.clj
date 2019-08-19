@@ -201,7 +201,7 @@
              column))
 
 (defn get-table-names [conn-map]
-  (map :table_name (jdbc/query conn-map ["SELECT * FROM INFORMATION_SCHEMA.TABLES"])))
+  (map :table_name (jdbc/query conn-map ["SELECT table_name FROM INFORMATION_SCHEMA.TABLES"])))
 
 (defn get-database-raw-columns
   [conn-map database]
