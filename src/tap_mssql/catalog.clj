@@ -200,11 +200,18 @@
              add-column-to-stream
              column))
 
+(defn get-table-names [conn-map]
+  (map :table_name (jdbc/query conn-map ["SELECT table_name FROM INFORMATION_SCHEMA.TABLES"])))
+
 (defn get-database-raw-columns
   [conn-map database]
   (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
-  (jdbc/with-db-metadata [md conn-map]
-    (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil))))
+  (let [columns (jdbc/with-db-metadata [md conn-map]
+                  (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil)))
+        table-names (set (get-table-names conn-map))]
+    (filter (comp (partial contains? table-names)
+                  :table_name)
+            columns)))
 
 (defn get-primary-keys
   [conn-map]
