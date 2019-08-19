@@ -26,13 +26,22 @@
   []
   (let [db-spec (config/->conn-map test-db-config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE empty_database"
-                                  "CREATE DATABASE database_with_a_table"])
+                                  "CREATE DATABASE database_with_a_table"
+                                  "CREATE DATABASE database_with_table_valued_function"])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
                          [(jdbc/create-table-ddl :empty_table [[:id "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
                          ["CREATE VIEW empty_table_ids
                            AS
-                           SELECT id FROM empty_table"])))
+                           SELECT id FROM empty_table"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "database_with_a_table")
+                         ["CREATE FUNCTION table_valued_test(@input_value int)
+                           RETURNS @result table (a_value int)
+                           AS
+                           BEGIN
+                               INSERT INTO @result VALUES(@input_value + 1)
+                               RETURN
+                           END"])))
 
 (defn test-db-fixture [f]
   (with-out-and-err-to-dev-null
@@ -46,4 +55,7 @@
   (is (let [stream-names (set (map #(get % "stream") (vals ((catalog/discover test-db-config) "streams"))))]
         (stream-names "empty_table")))
   (is (let [stream-names (set (map #(get % "stream") (vals ((catalog/discover test-db-config) "streams"))))]
-        (stream-names "empty_table_ids"))))
+        (stream-names "empty_table_ids")))
+  ;; Table-Valued functions should not be discovered
+  (is (nil? (let [stream-names (set (map #(get % "stream") (vals ((catalog/discover test-db-config) "streams"))))]
+              (stream-names "table_valued_test")))))
