@@ -210,7 +210,8 @@
                   (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil)))
         table-names (set (get-table-names conn-map))]
     (filter (comp (partial contains? table-names)
-                  :table_name) columns)))
+                  :table_name)
+            columns)))
 
 (defn get-primary-keys
   [conn-map]
