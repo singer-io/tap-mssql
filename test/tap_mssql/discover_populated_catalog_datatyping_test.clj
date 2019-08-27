@@ -119,7 +119,23 @@
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-2017
                                                  [[:timestamp "timestamp"]])
                           (jdbc/create-table-ddl :rowversions
-                                                 [[:rowversion "rowversion"]])])))
+                                                 [[:rowversion "rowversion"]])
+                          ;; Identity types of non-int types come back like 'numeric() identity'
+                          ;; Ensure these are supported
+                          (jdbc/create-table-ddl :bigint_identity
+                                                 [[:bigint_identity "bigint identity"]])
+                          (jdbc/create-table-ddl :int_identity
+                                                 [[:int_identity "int identity"]])
+                          (jdbc/create-table-ddl :smallint_identity
+                                                 [[:smallint_identity "smallint identity"]])
+                          (jdbc/create-table-ddl :tinyint_identity
+                                                 [[:tinyint_identity "tinyint identity"]])
+                          (jdbc/create-table-ddl :numeric_identity
+                                                 [[:numeric_identity "numeric identity"]])
+                          (jdbc/create-table-ddl :numeric_3_0_identity
+                                                 [[:numeric_3_0_identity "numeric(3,0) identity"]])
+                          (jdbc/create-table-ddl :decimal_identity
+                                                 [[:decimal_identity "decimal identity"]])])))
 
 (defn test-db-fixture [f]
   (with-out-and-err-to-dev-null
@@ -375,6 +391,39 @@
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_rowversions" "metadata" "properties"
                   "rowversion" "selected-by-default"]))))
+
+(deftest ^:integration verify-all-identity-types-are-supported
+  ;; "integer" types
+  (is (= {"type" ["integer" "null"]
+          "minimum" -9223372036854775808
+          "maximum" 9223372036854775807}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_bigint_identity" "schema" "properties" "bigint_identity"])))
+  (is (= {"type" ["integer" "null"]
+          "minimum" -2147483648
+          "maximum" 2147483647}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_int_identity" "schema" "properties" "int_identity"])))
+  (is (= {"type" ["integer" "null"]
+          "minimum" -32768
+          "maximum" 32767}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_smallint_identity" "schema" "properties" "smallint_identity"])))
+  (is (= {"type" ["integer" "null"]
+          "minimum" 0
+          "maximum" 255}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_tinyint_identity" "schema" "properties" "tinyint_identity"])))
+  ;; "numeric" types
+  (is (= {"type" ["number" "null"]}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_numeric_identity" "schema" "properties" "numeric_identity"])))
+  (is (= {"type" ["number" "null"]}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_numeric_3_0_identity" "schema" "properties" "numeric_3_0_identity"])))
+  (is (= {"type" ["number" "null"]}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_decimal_identity" "schema" "properties" "decimal_identity"]))))
 
 (comment
   (map select-keys
