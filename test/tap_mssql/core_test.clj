@@ -107,6 +107,17 @@
 (deftest verify-extra-arguments-does-not-throw
   (is (parse-opts ["--properties" "foo"])))
 
+(deftest type-name->type-name-lookup
+  ;; Won't change an arbitrary type
+  (is (= "mytype" (catalog/type-name->type-name-lookup "mytype")))
+  ;; Handles in identity fields
+  (is (= "int" (catalog/type-name->type-name-lookup "int identity")))
+  ;; Handles numeric identity fields
+  (is (= "numeric" (catalog/type-name->type-name-lookup "numeric() identity")))
+  ;; Replaces only at end of string
+  (is (= "myidentity()type" (catalog/type-name->type-name-lookup "myidentity()type")))
+)
+
 (comment
   ;; Run all loaded tests
   (do

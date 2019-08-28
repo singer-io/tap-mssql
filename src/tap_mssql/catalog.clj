@@ -101,11 +101,24 @@
           (assoc "exclusiveMaximum" true))
       column-schema)))
 
+(defn type-name->type-name-lookup
+  [type_name]
+  (let [clean-identity (fn [t]
+                           (if (string/ends-with? t "identity")
+                             (string/trim (string/replace t #"identity$" ""))
+                             t))
+        ;; Numeric Identity columns come back as "<type_name>() identity"
+        clean-ending-parens (fn [t]
+                                (if (string/ends-with? t "()")
+                                  (string/trim (string/replace t #"\(\)$" ""))
+                                  t))]
+    (-> type_name
+        clean-identity
+        clean-ending-parens)))
+
 (defn column->schema
   [{:keys [type_name] :as column}]
-  (let [type-name-lookup (if (string/ends-with? type_name "identity")
-                           (string/trim (string/replace type_name #"identity" ""))
-                           type_name)
+  (let [type-name-lookup (type-name->type-name-lookup type_name)
         column-schema ({"int"              {"type"    ["integer"]
                                             "minimum" -2147483648
                                             "maximum" 2147483647}
