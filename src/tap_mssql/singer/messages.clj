@@ -24,6 +24,8 @@
 
 ;; Passed to the json serializer as value-converter fn
 ;; Needed to convert java.sql.Date types to json strings
+;; Both java.sql.Timestamp and microsoft.sql.DateTimeOffset were observed
+;; having funny behavior approaching year 0000.
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
     #{java.sql.Timestamp}
@@ -31,6 +33,9 @@
 
     #{java.sql.Time java.sql.Date}
     (.toString v)
+
+    #{microsoft.sql.DateTimeOffset}
+    (.. v getTimestamp toInstant toString)
 
     v))
 

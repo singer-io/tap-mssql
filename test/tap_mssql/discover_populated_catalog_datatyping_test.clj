@@ -108,7 +108,10 @@
                                                  ;; https://docs.microsoft.com/en-us/sql/t-sql/data-types/data-types-transact-sql?view=sql-server-2017#date-and-time
                                                  [[:date "date"]
                                                   [:time "time"]
-                                                  [:datetime "datetime"]])
+                                                  [:datetime "datetime"]
+                                                  [:datetime2 "datetime2"]
+                                                  [:datetimeoffset "datetimeoffset"]
+                                                  [:smalldatetime "smalldatetime"]])
                           (jdbc/create-table-ddl :uniqueidentifiers
                                                  [[:uniqueidentifier "uniqueidentifier"]])
                           (jdbc/create-table-ddl :timestamps
@@ -156,7 +159,19 @@
   (is (= {"type" ["string" "null"]
           "format" "date-time"}
          (get-in (catalog/discover test-db-config)
-                 ["streams" "datatyping_dbo_date_and_time" "schema" "properties" "datetime"]))))
+                 ["streams" "datatyping_dbo_date_and_time" "schema" "properties" "datetime"])))
+  (is (= {"type" ["string" "null"]
+          "format" "date-time"}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_date_and_time" "schema" "properties" "datetime2"])))
+  (is (= {"type" ["string" "null"]
+          "format" "date-time"}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_date_and_time" "schema" "properties" "datetimeoffset"])))
+  (is (= {"type" ["string" "null"]
+          "format" "date-time"}
+         (get-in (catalog/discover test-db-config)
+                 ["streams" "datatyping_dbo_date_and_time" "schema" "properties" "smalldatetime"]))))
 
 (deftest ^:integration verify-approximate-numerics
   (is (= {"type" ["number" "null"]}
