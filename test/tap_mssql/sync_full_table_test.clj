@@ -1,4 +1,5 @@
 (ns tap-mssql.sync-full-table-test
+  (:import  [microsoft.sql.DateTimeOffset])
   (:require [tap-mssql.catalog :as catalog]
             [tap-mssql.config :as config]
             [clojure.test :refer [is deftest]]
@@ -39,7 +40,16 @@
                          [(jdbc/create-table-ddl
                            "data_table_2"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]])])))
+                            [:value "int"]])])
+
+   (jdbc/db-do-commands (assoc db-spec :dbname "full_table_sync_test")
+                         [(jdbc/create-table-ddl
+                           "data_table_3"
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                            [:value "int"]
+                            [:date1 "datetimeoffset"]
+                            [:date2 "datetime2"]
+                            [:date3 "smalldatetime"]])])))
 
 (defn populate-data
   [config]
@@ -50,7 +60,17 @@
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_sync_test"))
                       "data_table_2"
-                      (take 100 (map (partial hash-map :value) (range)))))
+                      (take 100 (map (partial hash-map :value) (range))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "full_table_sync_test"))
+                      "data_table_3"
+                      (take 100
+                            (map #(hash-map :value %
+                                            :date1 (microsoft.sql.DateTimeOffset/valueOf (java.sql.Timestamp. (- (System/currentTimeMillis) (* % 10000))) 0)
+                                            :date2 (java.sql.Timestamp. (-  (System/currentTimeMillis) (* % 10000)))
+                                            :date3 (java.sql.Timestamp. (-  (System/currentTimeMillis) (* % 10000))))
+                                 (range)))))
+
 
 (defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
@@ -233,3 +253,49 @@
                 "type"))
         "Second to last message on full table sync should be Activate Version"))
   )
+
+
+
+
+(deftest ^:integration verify-full-table-sync-with-datetimes
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          all-messages  (-> (catalog/discover test-db-config)
+                            (select-stream "full_table_sync_test_dbo_data_table_3")
+                            (get-messages-from-output test-db-config "full_table_sync_test_dbo_data_table_3"))
+          first-message (-> all-messages
+                            first)]
+      ;; REFERENCE: Current expected order of one table
+      ;;     SCHEMA, ACTIVATE_VERSION, STATE, 1k x RECORD, ACTIVATE_VERSION, STATE
+
+      ;; This also verifies selected-by-default
+      ;; do-sync prints a bunch of stuff and returns nil
+      (is (valid-state? (do-sync test-db-config (catalog/discover test-db-config) {})))
+      ;; Emits schema message
+      (is (= "full_table_sync_test_dbo_data_table_3"
+             (first-message "stream")))
+      (is (= ["id"]
+             (first-message "key_properties")))
+      (is (= {"type"    ["string"]
+              "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
+             (get-in first-message ["schema" "properties" "id"])))
+      (is (not (contains? (first-message "schema") "metadata")))
+      ;; Emits the records expected
+      (is (= 100
+             (->> all-messages
+                  (filter #(= "RECORD" (% "type")))
+                  count)))
+      (is (every? (fn [rec]
+                    (= "full_table_sync_test_dbo_data_table_3" (rec "stream")))
+                  all-messages))
+      ;; At the moment we're not ordering by anything so checking the actual
+      ;; value here would be brittle, I think.
+      (is (every? #(get-in % ["record" "value"])
+                  (->> all-messages
+                      (filter #(= "RECORD" (% "type"))))))
+      (is (= "STATE"
+             (-> all-messages
+                 last
+                 (get "type")))
+          "Last message in a complete sync must be state"))))
