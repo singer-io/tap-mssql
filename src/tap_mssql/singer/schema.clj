@@ -10,7 +10,7 @@
 
 (defn maybe-add-deleted-at-to-schema [schema-message catalog stream-name]
   (if (= "LOG_BASED"(get-in catalog ["streams" stream-name "metadata" "replication-method"]))
-    (assoc-in schema-message ["schema" "properties" "_sdc_deleted_at"] {"type" "string"
+    (assoc-in schema-message ["schema" "properties" "_sdc_deleted_at"] {"type" ["string" "null"]
                                                                         "format" "date-time"})
     schema-message))
 
