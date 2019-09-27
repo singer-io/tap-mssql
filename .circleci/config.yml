@@ -53,3 +53,13 @@ workflows:
       - tap_tester:
           requires:
             - build
+  build_daily:
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - build
