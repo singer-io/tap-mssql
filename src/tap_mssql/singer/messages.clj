@@ -58,7 +58,9 @@
   ;; TODO: Make sure that unsupported values are written with an empty schema
   (-> {"type" "SCHEMA"
        "stream" (calculate-destination-stream-name stream-name catalog)
-       "key_properties" (get-in catalog ["streams" stream-name "metadata" "table-key-properties"])
+       "key_properties" (if (get-in catalog ["streams" stream-name "metadata" "is-view"])
+                          (get-in catalog ["streams" stream-name "metadata" "view-key-properties"] [])
+                          (get-in catalog ["streams" stream-name "metadata" "table-key-properties"]))
        "schema" (get-in catalog ["streams" stream-name "schema"])}
       (singer-schema/maybe-add-bookmark-properties-to-schema catalog stream-name)
       (singer-schema/maybe-add-deleted-at-to-schema catalog stream-name)
