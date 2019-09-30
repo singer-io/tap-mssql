@@ -135,6 +135,8 @@
             "No selected keys found, you must have a primary key and/or select columns to replicate.")
     (assert (not (nil? current-log-version))
             "Invalid log-based state, need a value for `current-log-version`.")
+    (assert (not (empty? primary-keys))
+            "No primary key(s) found, must have a primary key to replicate")
     (let [select-clause (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
                              (when (not-empty primary-keys)
                                (str ", " (string/join ", "
