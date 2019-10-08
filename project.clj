@@ -20,7 +20,11 @@
                                               com.sun.jmx/jmxri]]
                  ;; repl
                  [org.clojure/tools.nrepl "0.2.13"]
-                 [cider/cider-nrepl "0.17.0"]]
+                 [cider/cider-nrepl "0.17.0"]
+
+                 ;; test
+                 [org.clojure/data.generators "0.1.2"]
+                 ]
   :plugins [[lein-pprint "1.2.0"]]
   :main tap-mssql.core
   :profiles {:uberjar {:aot [tap-mssql.core]}
