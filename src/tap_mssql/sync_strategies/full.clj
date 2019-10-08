@@ -11,12 +11,12 @@
             [clojure.java.jdbc :as jdbc]))
 
 (defn get-max-pk-values [config catalog stream-name state]
-  (let [dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        schema-name (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+  (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         bookmark-keys (map common/sanitize-names (singer-bookmarks/get-bookmark-keys catalog stream-name))
-        table-name (-> (get-in catalog ["streams" stream-name "table_name"])
-                       (common/sanitize-names))
-        sql-query [(format "SELECT %s FROM %s.%s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) schema-name table-name)]]
+        table-name    (-> (get-in catalog ["streams" stream-name "table_name"])
+                          (common/sanitize-names))
+        sql-query     [(format "SELECT %s FROM %s.%s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) schema-name table-name)]]
     (if (not (empty? bookmark-keys))
       (do
         (log/infof "Executing query: %s" (pr-str sql-query))
@@ -35,14 +35,32 @@
   [record]
   (into {} (remove (comp nil? second) record)))
 
+(defn- generate-bookmark-clause-inner
+  [pks]
+  (let [where-eq-clause (mapv
+                         (fn [pk]
+                           (str (common/sanitize-names pk) " = ?"))
+                         (butlast pks))
+        where-gt-clause (str (common/sanitize-names (last pks)) " > ?")
+        where-clause    (conj where-eq-clause where-gt-clause)]
+    (str "(" (string/join " AND " where-clause) ")")))
+
+(defn- build-sub-lists
+  [list]
+  (rest (reductions conj [] list))) ;; Given (0 1 2 3) returns ((0) (0 1) (0 1 2) (0 1 2 3)))
+
+(defn generate-bookmark-clause
+  [last-pk-fetched]
+  (let [pk-lists    (build-sub-lists (keys last-pk-fetched))
+        clause-list (map generate-bookmark-clause-inner pk-lists)]
+    (string/join " OR " clause-list)))
+
 (defn build-sync-query [stream-name schema-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
   (let [last-pk-fetched           (get-in state ["bookmarks" stream-name "last_pk_fetched"])
-        bookmark-query-text       (map (fn [col] (->> (common/sanitize-names col)
-                                                      (format "%s >= ?")))
-                                       (keys last-pk-fetched))
+        bookmark-query-text       (generate-bookmark-clause last-pk-fetched)
         max-pk-values             (get-in state ["bookmarks" stream-name "max_pk_values"])
         limiting-keys             (map common/sanitize-names (keys max-pk-values))
         limiting-keys-with-values (->> max-pk-values
@@ -54,9 +72,10 @@
         add-where-clause?         (or (not (empty?  bookmark-query-text))
                                       (not (empty? limiting-query-text)))
         where-clause              (when add-where-clause?
-                                    (str " WHERE " (string/join " AND "
-                                                                (concat bookmark-query-text
-                                                                        limiting-query-text))))
+                                    (str " WHERE "
+                                         (when-not (string/blank? bookmark-query-text)
+                                           (str "(" bookmark-query-text ") AND "))
+                                         (string/join " AND " limiting-query-text)))
         order-by                  (when (not (empty? limiting-keys))
                                     (str " ORDER BY " (string/join ", "
                                                                    (map #(format "%s" %)
@@ -69,11 +88,7 @@
                                         order-by)]]
     (if add-where-clause?
       (concat sql-params
-              (vals last-pk-fetched)
-              ;; TODO: String PKs? They may need quoted, they may also
-              ;; need N'' for nvarchar/nchar/ntext, etc., conditionally
-              ;; :facepalm:
-              ;; Likely an edge case, but might be pretty rough.
+              (flatten (build-sub-lists (vals last-pk-fetched)))
               (vals max-pk-values))
       sql-params)))
 

@@ -70,17 +70,7 @@
   (is (thrown? AssertionError
                (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
                                       {"bookmarks" {"craftsmanship_dbo_mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
-  ;; Bookmark and PK = Resuming Full Table Sync
-  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] >= ? AND [leaf] >= ? AND [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
-           2
-           "balsa"
-           4
-           "birch")
-         (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
-                                {"bookmarks"
-                                 {"craftsmanship_dbo_mahogany"
-                                  {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}
-                                   "max_pk_values" {"legs" 4 "leaf" "birch"}}}})))
+
   ;; Max-pk-value is _actually_ null (e.g., empty table)
   (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] ORDER BY [legs]")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
@@ -217,3 +207,62 @@
            (with-out-and-err-to-dev-null
              (singer-messages/maybe-write-activate-version! "jet_stream" "LOG_BASED" catalog {"bookmarks" {"jet_stream" {"version" 1560363676948}}})))
         "Keep the version in the state and syncing incrementally or log based")))
+
+(deftest verify-full-table-interruptible-bookmark-clause
+  (let [stream-name "schema_name_table_name"
+        schema-name "schema_name"
+        table-name "table_name"
+        record-keys ["id" "number" "datetime" "value"]]
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?) OR ([id] = ? AND [number] = ? AND [datetime] > ?)) AND [id] <= ? AND [number] <= ? AND [datetime] <= ? ORDER BY [id], [number], [datetime]"
+             1 1
+             1 1 1 "2000-01-01T00:00:00.000Z"
+             999999
+             999999 "2018-10-08T00:00:00.000Z")
+           (full/build-sync-query stream-name schema-name table-name record-keys
+                                  {"bookmarks"
+                                   {"schema_name_table_name"
+                                    {"version" 1570539559650
+                                     "max_pk_values" {"id" 999999
+                                                      "number" 999999
+                                                      "datetime" "2018-10-08T00:00:00.000Z"}
+                                     "last_pk_fetched" {"id" 1
+                                                        "number" 1
+                                                        "datetime" "2000-01-01T00:00:00.000Z"}
+                                     }}})))
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?)) AND [id] <= ? AND [number] <= ? ORDER BY [id], [number]"
+             1 1 1  999999 999999)
+           (full/build-sync-query stream-name
+                                  schema-name
+                                  table-name
+                                  record-keys
+                                  {"bookmarks"
+                                   {"schema_name_table_name"
+                                    {"version" 1570539559650
+                                     "max_pk_values" {"id" 999999
+                                                      "number" 999999}
+                                     "last_pk_fetched" {"id" 1 "number" 1}
+                                     }}})))
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?)) AND [id] <= ? ORDER BY [id]"
+             1 999999)
+           (full/build-sync-query stream-name
+                                  schema-name
+                                  table-name
+                                  record-keys
+                                  {"bookmarks"
+                                   {"schema_name_table_name"
+                                    {"version" 1570539559650
+                                     "max_pk_values" {"id" 999999}
+                                     "last_pk_fetched" {"id" 1}
+                                     }}})))
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name]")
+           (full/build-sync-query stream-name
+                                  schema-name
+                                  table-name
+                                  record-keys
+                                  {"bookmarks"
+                                   {"schema_name_table_name"
+                                    {"version" 1570539559650
+                                     "max_pk_values" {}
+                                     "last_pk_fetched" {}
+                                     }}})))
+    ))
