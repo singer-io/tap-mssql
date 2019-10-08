@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.3
+  * Fix the sql query generation for full table interruptible syncs with composite pks [#53](https://github.com/stitchdata/tap-mssql/pull/53)
+
 ## 1.2.2
   * Fix a bug with a View's key_properties being improperly set [#51](https://github.com/stitchdata/tap-mssql/pull/51)
   * Add an assertion to ensure log-based replication has the primary keys needed to replicate [#50](https://github.com/stitchdata/tap-mssql/pull/50)
