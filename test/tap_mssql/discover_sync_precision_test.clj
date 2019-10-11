@@ -39,7 +39,11 @@
                           (jdbc/create-table-ddl :float_precisions
                                                  [[:pk "int"]
                                                   [:float_53 "float(53)"]
-                                                  [:float_24 "float(24)"]])])))
+                                                  [:float_24 "float(24)"]])
+                          (jdbc/create-table-ddl :money_precisions
+                                                 [[:pk "int"]
+                                                  [:smallmoney "smallmoney"]
+                                                  [:money "money"]])])))
 
 (def test-data-numerics [[0
                           (bigdec "-999999.999")
@@ -124,6 +128,44 @@
                         (bigdec "9.99999993922529E-09")
                         (bigdec "1.3E-37")]])
 
+(def test-data-money [[0
+                          (bigdec "-99999.999")
+                          (bigdec "-99999999999.9999")]
+                         [1 0 0]
+                         [2 1 1]
+                         [3
+                          (bigdec "99999.999")
+                          (bigdec "99999999999.999")]
+                         [4
+                          (bigdec "-5.667")
+                          (bigdec "99847407548.3606")]
+                         [5
+                          (bigdec "-64772.214")
+                          (bigdec "-74662665258.7147")]
+                         [6
+                          (bigdec "-90788.888")
+                          (bigdec "-16158665537.5279")]
+                         [7
+                          (bigdec "213119.425")
+                          (bigdec "-18936997313.8287")]
+                         [8
+                          (bigdec "-99982.499")
+                          (bigdec "-16958207592.7825")]
+                         [9
+                          (bigdec "-59083.613")
+                          (bigdec "-25617164075.0535")]
+                         [10
+                          (bigdec "64660.203")
+                          (bigdec "66112072142.9833")]
+                         [11
+                          (bigdec "41845.542")
+                          (bigdec "-26909145239.0395")]
+                         [12
+                          (bigdec "60161.613")
+                          (bigdec "77104913216.3042")]
+                         [13
+                          (bigdec "-57647.884")
+                          (bigdec "39898978520.2708")]])
 
 (defn populate-data
   [config]
@@ -132,11 +174,16 @@
                       "numeric_precisions"
                       (->> test-data-numerics
                            (map (partial zipmap[:pk :numeric_9_3 :numeric_19_8 :numeric_28_1 :numeric_38_22]))))
-    (jdbc/insert-multi! (-> (config/->conn-map config)
+  (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "precision"))
                       "float_precisions"
                       (->> test-data-floats
-                           (map (partial zipmap[:pk :float_53 :float_24])))))
+                           (map (partial zipmap[:pk :float_53 :float_24]))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "precision"))
+                      "money_precisions"
+                      (->> test-data-money
+                           (map (partial zipmap[:pk :smallmoney :money])))))
 
 (comment
   ;; To reach into core.clj and define a new config
@@ -219,6 +266,20 @@
                 (filter #(= "RECORD" (% "type")))
                 (map #(get % "record"))
                 (map #(% "float_24")))))))
+
+;; Money
+(deftest precision-should-be-maintained-in-written-records-from-json
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (doseq [rec (->> (catalog/discover test-db-config)
+                     (select-stream "precision_dbo_money_precisions")
+                     (run-sync test-db-config {})
+                     write-and-read
+                     (filter #(= "RECORD" (% "type")))
+                     (map #(get % "record")))]
+      (is (= (type (rec "smallmoney")) java.math.BigDecimal))
+      (is (= (type (rec "money")) java.math.BigDecimal))
+      (is (= (bigdec 0.0) (rem (rec "smallmoney") (bigdec 0.0001))))
+      (is (= (bigdec 0.0) (rem (rec "money") (bigdec 0.0001)))))))
 
 ;; Single/Float
 ;; TODO: Harrison had this case come up in testing.

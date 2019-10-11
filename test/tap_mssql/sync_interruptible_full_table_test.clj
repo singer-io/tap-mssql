@@ -53,7 +53,7 @@
                          [(jdbc/create-table-ddl
                            "table_with_unsupported_column"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "smallmoney"]])])
+                            [:value "xml"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
                            "table_with_composite_pks"
@@ -80,7 +80,7 @@
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_unsupported_column"
-                      (take 200 (map #(hash-map :value (+ % 0.05)) (range))))
+                      (take 200 (map #(hash-map :value (str "<xmlbody>" % "</xmlbody>")) (range))))
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_composite_pks"
