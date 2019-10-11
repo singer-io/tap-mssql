@@ -129,43 +129,43 @@
                         (bigdec "1.3E-37")]])
 
 (def test-data-money [[0
-                          (bigdec "-99999.999")
-                          (bigdec "-99999999999.9999")]
-                         [1 0 0]
-                         [2 1 1]
-                         [3
-                          (bigdec "99999.999")
-                          (bigdec "99999999999.999")]
-                         [4
-                          (bigdec "-5.667")
-                          (bigdec "99847407548.3606")]
-                         [5
-                          (bigdec "-64772.214")
-                          (bigdec "-74662665258.7147")]
-                         [6
-                          (bigdec "-90788.888")
-                          (bigdec "-16158665537.5279")]
-                         [7
-                          (bigdec "213119.425")
-                          (bigdec "-18936997313.8287")]
-                         [8
-                          (bigdec "-99982.499")
-                          (bigdec "-16958207592.7825")]
-                         [9
-                          (bigdec "-59083.613")
-                          (bigdec "-25617164075.0535")]
-                         [10
-                          (bigdec "64660.203")
-                          (bigdec "66112072142.9833")]
-                         [11
-                          (bigdec "41845.542")
-                          (bigdec "-26909145239.0395")]
-                         [12
-                          (bigdec "60161.613")
-                          (bigdec "77104913216.3042")]
-                         [13
-                          (bigdec "-57647.884")
-                          (bigdec "39898978520.2708")]])
+                       (bigdec "-99999.999")
+                       (bigdec "-99999999999.9999")]
+                      [1 (bigdec 0) (bigdec 0)]
+                      [2 (bigdec 1) (bigdec 1)]
+                      [3
+                       (bigdec "99999.999")
+                       (bigdec "99999999999.999")]
+                      [4
+                       (bigdec "-5.667")
+                       (bigdec "99847407548.3606")]
+                      [5
+                       (bigdec "-64772.214")
+                       (bigdec "-74662665258.7147")]
+                      [6
+                       (bigdec "-90788.888")
+                       (bigdec "-16158665537.5279")]
+                      [7
+                       (bigdec "213119.425")
+                       (bigdec "-18936997313.8287")]
+                      [8
+                       (bigdec "-99982.499")
+                       (bigdec "-16958207592.7825")]
+                      [9
+                       (bigdec "-59083.613")
+                       (bigdec "-25617164075.0535")]
+                      [10
+                       (bigdec "64660.203")
+                       (bigdec "66112072142.9833")]
+                      [11
+                       (bigdec "41845.542")
+                       (bigdec "-26909145239.0395")]
+                      [12
+                       (bigdec "60161.613")
+                       (bigdec "77104913216.3042")]
+                      [13
+                       (bigdec "-57647.884")
+                       (bigdec "39898978520.2708")]])
 
 (defn populate-data
   [config]
@@ -276,8 +276,11 @@
                      write-and-read
                      (filter #(= "RECORD" (% "type")))
                      (map #(get % "record")))]
-      (is (= (type (rec "smallmoney")) java.math.BigDecimal))
-      (is (= (type (rec "money")) java.math.BigDecimal))
+      (def record-test rec)
+      (is (= (rec "smallmoney")
+             (nth (nth test-data-money (rec "pk")) 1)))
+      (is (= (rec "money")
+             (nth (nth test-data-money (rec "pk")) 2)))
       (is (= (bigdec 0.0) (rem (rec "smallmoney") (bigdec 0.0001))))
       (is (= (bigdec 0.0) (rem (rec "money") (bigdec 0.0001)))))))
 
