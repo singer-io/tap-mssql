@@ -1,6 +1,6 @@
 # tap-mssql
 
-[![CircleCI Build Status](https://circleci.com/gh/stitchdata/tap-mssql.png)](https://circleci.com/gh/stitchdata/tap-mssql)
+[![CircleCI](https://circleci.com/gh/singer-io/tap-mssql.svg?style=svg)](https://circleci.com/gh/singer-io/tap-mssql)
 
 [Singer](https://www.singer.io/) tap that extracts data from a [Microsoft SQL Server (MSSQL)](https://www.microsoft.com/en-us/sql-server/default.aspx) database and produces JSON-formatted data following the [Singer spec](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md).
 
