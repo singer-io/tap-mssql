@@ -127,3 +127,7 @@ ClientConnectionId:4c47c255-a330-4bc9-94bd-039c592a8a31
 Cannot open database "foo" requested by the login. The login
 failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
 ```
+
+---
+
+Copyright &copy; 2019 Stitch
