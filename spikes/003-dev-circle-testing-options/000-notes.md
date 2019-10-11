@@ -57,7 +57,7 @@ From
 It looks to be impossible to set up CDC on an express edition DB.
 
 ```
-vagrant@taps-tvisher1:~$ mssql-cli -U spike_tap_mssql -P spike_tap_mssql -S spike-tap-mssql.***REMOVED***.us-east-1.rds.amazonaws.com
+vagrant@taps-tvisher1:~$ mssql-cli -U spike_tap_mssql -P spike_tap_mssql -S spike-tap-mssql.cqaqbfvfo67k.us-east-1.rds.amazonaws.com
 Version: 0.15.0
 Mail: sqlcli@microsoft.com
 Home: http://github.com/dbcli/mssql-cli
@@ -108,7 +108,7 @@ Presumably this indicates successfully enabling CDC in RDS (against a
 'Standard Edition' database).
 
 ```
-vagrant@taps-tvisher1:~$ mssql-cli -U spike_tap_mssql -P spike_tap_mssql -S spike-tap-mssql-2.***REMOVED***.us-east-1.rds.amazonaws.com
+vagrant@taps-tvisher1:~$ mssql-cli -U spike_tap_mssql -P spike_tap_mssql -S spike-tap-mssql-2.cqaqbfvfo67k.us-east-1.rds.amazonaws.com
 Version: 0.15.0
 Mail: sqlcli@microsoft.com
 Home: http://github.com/dbcli/mssql-cli

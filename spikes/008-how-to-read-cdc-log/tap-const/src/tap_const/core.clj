@@ -5,7 +5,7 @@
 
 (def db-spec {:dbtype "sqlserver"
               :dbname "spike_tap_mssql"
-              :host "taps-tvisher1-test-mssql.***REMOVED***.us-east-1.rds.amazonaws.com"
+              :host "taps-tvisher1-test-mssql.cqaqbfvfo67k.us-east-1.rds.amazonaws.com"
               :user "spike_mssql"
               :password "spike_mssql"})
 
