@@ -1,31 +1,73 @@
 # tap-mssql
 
-## Observed error messages:
+[![CircleCI Build Status](https://circleci.com/gh/stitchdata/tap-mssql.png)](https://circleci.com/gh/stitchdata/tap-mssql)
+
+[Singer](https://www.singer.io/) tap that extracts data from a [Microsoft SQL Server (MSSQL)](https://www.microsoft.com/en-us/sql-server/default.aspx) database and produces JSON-formatted data following the [Singer spec](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md).
+
+## Requirements
+
+This tap is written in Clojure, and as such, requires the JVM. It has been consistently tested to run using `OpenJDK 8`, which can be installed on Ubuntu using these commands.
 
 ```
-# Bad Host Message
+apt-get update && apt-get install -y openjdk-8-jdk
+```
 
-The TCP/IP connection to the host charnock.org, port 51552 has failed.
-Error: "connect timed out. Verify the connection properties. Make sure
-that an instance of SQL Server is running on the host and accepting
-TCP/IP connections at the port. Make sure that TCP connections to the
-port are not blocked by a firewall.".
+Associated tooling required to use the scripts in this repository follow. (Running the latest versions)
 
-# Unspecified azure server error message
+- [**Leiningen**](https://leiningen.org/)
+- [**Docker (for integration tests)**](https://www.docker.com/)
+- [**MSSQL CLI (to connect to test database)**](https://docs.microsoft.com/en-us/sql/tools/mssql-cli?view=sql-server-2017)
 
-Cannot open server "127.0.0.1" requested by the login. The login
-failed. ClientConnectionId:33b6ae38-254a-483b-ba24-04d69828fe0c
+## Quick Start
 
+```
+$ bin/tap-mssql --config config.json --discover > catalog.json
+$ bin/tap-mssql --config config.json --catalog catalog.json --state state.json | target...
+```
 
-# Bad dbname error message
+## Usage
 
-Login failed for user 'foo'.
-ClientConnectionId:4c47c255-a330-4bc9-94bd-039c592a8a31
+In the `bin` folder, there are a few utility scripts to simplify interacting with this tap. Many of these scripts rely on some environment variables being set, see "Testing Infrastructure Design" for more information.
 
-# Database does not exist
+**bin/tap-mssql** - This script wraps the `lein` command to run the tap from source code. It is analogous to the command installed by setuptools in Python taps.
 
-Cannot open database "foo" requested by the login. The login
-failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
+As this is a Clojure tap, it supports a non-standard mode of operation by passing the `--repl` flag. This will start an NREPL server and log the port that it is running on to connect from an IDE for REPL driven development. It is compatible with all other command-line arguments, or can be used on its own. If the tap is invoked in discovery or sync mode along with `--repl`, the process will be kept alive after the usual Singer process is completed.
+
+```
+Example:
+# Discovery
+$ bin/tap-mssql --config config.json --discover > catalog.json
+
+# Sync
+$ bin/tap-mssql --config config.json --catalog catalog.json --state state.json
+
+# REPL Mode
+$ bin/tap-mssql --config config.json --repl
+```
+
+**bin/test** - This script wraps `lein test` in order to run the Clojure unit and integration tests against a database running locally.
+
+```
+Example:
+$ bin/test
+```
+
+**bin/test-db** - This script uses docker to run a SQL Server container locally that can be used to run the unit tests against. See the usage text for more information.
+
+Note: It also depends on the `mssql-cli` tool being installed in order to use the `connect` option.
+
+```
+Example:
+$ bin/test-db start
+$ bin/test-db connect
+$ bin/test-db stop
+```
+
+**bin/circleci-local** - This script wraps the [`circleci` CLI tool](https://circleci.com/docs/2.0/local-cli/) to run the Clojure unit and integration tests in the way CircleCI does, on localhost.
+
+```
+Example:
+$ bin/circleci-local
 ```
 
 ## Testing Infrastructure Design
@@ -57,3 +99,31 @@ To interact with the container, these commands are available:
 
 **Note:** There is no volume binding, so all of the data and state in the
   running container is entirely ephemeral
+
+## Observed error messages:
+
+```
+# Bad Host Message
+
+The TCP/IP connection to the host charnock.org, port 51552 has failed.
+Error: "connect timed out. Verify the connection properties. Make sure
+that an instance of SQL Server is running on the host and accepting
+TCP/IP connections at the port. Make sure that TCP connections to the
+port are not blocked by a firewall.".
+
+# Unspecified azure server error message
+
+Cannot open server "127.0.0.1" requested by the login. The login
+failed. ClientConnectionId:33b6ae38-254a-483b-ba24-04d69828fe0c
+
+
+# Bad dbname error message
+
+Login failed for user 'foo'.
+ClientConnectionId:4c47c255-a330-4bc9-94bd-039c592a8a31
+
+# Database does not exist
+
+Cannot open database "foo" requested by the login. The login
+failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
+```
