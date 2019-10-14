@@ -135,6 +135,14 @@
                            "real"             {"type" ["number"]}
                            "bit"              {"type" ["boolean"]}
                            "decimal"          {"type" ["number"]}
+                           "money"            {"type" ["number"]
+                                               "minimum" -922337203685477.5808
+                                               "maximum" 922337203685477.5807
+                                               "multipleOf" 0.0001}
+                           "smallmoney"       {"type" ["number"]
+                                               "minimum" -214748.3648
+                                               "maximum" 214748.3647
+                                               "multipleOf" 0.0001}
                            "numeric"          {"type" ["number"]}
                            "date"             {"type"   ["string"]
                                                "format" "date-time"}

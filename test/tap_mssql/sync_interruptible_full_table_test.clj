@@ -53,7 +53,7 @@
                          [(jdbc/create-table-ddl
                            "table_with_unsupported_column"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "smallmoney"]])])
+                            [:value "xml"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
                            "table_with_composite_pks"
@@ -80,7 +80,7 @@
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_unsupported_column"
-                      (take 200 (map #(hash-map :value (+ % 0.05)) (range))))
+                      (take 200 (map #(hash-map :value (str "<xmlbody>" % "</xmlbody>")) (range))))
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
                       "table_with_composite_pks"
@@ -151,9 +151,24 @@
     (is (thrown-with-msg? java.lang.Exception
                           #"has unsupported primary key"
                           (->> test-db-config
-                              (catalog/discover)
-                              (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
-                              (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"))))))
+                               (catalog/discover)
+                               ((fn [catalog] ;; Fake the pk being unsupported
+                                  (-> catalog (assoc-in ["streams"
+                                                         "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
+                                                         "metadata"
+                                                         "properties"
+                                                         "id"
+                                                         "inclusion"]
+                                                        "unsupported")
+                                      (assoc-in  ["streams"
+                                                  "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
+                                                  "metadata"
+                                                  "properties"
+                                                  "id"
+                                                  "selected-by-default"]
+                                                 false))))
+                               (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
+                               (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"))))))
 
 (deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
