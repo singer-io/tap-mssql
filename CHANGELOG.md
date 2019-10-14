@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.0
+  * Add support for money and smallmoney columns [#1](https://github.com/singer-io/tap-mssql/pull/1)
+
 ## 1.2.3
   * Fix the sql query generation for full table interruptible syncs with composite pks [#53](https://github.com/stitchdata/tap-mssql/pull/53)
 
