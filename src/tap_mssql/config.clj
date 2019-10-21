@@ -13,7 +13,7 @@
   (let [conn-map {:dbtype "sqlserver"
                   :dbname (config "database" "")
                   :host (config "host")
-                  :port (config "port")
+                  :port (or (config "port") 0) ;; port is optional - if omitted it is set to 0 for a dynamic port
                   :password (config "password")
                   :user (config "user")}
         conn-map (if (= "true" (config "ssl"))
