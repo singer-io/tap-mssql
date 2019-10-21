@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.1
+  * Fix discovery query to correctly type `sys.partitions.rows` as `bigint` [#5](https://github.com/singer-io/tap-mssql/pull/5)
+
 ## 1.3.0
   * Add support for money and smallmoney columns [#1](https://github.com/singer-io/tap-mssql/pull/1)
 
