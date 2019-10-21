@@ -284,7 +284,7 @@
 
 (defn get-approximate-row-count
   [conn-map]
-  (let [sql-query (str  "SELECT tbl.name as table_name, SCHEMA_NAME(tbl.schema_id) as schema_name, CAST(p.rows AS int) as row_count "
+  (let [sql-query (str  "SELECT tbl.name as table_name, SCHEMA_NAME(tbl.schema_id) as schema_name, CAST(p.rows AS bigint) as row_count "
                     "FROM sys.tables AS tbl "
                     "INNER JOIN sys.indexes AS idx ON idx.object_id = tbl.object_id and idx.index_id < 2 "
                     "INNER JOIN sys.partitions AS p ON p.object_id=CAST(tbl.object_id AS int) "
