@@ -18,7 +18,7 @@ def start_container(name):
     proc = subprocess.run(START_COMMAND, shell=True)
     if proc.returncode != 0:
         sys.exit("Exited with code: {}, the docker process failed to start.".format(proc.returncode))
-    print("Process started successfully, connect on localhost port 1433")
+    print("Process started successfully, connect on localhost port {}".format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433)))
 
 def stop_container(name):
     STOP_COMMAND = "sudo docker stop {0} && sudo docker rm {0}"
