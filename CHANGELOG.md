@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.0
+  * Add support for connecting to Named Instances by omitting port and adding the instance name in the host field [#4](https://github.com/singer-io/tap-mssql/pull/4)
+
 ## 1.3.1
   * Fix discovery query to correctly type `sys.partitions.rows` as `bigint` [#5](https://github.com/singer-io/tap-mssql/pull/5)
 
