@@ -344,28 +344,24 @@
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "varchar_max"]))))
 
 (deftest ^:integration verify-binary-strings
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  ;; NB: Because we convert binary strings to hex, max_length is not accurate from the DB
+  ;; - Thus, it should not be included in the schemas
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "binary"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "binary_one"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 10}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "binary_10"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "varbinary"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "varbinary_one"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 2147483647}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_binary_strings" "schema" "properties" "varbinary_max"]))))
 
