@@ -163,10 +163,8 @@
                                                "maxLength" (:column_size column)}
                            "nvarchar"         {"type"      ["string"]
                                                "maxLength" (:column_size column)}
-                           "binary"           {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "varbinary"        {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
+                           "binary"           {"type"      ["string"]}
+                           "varbinary"        {"type"      ["string"]}
                            "uniqueidentifier" {"type"    ["string"]
                                                ;; a string constant in the form
                                                ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
