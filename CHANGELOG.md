@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.1
+  * Removed max length from binary-type JSON schemas [#8](https://github.com/singer-io/tap-mssql/pull/8/)
+
 ## 1.4.0
   * Add support for connecting to Named Instances by omitting port and adding the instance name in the host field [#4](https://github.com/singer-io/tap-mssql/pull/4)
 
