@@ -46,7 +46,7 @@
                         "or ensure that you're connecting to the "
                         "right SQL Server instance for testing."
                         connection-hostname)
-                (dissoc "password" config)))))
+                (dissoc config "password")))))
     (catch Exception e
       (throw (ex-info
               (str "Unable to verify that this test is running against a valid "
@@ -54,7 +54,7 @@
                    "message and either add it to `test-utils/is-test-host`, "
                    "or adjust to ensure you're doing something safe."
                    e)
-              (dissoc "password" config))))))
+              (dissoc config "password"))))))
 
 (defn- get-destroy-database-command
   [database]
