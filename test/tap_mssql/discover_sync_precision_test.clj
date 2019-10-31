@@ -8,22 +8,11 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+            [tap-mssql.test-utils :refer [maybe-destroy-test-db
+                                          with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
                                           with-matrix-assertions]]))
-
-(defn get-destroy-database-command
-  [database]
-  (format "DROP DATABASE %s" (:table_cat database)))
-
-(defn maybe-destroy-test-db
-  [config]
-  (let [destroy-database-commands (->> (catalog/get-databases config)
-                                       (filter catalog/non-system-database?)
-                                       (map get-destroy-database-command))]
-    (let [db-spec (config/->conn-map config)]
-      (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]

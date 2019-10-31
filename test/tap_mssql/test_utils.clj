@@ -57,14 +57,20 @@
                  "if this is a valid test host.")
             config))))
 
+(defn- get-destroy-database-command
+  [database]
+  (format "DROP DATABASE %s" (:table_cat database)))
+
 (defn maybe-destroy-test-db
-  []
-  (test-utils/ensure-is-test-db test-db-config)
-  (let [destroy-database-commands (->> (catalog/get-databases test-db-config)
-                                       (filter catalog/non-system-database?)
-                                       (map get-destroy-database-command))]
-    (let [db-spec (config/->conn-map test-db-config)]
-      (jdbc/db-do-commands db-spec destroy-database-commands))))
+  ([]
+   (maybe-destroy-test-db test-db-config))
+  ([config]
+   (ensure-is-test-db config)
+   (let [destroy-database-commands (->> (catalog/get-databases config)
+                                        (filter catalog/non-system-database?)
+                                        (map get-destroy-database-command))]
+     (let [db-spec (config/->conn-map config)]
+       (jdbc/db-do-commands db-spec destroy-database-commands)))))
 
 ;; Def multiple assertions for the same test
 (defmacro with-matrix-assertions

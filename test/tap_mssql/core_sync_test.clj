@@ -2,7 +2,8 @@
   (:require [tap-mssql.config :as config]
             [clojure.test :refer [is deftest]]
             [clojure.java.jdbc :as jdbc]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+            [tap-mssql.test-utils :refer [maybe-destroy-test-db
+                                          with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
                                           with-matrix-assertions]]
@@ -14,18 +15,6 @@
             [tap-mssql.singer.messages :as singer-messages]
             [tap-mssql.config :as config])
   (:import [java.sql Date]))
-
-(defn get-destroy-database-command
-  [database]
-  (format "DROP DATABASE %s" (:table_cat database)))
-
-(defn maybe-destroy-test-db
-  [config]
-  (let [destroy-database-commands (->> (catalog/get-databases config)
-                                       (filter catalog/non-system-database?)
-                                       (map get-destroy-database-command))]
-    (let [db-spec (config/->conn-map config)]
-      (jdbc/db-do-commands db-spec destroy-database-commands))))
 
 (defn create-test-db
   [config]
