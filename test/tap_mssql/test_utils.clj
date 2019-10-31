@@ -41,10 +41,10 @@
                                   first)]
       (when-not (string/starts-with? connection-hostname "taps-")
         (throw (ex-info
-                (format "The host `%s` is not an acceptable test host. "
-                        "Please either whitelist it in `test-utils/is-test-host`, "
-                        "or ensure that you're connecting to the "
-                        "right SQL Server instance for testing."
+                (format (str "The host `%s` is not an acceptable test host. "
+                             "Please either whitelist it in `test-utils/is-test-host`, "
+                             "or ensure that you're connecting to the "
+                             "right SQL Server instance for testing.")
                         connection-hostname)
                 (dissoc config "password")))))
     (catch Exception e
