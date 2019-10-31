@@ -32,30 +32,29 @@
   ;; TODO: Recover support for RDS instances from git history if needed.
   [test-db-config])
 
-(defn is-test-host [config]
+(defn ensure-is-test-db [config]
   (try
     (let [connection-hostname (-> (jdbc/query (config/->conn-map config)
                                               "SELECT HOST_NAME()")
                                   first
                                   vals
                                   first)]
-      (string/starts-with? connection-hostname "taps-"))
+      (when-not (string/starts-with? connection-hostname "taps-")
+        (throw (ex-info
+                (format "The host `%s` is not an acceptable test host. "
+                        "Please either whitelist it in `test-utils/is-test-host`, "
+                        "or ensure that you're connecting to the "
+                        "right SQL Server instance for testing."
+                        connection-hostname)
+                (dissoc "password" config)))))
     (catch Exception e
-      (throw (Exception.
+      (throw (ex-info
               (str "Unable to verify that this test is running against a valid "
-                   "test host. Please evaluate this error "
-                   "message and either add it to `is-test-host` "
-                   "in `test_utils.clj`, or adjust to ensure "
-                   "you're doing something safe." e))))))
-
-(defn ensure-is-test-db [config]
-  (when-not (is-test-host config)
-    (throw (ex-info
-            (str "The host associated with the following "
-                 "config is not an acceptable test host. "
-                 "You may update this in `test_utils.clj` "
-                 "if this is a valid test host.")
-            config))))
+                   "test host (%s). Please evaluate this error "
+                   "message and either add it to `test-utils/is-test-host`, "
+                   "or adjust to ensure you're doing something safe."
+                   e)
+              (dissoc "password" config))))))
 
 (defn- get-destroy-database-command
   [database]
