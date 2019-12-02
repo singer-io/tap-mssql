@@ -11,7 +11,7 @@
 (defn ->conn-map*
   [config]
   (let [conn-map {:dbtype "sqlserver"
-                  :dbname (config "database" "")
+                  :dbname (or (config "database") "") ;; database is optional - if omitted it is set to an empty string
                   :host (config "host")
                   :port (or (config "port") 0) ;; port is optional - if omitted it is set to 0 for a dynamic port
                   :password (config "password")

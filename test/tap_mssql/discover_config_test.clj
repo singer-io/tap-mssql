@@ -124,6 +124,11 @@
                        (get-in catalog-entry ["metadata" "database-name"])))
                 distinct)))))
 
+(deftest ^:integration verify-nil-database-succeeds
+  (let [nil-db-config (assoc test-db-config "database" nil)]
+    ;; This used to throw a java.lang.IllegalArgumentException
+    (is (map? (catalog/discover nil-db-config)))))
+
 (deftest ^:integration verify-full-catalog
   (let [expected-stream-names #{"another_database_with_a_table_dbo_another_empty_table"
                                 "database_with_a_table_dbo_empty_table"
