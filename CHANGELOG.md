@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.2
+  * Extract database from config replacing it with an empty string if it is nil [#13](https://github.com/singer-io/tap-mssql/pull/13)
+
 ## 1.4.1
   * Removed max length from binary-type JSON schemas [#8](https://github.com/singer-io/tap-mssql/pull/8/)
 
