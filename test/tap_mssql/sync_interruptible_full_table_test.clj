@@ -61,7 +61,14 @@
                             [:number "int NOT NULL"]
                             [:datetime "datetime2 NOT NULL"]
                             [:value "varchar(5000)"]
-                            ["PRIMARY KEY (id, number, datetime)"]])])))
+                            ["PRIMARY KEY (id, number, datetime)"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "table_with_timestamp_bookmark_key"
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                            [:number "int NOT NULL"]
+                            [:timestamp "timestamp NOT NULL"]
+                            [:value "varchar(5000)"]])])))
 
 (defn populate-data
   [config]
@@ -89,7 +96,12 @@
                                                  :datetime (-> (generators/date)
                                                                .toInstant
                                                                .toString)
-                                                :value (str %)) (range)))))
+                                                 :value (str %)) (range))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "full_table_interruptible_sync_test"))
+                      "table_with_timestamp_bookmark_key"
+                      (take 2000 (map #(hash-map :number (rand-int 1000000)
+                                                 :value (str %)) (range)))))
 
 (defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
@@ -346,3 +358,36 @@
            (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_composite_pks" "last_pk_fetched"])))
       (is (nil?
            (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_composite_pks" "max_pk_value"]))))))
+
+(deftest ^:integration verify-interrupted-full-table-sync-with-timestamp-pk-succeeds
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; 1. Sync 1000 rows, capture state, and sync the remaining. A timestamp should be used in the WHERE clause of the query
+    (let [old-write-record singer-messages/write-record!
+          first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                                       (swap! record-count inc)
+                                                                       (if (> @record-count 1000)
+                                                                         (do
+                                                                           (reset! record-count 0)
+                                                                           (throw (ex-info "Interrupting!" {:ignore true})))
+                                                                         (old-write-record stream-name state record catalog)))]
+                           (->> (catalog/discover test-db-config)
+                                (select-stream "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key")
+                                (get-messages-from-output test-db-config
+                                                          "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key")))
+          first-state (get (->> first-messages
+                                (filter #(= "STATE" (% "type")))
+                                last)
+                           "value")
+          second-messages (->> (catalog/discover test-db-config)
+                               (select-stream "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key")
+                               (get-messages-from-output test-db-config
+                                                         "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key"
+                                                         first-state))]
+
+      ;; Make sure last state has no last_pk_fetched or max_pk_value bookmarks, indicating complete full table
+      (is (= "STATE" (get (last second-messages) "type")))
+      (is (nil?
+           (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "last_pk_fetched"])))
+      (is (nil?
+           (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "max_pk_value"]))))))
