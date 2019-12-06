@@ -363,7 +363,9 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
     ;; 1. Sync 1000 rows, capture state, and sync the remaining. A timestamp should be used in the WHERE clause of the query
-    (let [old-write-record singer-messages/write-record!
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          old-write-record singer-messages/write-record!
           first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
                                                                        (swap! record-count inc)
                                                                        (if (> @record-count 1000)
@@ -379,11 +381,24 @@
                                 (filter #(= "STATE" (% "type")))
                                 last)
                            "value")
+          _ (def first-messages first-messages)
+          _ (def first-state first-state)
           second-messages (->> (catalog/discover test-db-config)
                                (select-stream "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key")
                                (get-messages-from-output test-db-config
                                                          "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key"
-                                                         first-state))]
+                                                         first-state))
+          _ (def second-messagesq second-messages)]
+
+      (is (= 2000 (count  (reduce
+                           (fn [acc rec]
+                             (conj acc (str (get-in rec ["record" "id"]))))
+                           #{}
+                           (concat
+                            (->> second-messages
+                                 (filter #(= "RECORD" (% "type"))))
+                            (->> first-messages
+                                 (filter #(= "RECORD" (% "type")))))))))
 
       ;; Make sure last state has no last_pk_fetched or max_pk_value bookmarks, indicating complete full table
       (is (= "STATE" (get (last second-messages) "type")))

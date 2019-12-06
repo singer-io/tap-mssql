@@ -59,7 +59,13 @@
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
-  (let [last-pk-fetched           (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+  (let [last-pk-fetched           (reduce ;; this is bad but we will fix it
+                                   (fn [acc [k v]]
+                                     (if (instance? clojure.lang.PersistentVector v)
+                                       (assoc acc k (bytes (byte-array (map byte v))))
+                                       (assoc acc k v)))
+                                   {}
+                                   (get-in state ["bookmarks" stream-name "last_pk_fetched"])) ;; plz
         bookmark-query-text       (generate-bookmark-clause last-pk-fetched)
         max-pk-values             (get-in state ["bookmarks" stream-name "max_pk_values"])
         limiting-keys             (map common/sanitize-names (keys max-pk-values))
@@ -105,9 +111,11 @@
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (reduce (fn [acc result]
-                  (let [record (->> (select-keys result record-keys)
-                                    (singer-transform/transform catalog stream-name))]
-                    (singer-messages/write-record! stream-name state record catalog)
+                  (let [record (select-keys result record-keys)]
+                    (singer-messages/write-record! stream-name
+                                                   state
+                                                   (singer-transform/transform catalog stream-name record) ;; only transform before we write the record FIXME
+                                                   catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
                          (singer-messages/write-state-buffered! stream-name))))
                 state
