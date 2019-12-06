@@ -1,5 +1,6 @@
 (ns tap-mssql.singer.messages
   (:require [tap-mssql.singer.schema :as singer-schema]
+            [tap-mssql.singer.transform :as singer-transform]
             [clojure.data.json :as json]))
 
 (defn now []
@@ -78,9 +79,10 @@
 
 (defn write-record!
   [stream-name state record catalog]
-  (let [record-message {"type"   "RECORD"
+  (let [transformed-record (singer-transform catalog stream-name record)
+        record-message {"type"   "RECORD"
                         "stream" (calculate-destination-stream-name stream-name catalog)
-                        "record" record}
+                        "record" transformed-record}
         version        (get-in state ["bookmarks" stream-name "version"])]
     (if (nil? version)
       (write! record-message)
