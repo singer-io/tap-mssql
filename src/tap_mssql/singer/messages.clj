@@ -79,7 +79,7 @@
 
 (defn write-record!
   [stream-name state record catalog]
-  (let [transformed-record (singer-transform catalog stream-name record)
+  (let [transformed-record (singer-transform/transform catalog stream-name record)
         record-message {"type"   "RECORD"
                         "stream" (calculate-destination-stream-name stream-name catalog)
                         "record" transformed-record}

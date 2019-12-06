@@ -4,7 +4,6 @@
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
@@ -114,7 +113,7 @@
                   (let [record (select-keys result record-keys)]
                     (singer-messages/write-record! stream-name
                                                    state
-                                                   (singer-transform/transform catalog stream-name record) ;; only transform before we write the record FIXME
+                                                   record
                                                    catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
                          (singer-messages/write-state-buffered! stream-name))))

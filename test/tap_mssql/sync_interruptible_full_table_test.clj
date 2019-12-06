@@ -393,14 +393,11 @@
                                 (filter #(= "STATE" (% "type")))
                                 last)
                            "value")
-          _ (def first-messages first-messages)
-          _ (def first-state first-state)
           second-messages (->> (catalog/discover test-db-config)
                                (select-stream "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key")
                                (get-messages-from-output test-db-config
                                                          "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key"
-                                                         first-state))
-          _ (def second-messagesq second-messages)]
+                                                         first-state))]
 
       (is (= 2000 (count  (reduce
                            (fn [acc rec]

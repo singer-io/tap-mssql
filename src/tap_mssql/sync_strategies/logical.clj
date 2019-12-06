@@ -4,7 +4,6 @@
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.full :as full]
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
@@ -196,8 +195,7 @@
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
                                    (assoc rec "_sdc_deleted_at" (get result "commit_time"))
-                                   rec)
-                                 (singer-transform/transform catalog stream-name rec))]
+                                   rec))]
                     (singer-messages/write-record! stream-name st record catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys st record)
                          (update-current-log-version stream-name
