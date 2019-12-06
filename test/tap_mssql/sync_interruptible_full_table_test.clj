@@ -10,6 +10,7 @@
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
             [tap-mssql.sync-strategies.full :as sync]
+            [tap-mssql.singer.transform :as transform]
             [tap-mssql.singer.messages :as singer-messages]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
@@ -150,44 +151,50 @@
 
 (deftest ^:integration verify-unsupported-column-has-empty-schema
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (= {}
-           (get-in (first (filter #(= "SCHEMA" (% "type"))
-                                  (->> (catalog/discover test-db-config)
-                                       (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_column")
-                                       (get-messages-from-output test-db-config
-                                                                 "full_table_interruptible_sync_test_dbo_table_with_unsupported_column"))))
-                    ["schema" "properties" "value"])))))
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)]
+      (is (= {}
+             (get-in (first (filter #(= "SCHEMA" (% "type"))
+                                    (->> (catalog/discover test-db-config)
+                                         (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_column")
+                                         (get-messages-from-output test-db-config
+                                                                   "full_table_interruptible_sync_test_dbo_table_with_unsupported_column"))))
+                     ["schema" "properties" "value"]))))))
 
 (deftest ^:integration verify-unsupported-primary-key-throws
   (with-matrix-assertions test-db-configs test-db-fixture
-    (is (thrown-with-msg? java.lang.Exception
-                          #"has unsupported primary key"
-                          (->> test-db-config
-                               (catalog/discover)
-                               ((fn [catalog] ;; Fake the pk being unsupported
-                                  (-> catalog (assoc-in ["streams"
-                                                         "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
-                                                         "metadata"
-                                                         "properties"
-                                                         "id"
-                                                         "inclusion"]
-                                                        "unsupported")
-                                      (assoc-in  ["streams"
-                                                  "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
-                                                  "metadata"
-                                                  "properties"
-                                                  "id"
-                                                  "selected-by-default"]
-                                                 false))))
-                               (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
-                               (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"))))))
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)]
+      (is (thrown-with-msg? java.lang.Exception
+                                  #"has unsupported primary key"
+                                  (->> test-db-config
+                                       (catalog/discover)
+                                       ((fn [catalog] ;; Fake the pk being unsupported
+                                          (-> catalog (assoc-in ["streams"
+                                                                 "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
+                                                                 "metadata"
+                                                                 "properties"
+                                                                 "id"
+                                                                 "inclusion"]
+                                                                "unsupported")
+                                              (assoc-in  ["streams"
+                                                          "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk"
+                                                          "metadata"
+                                                          "properties"
+                                                          "id"
+                                                          "selected-by-default"]
+                                                         false))))
+                                       (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
+                                       (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")))))))
 
 (deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
     ;; Sync partially, a table with row version, interrupted at some point
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
-    (let [old-write-record singer-messages/write-record!]
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          old-write-record singer-messages/write-record!]
       (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
                                     (swap! record-count inc)
                                     (if (> @record-count 120)
@@ -223,7 +230,8 @@
                                                   (partition 2 1)
                                                   (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
                                                   first)]
-                (= (get-in last-record ["record" "rowversion"]) (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"])))
+                (= (get-in last-record ["record" "rowversion"])
+                   (transform/transform-binary (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"]))))
               "Either no state emitted, or state does not match previous record")
           ;; Next state emitted has the version of the last record emitted before that state
           (is (let [[last-record last-state] (->> first-messages
@@ -244,7 +252,9 @@
 
 (deftest ^:integration verify-full-table-interruptible-bookmark-clause
   (with-matrix-assertions test-db-configs test-db-fixture
-    (let [stream-name "schema_name_table_name"
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          stream-name "schema_name_table_name"
           schema-name "schema_name"
           table-name "table_name"
           record-keys ["id" "number" "datetime" "value"]]
@@ -307,7 +317,9 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
     ;; 1. Sync the full table and make sure it returns all the records.
-    (let [first-messages (->> (catalog/discover test-db-config)
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          first-messages (->> (catalog/discover test-db-config)
                               (select-stream "full_table_interruptible_sync_test_dbo_table_with_composite_pks")
                               (get-messages-from-output test-db-config
                                                         "full_table_interruptible_sync_test_dbo_table_with_composite_pks"
