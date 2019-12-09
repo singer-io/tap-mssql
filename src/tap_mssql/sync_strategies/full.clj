@@ -54,17 +54,22 @@
         clause-list (map generate-bookmark-clause-inner pk-lists)]
     (string/join " OR " clause-list)))
 
+;; TODO: Consider tracking more information to not rely on brittle type checking
+(defn get-last-pk-fetched [stream-name state]
+  (reduce
+   (fn [acc [k v]]
+     ;; When state has a PersistentVector, assume its a timestamp byte-array
+     (if (instance? clojure.lang.PersistentVector v)
+       (assoc acc k (bytes (byte-array (map byte v))))
+       (assoc acc k v)))
+   {}
+   (get-in state ["bookmarks" stream-name "last_pk_fetched"])))
+
 (defn build-sync-query [stream-name schema-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
-  (let [last-pk-fetched           (reduce ;; this is bad but we will fix it
-                                   (fn [acc [k v]]
-                                     (if (instance? clojure.lang.PersistentVector v)
-                                       (assoc acc k (bytes (byte-array (map byte v))))
-                                       (assoc acc k v)))
-                                   {}
-                                   (get-in state ["bookmarks" stream-name "last_pk_fetched"])) ;; plz
+  (let [last-pk-fetched           (get-last-pk-fetched stream-name state)
         bookmark-query-text       (generate-bookmark-clause last-pk-fetched)
         max-pk-values             (get-in state ["bookmarks" stream-name "max_pk_values"])
         limiting-keys             (map common/sanitize-names (keys max-pk-values))
