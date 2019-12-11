@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.3
+  * Fix a bug where timestamp column bookmarks cause an exception when resuming full-table [#15](https://github.com/singer-io/tap-mssql/pull/15)
+
 ## 1.4.2
   * Extract database from config replacing it with an empty string if it is nil [#13](https://github.com/singer-io/tap-mssql/pull/13)
 
