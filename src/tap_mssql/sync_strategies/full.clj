@@ -4,7 +4,6 @@
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
@@ -55,11 +54,22 @@
         clause-list (map generate-bookmark-clause-inner pk-lists)]
     (string/join " OR " clause-list)))
 
+;; TODO: Consider tracking more information to not rely on brittle type checking
+(defn get-last-pk-fetched [stream-name state]
+  (reduce
+   (fn [acc [k v]]
+     ;; When state has a PersistentVector, assume its a timestamp byte-array
+     (if (instance? clojure.lang.PersistentVector v)
+       (assoc acc k (bytes (byte-array (map byte v))))
+       (assoc acc k v)))
+   {}
+   (get-in state ["bookmarks" stream-name "last_pk_fetched"])))
+
 (defn build-sync-query [stream-name schema-name table-name record-keys state]
   {:pre [(not (empty? record-keys))
          (valid-full-table-state? state stream-name)]}
   ;; TODO: Fully qualify and quote all database structures, maybe just schema
-  (let [last-pk-fetched           (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+  (let [last-pk-fetched           (get-last-pk-fetched stream-name state)
         bookmark-query-text       (generate-bookmark-clause last-pk-fetched)
         max-pk-values             (get-in state ["bookmarks" stream-name "max_pk_values"])
         limiting-keys             (map common/sanitize-names (keys max-pk-values))
@@ -105,9 +115,11 @@
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (reduce (fn [acc result]
-                  (let [record (->> (select-keys result record-keys)
-                                    (singer-transform/transform catalog stream-name))]
-                    (singer-messages/write-record! stream-name state record catalog)
+                  (let [record (select-keys result record-keys)]
+                    (singer-messages/write-record! stream-name
+                                                   state
+                                                   record
+                                                   catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
                          (singer-messages/write-state-buffered! stream-name))))
                 state

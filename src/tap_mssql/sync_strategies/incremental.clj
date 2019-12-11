@@ -3,7 +3,6 @@
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
@@ -49,8 +48,7 @@
                                                       state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (reduce (fn [acc result]
-              (let [record (->> (select-keys result record-keys)
-                                (singer-transform/transform catalog stream-name))]
+              (let [record (select-keys result record-keys)]
                 (singer-messages/write-record! stream-name acc record catalog)
                 (->> (singer-bookmarks/update-state stream-name replication-key record acc)
                      (singer-messages/write-state-buffered! stream-name))))
