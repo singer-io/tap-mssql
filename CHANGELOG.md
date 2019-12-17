@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.4.4
+  * Fixes a bug where during discovery, for columns of type `binary` the tap was writing the schema as a string, but not transforming the data to a string, instead emitting it as a byte array. [#16](https://github.com/singer-io/tap-mssql/pull/16)
+
 ## 1.4.3
   * Fix a bug where timestamp column bookmarks cause an exception when resuming full-table [#15](https://github.com/singer-io/tap-mssql/pull/15)
 
