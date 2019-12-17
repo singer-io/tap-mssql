@@ -153,15 +153,18 @@
            {"cuyahoga" {"metadata" {"properties" {"test1" {"sql-datatype" "varbinary"}
                                                   "test2" {"sql-datatype" "timestamp"}
                                                   "test3" {"sql-datatype" "date"}
+                                                  "test4" {"sql-datatype" "binary"}
                                                   "regular" {"sql-datatype" "fish"}}}}}}
           "cuyahoga"
           {"test1" (byte-array [0 0 0 0 0 0 0 10])
            "test2" (byte-array [0 0 0 0 0 0 0 10])
            "test3" (Date. 1565222400000)
+           "test4" (byte-array [0 0 0 0 0 0 0 10])
            "regular" {"should be" "unchanged"}})
          {"test1" "0x000000000000000A"
           "test2" "0x000000000000000A"
           "test3" "2019-08-08T00:00:00+00:00"
+          "test4" "0x000000000000000A"
           "regular" {"should be" "unchanged"}})))
 
 (deftest transform-binary-test
