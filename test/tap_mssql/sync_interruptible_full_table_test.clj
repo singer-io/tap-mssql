@@ -423,29 +423,30 @@
 (deftest ^:integration verify-full-table-view-is-interruptible
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
-    ;; 1. Sync 1000 rows, capture state, and sync the remaining. A timestamp should be used in the WHERE clause of the query
+    ;; 1. Sync 150 rows, capture state, and sync the remaining
     (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
           _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          table-name "full_table_interruptible_sync_test_dbo_view_with_table_ids"
           old-write-record singer-messages/write-record!
           first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
                                                                        (swap! record-count inc)
-                                                                       (if (> @record-count 100)
+                                                                       (if (> @record-count 150)
                                                                          (do
                                                                            (reset! record-count 0)
                                                                            (throw (ex-info "Interrupting!" {:ignore true})))
                                                                          (old-write-record stream-name state record catalog)))]
                            (->> (catalog/discover test-db-config)
-                                (select-stream "full_table_interruptible_sync_test_dbo_view_with_table_ids")
+                                (select-stream table-name)
                                 (get-messages-from-output test-db-config
-                                                          "full_table_interruptible_sync_test_dbo_view_with_table_ids")))
+                                                          table-name)))
           first-state (get (->> first-messages
                                 (filter #(= "STATE" (% "type")))
                                 last)
                            "value")
           second-messages (->> (catalog/discover test-db-config)
-                               (select-stream "full_table_interruptible_sync_test_dbo_view_with_table_ids")
+                               (select-stream table-name)
                                (get-messages-from-output test-db-config
-                                                         "full_table_interruptible_sync_test_dbo_view_with_table_ids"
+                                                         table-name
                                                          first-state))]
 
       (is (= 200 (count  (reduce
@@ -461,6 +462,6 @@
       ;; Make sure last state has no last_pk_fetched or max_pk_value bookmarks, indicating complete full table
       (is (= "STATE" (get (last second-messages) "type")))
       (is (nil?
-           (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "last_pk_fetched"])))
+           (get-in (last second-messages) ["value" "bookmarks" table-name "last_pk_fetched"])))
       (is (nil?
-           (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "max_pk_value"]))))))
+           (get-in (last second-messages) ["value" "bookmarks" table-name "max_pk_value"]))))))
