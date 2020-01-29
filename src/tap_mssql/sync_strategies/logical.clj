@@ -188,8 +188,7 @@
         bookmark-keys  (singer-bookmarks/get-bookmark-keys catalog stream-name)
         dbname         (get-in catalog ["streams" stream-name "metadata" "database-name"])
         db-log-version (get-current-log-version config catalog stream-name)
-        sql-params     (build-log-based-sql-query catalog stream-name state)
-        time-now       (.toString (java.time.Instant/now))]
+        sql-params     (build-log-based-sql-query catalog stream-name state)]
     (log/infof "Executing query: %s" sql-params)
     (singer-messages/write-activate-version! stream-name catalog state)
     (-> (reduce (fn [st result]
