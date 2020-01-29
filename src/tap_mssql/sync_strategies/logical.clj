@@ -195,9 +195,9 @@
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
                                    (do
-                                     (when-not (get result "commit-time2")
+                                     (when-not (get result "commit-time")
                                        (log/warn "Found deleted record with no timestamp, falling back to current time."))
-                                     (assoc rec "_sdc_deleted_at" (or (get result "commit_time2")
+                                     (assoc rec "_sdc_deleted_at" (or (get result "commit_time")
                                                                       (.toString (java.time.Instant/now)))))
                                    rec))]
                     (singer-messages/write-record! stream-name st record catalog)
