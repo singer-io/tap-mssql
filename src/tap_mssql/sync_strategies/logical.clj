@@ -188,13 +188,14 @@
         bookmark-keys  (singer-bookmarks/get-bookmark-keys catalog stream-name)
         dbname         (get-in catalog ["streams" stream-name "metadata" "database-name"])
         db-log-version (get-current-log-version config catalog stream-name)
-        sql-params     (build-log-based-sql-query catalog stream-name state)]
+        sql-params     (build-log-based-sql-query catalog stream-name state)
+        time-now       (.toString (java.time.Instant/now))]
     (log/infof "Executing query: %s" sql-params)
     (singer-messages/write-activate-version! stream-name catalog state)
     (-> (reduce (fn [st result]
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
-                                   (assoc rec "_sdc_deleted_at" (get result "commit_time"))
+                                   (assoc rec "_sdc_deleted_at" (get result "commit_time" time-now))
                                    rec))]
                     (singer-messages/write-record! stream-name st record catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys st record)
