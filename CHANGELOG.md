@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.5
+  * Added a fallback value for `_sdc_deleted_at` when running a log based sync.
+  * The tap also logs when this happens.
+  * [#18](https://github.com/singer-io/tap-mssql/pull/18)
+
 ## 1.4.4
   * Fixes a bug where during discovery, for columns of type `binary` the tap was writing the schema as a string, but not transforming the data to a string, instead emitting it as a byte array. [#16](https://github.com/singer-io/tap-mssql/pull/16)
 
