@@ -180,6 +180,10 @@
       (update-current-log-version stream-name db-log-version state)
       state)))
 
+(defn get-commit-time [result]
+  (or (get result "commit_time")
+      (.toString (java.time.Instant/now))))
+
 (defn log-based-sync
   [config catalog stream-name state]
   {:pre  [(= true (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))]
@@ -194,7 +198,10 @@
     (-> (reduce (fn [st result]
                   (let [record (as-> (select-keys result record-keys) rec
                                  (if (= "D" (get result "sys_change_operation"))
-                                   (assoc rec "_sdc_deleted_at" (get result "commit_time"))
+                                   (do
+                                     (when-not (get result "commit-time")
+                                       (log/warn "Found deleted record with no timestamp, falling back to current time."))
+                                     (assoc rec "_sdc_deleted_at" (get-commit-time result)))
                                    rec))]
                     (singer-messages/write-record! stream-name st record catalog)
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys st record)
