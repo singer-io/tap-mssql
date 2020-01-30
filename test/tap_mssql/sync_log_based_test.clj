@@ -471,3 +471,18 @@
              (get (->> messages
                        (filter #(= "STATE" (% "type")))
                        last) "value"))))))
+
+(deftest ^:integration test-null-commit_time
+  "instant1.compareTo(instant2) returns
+     - a negative number if instant1 < instant2
+     - a zero if instant1 = instant2
+     - a positive number if instant1 > instant2"
+  (let [our-time (java.time.Instant/parse "2000-01-30T15:37:20.895Z")
+        our-str-time (.toString our-time)]
+    (is (neg? (.compareTo our-time
+                          (java.time.Instant/parse (logical/get-commit-time {"commit_time" nil})))))
+    (is (neg? (.compareTo our-time
+                          (java.time.Instant/parse (logical/get-commit-time {})))))
+    (is (= 0
+           (.compareTo our-time
+                       (java.time.Instant/parse (logical/get-commit-time {"commit_time" our-str-time})))))))
