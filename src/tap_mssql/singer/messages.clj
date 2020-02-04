@@ -23,6 +23,10 @@
          "ACTIVATE_VERSION"
          (message "version"))))
 
+;; Using java.text.SimpleDateFormat seems to work on java.sql.Timestamp
+(def df (doto (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ss'Z'")
+          (.setTimeZone (java.util.TimeZone/getTimeZone "UTC"))))
+
 ;; Passed to the json serializer as value-converter fn
 ;; Needed to convert java.sql.Date types to json strings
 ;; Both java.sql.Timestamp and microsoft.sql.DateTimeOffset were observed
@@ -30,7 +34,7 @@
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
     #{java.sql.Timestamp}
-    (.. v toInstant toString)
+    (.format df v) ;; use the SimpleDateFormat here
 
     #{java.sql.Time java.sql.Date}
     (.toString v)

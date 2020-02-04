@@ -30,6 +30,15 @@
               [replication-key-value])
       sql-params)))
 
+(comment
+  ;; The bug occurs when a java.sql.Timestamp comes through the JDBC driver and
+  ;; makes it to the messages/serialize-datetimes function as we serialize to
+  ;; a JSON string.
+  ;; #inst "0001-01-01T00:00:00.000000000-00:00"
+  (-> (java.sql.Timestamp. -62135769600000)
+      (.toInstant))
+  )
+
 (defn sync-and-write-messages!
   "Syncs all records, states, returns the latest state. Ensures that the
   bookmark we have for this stream matches our understanding of the fields
