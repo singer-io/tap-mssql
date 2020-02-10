@@ -11,7 +11,8 @@
 
 (defn get-max-pk-values [config catalog stream-name state]
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        schema-name   (map common/sanitize-names (get-in catalog ["streams" stream-name "metadata" "schema-name"]))
+        schema-name   (-> (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+                          (common/sanitize-names))
         bookmark-keys (map common/sanitize-names (singer-bookmarks/get-bookmark-keys catalog stream-name))
         table-name    (-> (get-in catalog ["streams" stream-name "table_name"])
                           (common/sanitize-names))
