@@ -11,7 +11,7 @@
 
 (defn get-max-pk-values [config catalog stream-name state]
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+        schema-name   (map common/sanitize-names (get-in catalog ["streams" stream-name "metadata" "schema-name"]))
         bookmark-keys (map common/sanitize-names (singer-bookmarks/get-bookmark-keys catalog stream-name))
         table-name    (-> (get-in catalog ["streams" stream-name "table_name"])
                           (common/sanitize-names))
@@ -92,7 +92,7 @@
                                                                         limiting-keys))))
         sql-params                [(str (format "SELECT %s FROM %s.%s"
                                                 (string/join ", " (map common/sanitize-names record-keys))
-                                                schema-name
+                                                (common/sanitize-names  schema-name)
                                                 (common/sanitize-names table-name))
                                         where-clause
                                         order-by)]]
