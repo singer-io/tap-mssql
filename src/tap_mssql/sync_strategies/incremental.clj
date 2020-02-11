@@ -21,7 +21,7 @@
         order-by              (str " ORDER BY " replication-key)
         sql-params            [(str (format "SELECT %s FROM %s.%s"
                                             (string/join ", " (map common/sanitize-names record-keys))
-                                            schema-name
+                                            (common/sanitize-names schema-name)
                                             (common/sanitize-names table-name))
                                     where-clause
                                     order-by)]]

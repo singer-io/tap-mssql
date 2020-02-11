@@ -29,6 +29,16 @@ jobs:
     steps:
       - checkout
       - run:
+          name: 'Install Dockerize'
+          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.3.0
+      - run:
+          name: 'Wait for Mongo'
+          command: |
+            dockerize -wait tcp://127.0.0.1:1433 -timeout 1m
+            sleep 5
+      - run:
           name: 'Tap Tester'
           command: |
             aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox tap-tester.env
