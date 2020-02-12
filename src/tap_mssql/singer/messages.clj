@@ -23,9 +23,27 @@
          "ACTIVATE_VERSION"
          (message "version"))))
 
-;; Using java.text.SimpleDateFormat seems to work on java.sql.Timestamp
-(def df (doto (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ss'Z'")
-          (.setTimeZone (java.util.TimeZone/getTimeZone "UTC"))))
+(def df (-> (java.time.format.DateTimeFormatterBuilder.)
+            (.appendPattern "yyyy-MM-dd'T'HH:mm:ss.SX")
+            ;;(.appendZoneId java.time.ZoneOffset/UTC)
+            (.toFormatter)))
+
+;; date - 0001-01-01 through 9999-12-31
+;; datetime - 1753-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.997 and no TZ
+;; datetime2 - 0001-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.9999999 and no TZ
+;; datetimeoffset - 0001-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.9999999 and -14:00 through +14:00
+;; smalldatetime - 1900-01-01 through 2079-06-06 and 00:00:00 through 23:59:59 and no TZ
+;; time - 00:00:00.0000000 through 23:59:59.9999999
+
+;; 1) The tap should always write ISO8601 dates
+;; 2) In the absence of time, we should add 00:00:00
+;; 3) In the absence of a TZ, we should add Z (assume UTC)
+;; 4) In the presence of a TZ, we should emit with the appropriate +/- 00:00
+
+;; cREATES A TABLE
+;; adds some columns
+;; inserts data
+;; calls
 
 ;; Passed to the json serializer as value-converter fn
 ;; Needed to convert java.sql.Date types to json strings
