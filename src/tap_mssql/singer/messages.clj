@@ -52,31 +52,24 @@
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
     #{java.sql.Timestamp}
-    (-> (.toLocalDateTime v)
-        (.atOffset java.time.ZoneOffset/UTC)
-        (.format df)
-        (.replaceAll "\\.?(000)+Z" "Z"))
-
-
-    #_(->> (.toInstant v)
-         (.format df)) ;; use the SimpleDateFormat here
-
-    #{java.sql.Time}
-    (.toString v)
-
-    #{java.sql.Date}
-    (.toString v)
+    (pase-timestamp-to-string v)
 
     #{microsoft.sql.DateTimeOffset}
     (-> v
         (.getTimestamp)
-        (.toLocalDateTime)
-        (.atOffset java.time.ZoneOffset/UTC)
-        (.format df)
-        (.replaceAll "\\.?(000)+Z" "Z"))
-    #_(.. v getTimestamp toInstant (format v))
+        (parse-timestamp-to-string))
+
+    #{java.sql.Time java.sql.Date}
+    (.toString v)
 
     v))
+
+(defn- parse-timestamp-to-string [ts]
+  (-> v
+      (.toLocalDateTime)
+      (.atOffset java.time.ZoneOffset/UTC)
+      (.format df)
+      (.replaceAll "\\.?(000)+Z" "Z")))
 
 (def include-db-and-schema-names-in-messages? (atom false))
 

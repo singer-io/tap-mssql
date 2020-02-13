@@ -30,26 +30,6 @@
               [replication-key-value])
       sql-params)))
 
-(comment
-
-  ;; This might be another option using java.time classes
-  (let [f (-> (java.time.format.DateTimeFormatterBuilder.)
-              (.appendPattern "yyyy-MM-dd'T'HH:mm:ssX")
-              ;;(.appendZoneId java.time.ZoneOffset/UTC)
-              (.toFormatter))
-        d (-> (.toLocalDateTime (java.sql.Timestamp. -62135769600000))
-              (.atOffset java.time.ZoneOffset/UTC))]
-    ;;d
-    (.format d f)
-    )
-  ;; The bug occurs when a java.sql.Timestamp comes through the JDBC driver and
-  ;; makes it to the messages/serialize-datetimes function as we serialize to
-  ;; a JSON string.
-  ;; #inst "0001-01-01T00:00:00.000000000-00:00"
-  (-> (java.sql.Timestamp. -62135769600000)
-      (.toInstant))
-  )
-
 (defn sync-and-write-messages!
   "Syncs all records, states, returns the latest state. Ensures that the
   bookmark we have for this stream matches our understanding of the fields
