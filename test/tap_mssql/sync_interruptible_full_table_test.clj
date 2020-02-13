@@ -269,7 +269,7 @@
                                                           "number" 1
                                                           "datetime" "2000-01-01T00:00:00.000Z"}
                                        }}})
-             '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?) OR ([id] = ? AND [number] = ? AND [datetime] > ?)) AND [id] <= ? AND [number] <= ? AND [datetime] <= ? ORDER BY [id], [number], [datetime]"
+             '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?) OR ([id] = ? AND [number] = ? AND [datetime] > ?)) AND [id] <= ? AND [number] <= ? AND [datetime] <= ? ORDER BY [id], [number], [datetime]"
                1 1
                1 1 1 "2000-01-01T00:00:00.000Z"
                999999
@@ -285,7 +285,7 @@
                                                         "number" 999999}
                                        "last_pk_fetched" {"id" 1 "number" 1}
                                        }}})
-             '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?)) AND [id] <= ? AND [number] <= ? ORDER BY [id], [number]"
+             '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?)) AND [id] <= ? AND [number] <= ? ORDER BY [id], [number]"
                1 1 1  999999 999999)))
       (is (= (sync/build-sync-query stream-name
                                     schema-name
@@ -297,7 +297,7 @@
                                        "max_pk_values" {"id" 999999}
                                        "last_pk_fetched" {"id" 1}
                                        }}})
-             '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?)) AND [id] <= ? ORDER BY [id]"
+             '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?)) AND [id] <= ? ORDER BY [id]"
                1 999999)))
       (is (= (sync/build-sync-query stream-name
                                     schema-name
@@ -309,7 +309,7 @@
                                        "max_pk_values" {}
                                        "last_pk_fetched" {}
                                        }}})
-             '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name]")))
+             '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name]")))
       )))
 
 

@@ -116,7 +116,8 @@
       state))
 
 (defn build-log-based-sql-query [catalog stream-name state]
-  (let [schema-name           (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+  (let [schema-name           (->  (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+                                   (common/sanitize-names))
         table-name            (-> (get-in catalog ["streams" stream-name "table_name"])
                                   (common/sanitize-names))
         primary-keys          (map common/sanitize-names (set (get-in catalog ["streams"
