@@ -27,6 +27,13 @@
             (.appendPattern "yyyy-MM-dd'T'HH:mm:ss.SSSSSSX")
             (.toFormatter)))
 
+(defn- parse-timestamp-to-string [ts]
+  (-> ts
+      (.toLocalDateTime)
+      (.atOffset java.time.ZoneOffset/UTC)
+      (.format df)
+      (.replaceAll "\\.?(000)+Z" "Z")))
+
 ;; date - 0001-01-01 through 9999-12-31
 ;; datetime - 1753-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.997 and no TZ
 ;; datetime2 - 0001-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.9999999 and no TZ
@@ -63,13 +70,6 @@
     (.toString v)
 
     v))
-
-(defn- parse-timestamp-to-string [ts]
-  (-> v
-      (.toLocalDateTime)
-      (.atOffset java.time.ZoneOffset/UTC)
-      (.format df)
-      (.replaceAll "\\.?(000)+Z" "Z")))
 
 (def include-db-and-schema-names-in-messages? (atom false))
 
