@@ -46,27 +46,17 @@
 ;; 3) In the absence of a TZ, we should add Z (assume UTC)
 ;; 4) In the presence of a TZ, we should emit with the appropriate +/- 00:00
 ;; 5) In the absense of a date, we should emit the time in the format HH:mm:ss.ffffffff
-
-;; creates a table
-;; adds some columns
-;; inserts data
-;; calls
-
-;; Passed to the json serializer as value-converter fn
-;; Needed to convert java.sql.Date types to json strings
-;; Both java.sql.Timestamp and microsoft.sql.DateTimeOffset were observed
-;; having funny behavior approaching year 0000.
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
-    #{java.sql.Timestamp}
+    #{java.sql.Timestamp} ;; Java type for datetime, datetime2, and smalldatetime column types
     (parse-timestamp-to-string v)
 
-    #{microsoft.sql.DateTimeOffset}
+    #{microsoft.sql.DateTimeOffset} ;; Java type for datetimeoffset columns
     (-> v
         (.getTimestamp)
         (parse-timestamp-to-string))
 
-    #{java.sql.Time java.sql.Date}
+    #{java.sql.Time java.sql.Date} ;; Java type for Time/Date columns respectively
     (.toString v)
 
     v))
