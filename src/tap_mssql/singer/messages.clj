@@ -52,7 +52,7 @@
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
     #{java.sql.Timestamp}
-    (pase-timestamp-to-string v)
+    (parse-timestamp-to-string v)
 
     #{microsoft.sql.DateTimeOffset}
     (-> v
