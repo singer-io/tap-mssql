@@ -24,8 +24,7 @@
          (message "version"))))
 
 (def df (-> (java.time.format.DateTimeFormatterBuilder.)
-            (.appendPattern "yyyy-MM-dd'T'HH:mm:ss.SX")
-            ;;(.appendZoneId java.time.ZoneOffset/UTC)
+            (.appendPattern "yyyy-MM-dd'T'HH:mm:ss.SSSSSSX")
             (.toFormatter)))
 
 ;; date - 0001-01-01 through 9999-12-31
@@ -39,8 +38,9 @@
 ;; 2) In the absence of time, we should add 00:00:00
 ;; 3) In the absence of a TZ, we should add Z (assume UTC)
 ;; 4) In the presence of a TZ, we should emit with the appropriate +/- 00:00
+;; 5) In the absense of a date, we should emit the time in the format HH:mm:ss.ffffffff
 
-;; cREATES A TABLE
+;; creates a table
 ;; adds some columns
 ;; inserts data
 ;; calls
@@ -52,13 +52,29 @@
 (defn serialize-datetimes [k v]
   (condp contains? (type v)
     #{java.sql.Timestamp}
-    (.format df v) ;; use the SimpleDateFormat here
+    (-> (.toLocalDateTime v)
+        (.atOffset java.time.ZoneOffset/UTC)
+        (.format df)
+        (.replaceAll "\\.?(000)+Z" "Z"))
 
-    #{java.sql.Time java.sql.Date}
+
+    #_(->> (.toInstant v)
+         (.format df)) ;; use the SimpleDateFormat here
+
+    #{java.sql.Time}
+    (.toString v)
+
+    #{java.sql.Date}
     (.toString v)
 
     #{microsoft.sql.DateTimeOffset}
-    (.. v getTimestamp toInstant toString)
+    (-> v
+        (.getTimestamp)
+        (.toLocalDateTime)
+        (.atOffset java.time.ZoneOffset/UTC)
+        (.format df)
+        (.replaceAll "\\.?(000)+Z" "Z"))
+    #_(.. v getTimestamp toInstant (format v))
 
     v))
 
