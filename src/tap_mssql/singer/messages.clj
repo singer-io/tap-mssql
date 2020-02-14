@@ -32,7 +32,7 @@
       (.toLocalDateTime)
       (.atOffset java.time.ZoneOffset/UTC)
       (.format df)
-      (.replaceAll "\\.?(000)+Z" "Z")))
+      (.replace ".000000Z" "Z")))
 
 ;; date - 0001-01-01 through 9999-12-31
 ;; datetime - 1753-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.997 and no TZ
