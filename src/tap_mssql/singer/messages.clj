@@ -32,8 +32,9 @@
       (.toLocalDateTime)
       (.atOffset java.time.ZoneOffset/UTC)
       (.format df)
-      (.replace "000Z" "Z")
-      (.replace ".000Z" "Z")))
+      (.replace "000Z" "Z") ;; replacing microseconds because dates are saved as bookmarks and mssql does not support string datetimes being more precise than the column type
+      (.replace ".000Z" "Z") ;; same with milliseconds
+      ))
 
 ;; date - 0001-01-01 through 9999-12-31
 ;; datetime - 1753-01-01 through 9999-12-31 and 00:00:00 through 23:59:59.997 and no TZ
