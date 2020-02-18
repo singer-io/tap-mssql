@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.5.1
+  * Fix issue where some datetime types were having issues when approaching year 0. [#22](https://github.com/singer-io/tap-mssql/pull/22)
+
 ## 1.5.0
   * During query generation surround schema names with square brackets to allow reserved words in schemas. [#20](https://github.com/singer-io/tap-mssql/pull/20)
 
