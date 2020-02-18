@@ -34,7 +34,7 @@ jobs:
           environment:
             DOCKERIZE_VERSION: v0.3.0
       - run:
-          name: 'Wait for Mongo'
+          name: 'Wait for MSSQL Docker'
           command: |
             dockerize -wait tcp://127.0.0.1:1433 -timeout 1m
             sleep 5
