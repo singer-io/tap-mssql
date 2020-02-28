@@ -97,6 +97,12 @@
         min-valid-version   (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
                                 first
                                 :min_valid_version)]
+    (when (nil? min-valid-version)
+      (throw (IllegalArgumentException.
+              (format "The min_valid_version for object-id %s (table name: %s) was NULL. Cannot compare NULL to %s"
+                      object-id
+                      table-name
+                      current-log-version))))
 
     (if (nil? current-log-version)
       true
