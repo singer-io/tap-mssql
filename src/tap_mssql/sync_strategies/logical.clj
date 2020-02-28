@@ -28,9 +28,26 @@
 
 (def get-change-tracking-databases (memoize get-change-tracking-databases*))
 
+(defn get-object-id-by-table-name [config dbname table-name]
+  (let [sql-query "SELECT name, object_id FROM sys.tables"]
+    (log/infof "Executing query: %s" sql-query)
+    (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+         (filter #(= table-name (:name %)))
+         first
+         :object_id)))
+
+(defn get-min-valid-version [config dbname table-name]
+  (let [object-id (get-object-id-by-table-name config dbname table-name)
+        sql-query (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)
+        _         (log/infof "Executing query: %s" sql-query)]
+    (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+        first
+        :min_valid_version)))
+
 (defn assert-log-based-is-enabled [config catalog stream-name state]
-  (let [table-name (get-in catalog ["streams" stream-name "table_name"])
-        dbname (get-in catalog ["streams" stream-name "metadata" "database-name"])]
+  (let [table-name        (get-in catalog ["streams" stream-name "table_name"])
+        dbname            (get-in catalog ["streams" stream-name "metadata" "database-name"])
+        min-valid-version (get-min-valid-version config dbname table-name)]
     (when (not (contains? (get-change-tracking-databases config) dbname))
       (throw (UnsupportedOperationException.
               (format (str "Cannot sync stream: %s using log-based replication. "
@@ -42,6 +59,10 @@
               (format (str "Cannot sync stream: %s using log-based replication. "
                            "Change Tracking is not enabled for table: %s")
                       stream-name
+                      table-name))))
+    (when (nil? min-valid-version)
+      (throw (IllegalArgumentException.
+              (format "The min_valid_version for table name %s was NULL."
                       table-name))))
     state))
 
@@ -74,15 +95,6 @@
         ((partial singer-messages/write-state! stream-name)))
     state))
 
-
-(defn get-object-id-by-table-name [config dbname table-name]
-  (let [sql-query "SELECT name, object_id FROM sys.tables"]
-    (log/infof "Executing query: %s" sql-query)
-    (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
-         (filter #(= table-name (:name %)))
-         first
-         :object_id)))
-
 (defn min-valid-version-out-of-date?
   "Uses the CHANGE_TRACKING_MIN_VALID_VERSION function to check if our current log version is out of date and lost.
   Returns true if we have no current log version."
@@ -91,19 +103,7 @@
         table-name          (get-in catalog ["streams" stream-name "table_name"])
         dbname              (get-in catalog ["streams" stream-name "metadata" "database-name"])
         current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])
-        object-id           (get-object-id-by-table-name config dbname table-name)
-        sql-query           (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)
-        _                   (log/infof "Executing query: %s" sql-query)
-        min-valid-version   (or (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
-                                    first
-                                    :min_valid_version)
-                                (throw (IllegalArgumentException.
-                                        (format (str "The min_valid_version for object-id %s "
-                                                     "(table name: %s) was NULL. Cannot compare NULL to %s")
-                                                object-id
-                                                table-name
-                                                current-log-version))))]
-
+        min-valid-version   (get-min-valid-version config dbname table-name)]
     (if (nil? current-log-version)
       true
       (let [out-of-date? (> min-valid-version current-log-version)]
