@@ -94,15 +94,15 @@
         object-id           (get-object-id-by-table-name config dbname table-name)
         sql-query           (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)
         _                   (log/infof "Executing query: %s" sql-query)
-        min-valid-version   (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
-                                first
-                                :min_valid_version)]
-    (when (nil? min-valid-version)
-      (throw (IllegalArgumentException.
-              (format "The min_valid_version for object-id %s (table name: %s) was NULL. Cannot compare NULL to %s"
-                      object-id
-                      table-name
-                      current-log-version))))
+        min-valid-version   (or (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+                                    first
+                                    :min_valid_version)
+                                (throw (IllegalArgumentException.
+                                        (format (str "The min_valid_version for object-id %s "
+                                                     "(table name: %s) was NULL. Cannot compare NULL to %s")
+                                                object-id
+                                                table-name
+                                                current-log-version))))]
 
     (if (nil? current-log-version)
       true
