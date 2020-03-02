@@ -111,7 +111,7 @@
         table-name          (get-in catalog ["streams" stream-name "table_name"])
         dbname              (get-in catalog ["streams" stream-name "metadata" "database-name"])
         current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])
-        min-valid-version   (get-min-valid-version config dbname table-name)]
+        min-valid-version   (get-min-valid-version config dbname schema-name table-name)]
     (if (nil? current-log-version)
       true
       (let [out-of-date? (> min-valid-version current-log-version)]
