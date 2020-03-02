@@ -10,13 +10,18 @@
             [clojure.string :as string]
             [clojure.java.jdbc :as jdbc]))
 
-(defn get-change-tracking-tables* [config db-name]
-  ;; TODO: What if it's the same named table in different schemas?
-  (set (map #(:table_name %)
-            (jdbc/query (assoc (config/->conn-map config)
-                               :dbname db-name)
-                        [(str "SELECT OBJECT_NAME(object_id) AS table_name "
-                              "FROM sys.change_tracking_tables")]))))
+(defn get-change-tracking-tables* [config dbname]
+  (reduce (fn [acc val] (assoc acc
+                               (:schema_name val)
+                               (-> (get acc (:schema_name val))
+                                   (concat [(:table_name val)])
+                                   set)))
+          {}
+          (jdbc/query (assoc (config/->conn-map config)
+                             :dbname dbname)
+                      [(str "SELECT OBJECT_SCHEMA_NAME(object_id) AS schema_name, "
+                            "       OBJECT_NAME(object_id) AS table_name "
+                            "FROM sys.change_tracking_tables")])))
 
 (def get-change-tracking-tables (memoize get-change-tracking-tables*))
 
@@ -28,16 +33,18 @@
 
 (def get-change-tracking-databases (memoize get-change-tracking-databases*))
 
-(defn get-object-id-by-table-name [config dbname table-name]
-  (let [sql-query "SELECT name, object_id FROM sys.tables"]
+(defn get-object-id-by-table-name [config dbname schema-name table-name]
+  ;; NB: OBJECT_ID implicitly converts varchar parameter to nvarchar
+  ;; https://docs.microsoft.com/en-us/sql/t-sql/functions/object-id-transact-sql
+  (let [sql-query (-> (partial format "SELECT OBJECT_ID('%s.%s.%s') AS object_id")
+                      (apply [dbname schema-name table-name]))]
     (log/infof "Executing query: %s" sql-query)
     (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
-         (filter #(= table-name (:name %)))
          first
          :object_id)))
 
-(defn get-min-valid-version [config dbname table-name]
-  (let [object-id (get-object-id-by-table-name config dbname table-name)
+(defn get-min-valid-version [config dbname schema-name table-name]
+  (let [object-id (get-object-id-by-table-name config dbname schema-name table-name)
         sql-query (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)]
     (log/infof "Executing query: %s" sql-query)
     (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
@@ -46,15 +53,16 @@
 
 (defn assert-log-based-is-enabled [config catalog stream-name state]
   (let [table-name        (get-in catalog ["streams" stream-name "table_name"])
+        schema-name       (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         dbname            (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        min-valid-version (get-min-valid-version config dbname table-name)]
+        min-valid-version (get-min-valid-version config dbname schema-name table-name)]
     (when (not (contains? (get-change-tracking-databases config) dbname))
       (throw (UnsupportedOperationException.
               (format (str "Cannot sync stream: %s using log-based replication. "
                            "Change Tracking is not enabled for database: %s")
                       stream-name
                       dbname))))
-    (when (not (contains? (get-change-tracking-tables config dbname) table-name))
+    (when (not (contains? (get (get-change-tracking-tables config dbname) schema-name) table-name))
       (throw (UnsupportedOperationException.
               (format (str "Cannot sync stream: %s using log-based replication. "
                            "Change Tracking is not enabled for table: %s")
