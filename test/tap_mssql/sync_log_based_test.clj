@@ -33,6 +33,8 @@
   (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE log_based_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE SCHEMA schema_with_conflict"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE SCHEMA schema_with_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          [(jdbc/create-table-ddl
@@ -45,6 +47,9 @@
                            "data_table_2"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]])])
+    ;; Same table as below, created first to check for unexpected failures with ignoring schema
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE TABLE schema_with_conflict.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE TABLE schema_with_table.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])))
 

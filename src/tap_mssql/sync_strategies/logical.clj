@@ -38,8 +38,8 @@
 
 (defn get-min-valid-version [config dbname table-name]
   (let [object-id (get-object-id-by-table-name config dbname table-name)
-        sql-query (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)
-        _         (log/infof "Executing query: %s" sql-query)]
+        sql-query (format "SELECT CHANGE_TRACKING_MIN_VALID_VERSION(%d) as min_valid_version" object-id)]
+    (log/infof "Executing query: %s" sql-query)
     (-> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
         first
         :min_valid_version)))
