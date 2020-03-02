@@ -34,12 +34,11 @@
 (def get-change-tracking-databases (memoize get-change-tracking-databases*))
 
 (defn get-object-id-by-table-name [config dbname schema-name table-name]
-  ;; NB: OBJECT_ID implicitly converts varchar parameter to nvarchar
-  ;; https://docs.microsoft.com/en-us/sql/t-sql/functions/object-id-transact-sql
-  (let [sql-query (-> (partial format "SELECT OBJECT_ID('%s.%s.%s') AS object_id")
-                      (apply [dbname schema-name table-name]))]
+  (let [sql-query ["SELECT OBJECT_ID(?) AS object_id"
+                   (-> (partial format "%s.%s.%s")
+                       (apply (map common/sanitize-names [dbname schema-name table-name])))]]
     (log/infof "Executing query: %s" sql-query)
-    (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) [sql-query])
+    (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) sql-query)
          first
          :object_id)))
 
