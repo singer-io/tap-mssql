@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2
+  * Clarify error messages in edge case when change tracking is not available [#24](https://github.com/singer-io/tap-mssql/pull/24)
+  * Fix edge case where two identically named tables in different schemas have different change tracking status [#24](https://github.com/singer-io/tap-mssql/pull/24)
+
 ## 1.5.1
   * Fix issue where some datetime types were having issues when approaching year 0. [#22](https://github.com/singer-io/tap-mssql/pull/22)
 
