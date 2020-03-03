@@ -10,7 +10,9 @@
             [clojure.string :as string]
             [clojure.java.jdbc :as jdbc]))
 
-(defn get-change-tracking-tables* [config dbname]
+(defn get-change-tracking-tables*
+  "Structure: {\"schema_name\" [\"table1\" \"table2\" ...] ...}"
+  [config dbname]
   (reduce (fn [acc val] (assoc acc
                                (:schema_name val)
                                (-> (get acc (:schema_name val))
@@ -61,7 +63,8 @@
                            "Change Tracking is not enabled for database: %s")
                       stream-name
                       dbname))))
-    (when (not (contains? (get (get-change-tracking-tables config dbname) schema-name) table-name))
+    (when (not (contains? (-> (get-change-tracking-tables config dbname)
+                              (get schema-name)) table-name))
       (throw (UnsupportedOperationException.
               (format (str "Cannot sync stream: %s using log-based replication. "
                            "Change Tracking is not enabled for table: %s")
