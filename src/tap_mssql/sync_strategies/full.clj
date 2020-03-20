@@ -7,7 +7,8 @@
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
-            [clojure.java.jdbc :as jdbc]))
+            [clojure.java.jdbc :as jdbc])
+  (:import [com.microsoft.sqlserver.jdbc SQLServerResultSet]))
 
 (defn get-max-pk-values [config catalog stream-name state]
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
@@ -127,7 +128,9 @@
                 (jdbc/reducible-query (assoc (config/->conn-map config)
                                              :dbname dbname)
                                       sql-params
-                                      {:raw? true}))
+                                      {:raw? true
+                                       :result-type SQLServerResultSet/TYPE_SS_SERVER_CURSOR_FORWARD_ONLY
+                                       :concurrency :read-only}))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!
