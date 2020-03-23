@@ -6,8 +6,7 @@
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
-            [clojure.java.jdbc :as jdbc])
-  (:import [com.microsoft.sqlserver.jdbc SQLServerResultSet]))
+            [clojure.java.jdbc :as jdbc]))
 
 (defn build-incremental-sync-query
   [stream-name schema-name table-name record-keys replication-key state]
@@ -57,9 +56,7 @@
             (jdbc/reducible-query (assoc (config/->conn-map config)
                                          :dbname dbname)
                                   sql-params
-                                  {:raw? true
-                                   :result-type SQLServerResultSet/TYPE_SS_SERVER_CURSOR_FORWARD_ONLY
-                                   :concurrency :read-only}))))
+                                  common/result-set-opts))))
 
 (defn sync!
   [config catalog stream-name state]
