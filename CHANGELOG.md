@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.0
+  * Configure ResultSet options for concurrency mode and cursor type [#25](https://github.com/singer-io/tap-mssql/pull/25)
+
 ## 1.5.2
   * Clarify error messages in edge case when change tracking is not available [#24](https://github.com/singer-io/tap-mssql/pull/24)
   * Fix edge case where two identically named tables in different schemas have different change tracking status [#24](https://github.com/singer-io/tap-mssql/pull/24)
