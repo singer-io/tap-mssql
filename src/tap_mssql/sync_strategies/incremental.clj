@@ -56,7 +56,7 @@
             (jdbc/reducible-query (assoc (config/->conn-map config)
                                          :dbname dbname)
                                   sql-params
-                                  {:raw? true}))))
+                                  common/result-set-opts))))
 
 (defn sync!
   [config catalog stream-name state]

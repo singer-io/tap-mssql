@@ -229,7 +229,7 @@
                 (jdbc/reducible-query (assoc (config/->conn-map config)
                                              :dbname dbname)
                                       sql-params
-                                      {:raw? true}))
+                                      common/result-set-opts))
         ;; maybe-update in case no rows were synced
         (maybe-update-current-log-version stream-name db-log-version)
         ;; last_pk_fetched indicates an interruption, and should be gone

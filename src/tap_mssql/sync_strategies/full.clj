@@ -127,7 +127,7 @@
                 (jdbc/reducible-query (assoc (config/->conn-map config)
                                              :dbname dbname)
                                       sql-params
-                                      {:raw? true}))
+                                      common/result-set-opts))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!
