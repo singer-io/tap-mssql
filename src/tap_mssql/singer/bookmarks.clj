@@ -19,10 +19,16 @@
                                                     stream-name
                                                     "metadata"
                                                     "properties"]))))
-        table-key-properties (get-in catalog ["streams"
-                                              stream-name
-                                              "metadata"
-                                              "table-key-properties"])]
+        is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
+        table-key-properties (if is-view?
+                               (get-in catalog ["streams"
+                                                stream-name
+                                                "metadata"
+                                                "view-key-properties"])
+                               (get-in catalog ["streams"
+                                                stream-name
+                                                "metadata"
+                                                "table-key-properties"]))]
     (if (not (nil? replication-key))
       [replication-key]
       (if (not (nil? timestamp-column))
@@ -41,3 +47,12 @@
   (assoc-in state
             ["bookmarks" stream-name "last_pk_fetched"]
             (zipmap bookmark-keys (map (partial get record) bookmark-keys))))
+
+
+(comment
+
+  (get-in catalog ["streams"
+                "full_table_interruptible_sync_test_dbo_view_with_table_ids"])
+
+
+  )

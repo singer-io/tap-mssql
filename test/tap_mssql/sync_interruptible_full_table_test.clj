@@ -147,6 +147,10 @@
   (-> (assoc-in catalog ["streams" stream-name "metadata" "selected"] true)
       (assoc-in ["streams" stream-name "metadata" "replication-method"] "FULL_TABLE")))
 
+(defn add-view-key-properties
+  [stream-name column-name catalog]
+  (assoc-in catalog ["streams" stream-name "metadata" "view-key-properties"] [column-name]))
+
 (defn deselect-field
   [stream-name field-name catalog]
   (assoc-in catalog ["streams" stream-name "metadata" "properties" field-name "selected"] false))
@@ -437,14 +441,17 @@
                                                                          (old-write-record stream-name state record catalog)))]
                            (->> (catalog/discover test-db-config)
                                 (select-stream table-name)
+                                (add-view-key-properties table-name "id")
                                 (get-messages-from-output test-db-config
                                                           table-name)))
           first-state (get (->> first-messages
                                 (filter #(= "STATE" (% "type")))
                                 last)
                            "value")
+          ;; Run the 2nd sync which resumes from the first
           second-messages (->> (catalog/discover test-db-config)
                                (select-stream table-name)
+                               (add-view-key-properties table-name "id")
                                (get-messages-from-output test-db-config
                                                          table-name
                                                          first-state))]
