@@ -424,7 +424,7 @@
       (is (nil?
            (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "max_pk_value"]))))))
 
-(deftest ^:integration verify-full-table-view-is-interruptible
+(deftest ^:integration verify-full-table-view-with-view-key-properties-is-interruptible
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
     ;; 1. Sync 150 rows, capture state, and sync the remaining
@@ -472,3 +472,30 @@
            (get-in (last second-messages) ["value" "bookmarks" table-name "last_pk_fetched"])))
       (is (nil?
            (get-in (last second-messages) ["value" "bookmarks" table-name "max_pk_value"]))))))
+
+(deftest ^:integration verify-full-table-view-without-view-key-properties-leaves-valid-state
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; 1. Sync 150 rows, capture state, and sync the remaining
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          table-name "full_table_interruptible_sync_test_dbo_view_with_table_ids"
+          old-write-record singer-messages/write-record!
+          first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                                       (swap! record-count inc)
+                                                                       (if (> @record-count 150)
+                                                                         (do
+                                                                           (reset! record-count 0)
+                                                                           (throw (ex-info "Interrupting!" {:ignore true})))
+                                                                         (old-write-record stream-name state record catalog)))]
+                           ;; No view-key-properties added
+                           (->> (catalog/discover test-db-config)
+                                (select-stream table-name)
+                                (get-messages-from-output test-db-config
+                                                          table-name)))
+          first-state (get (->> first-messages
+                                (filter #(= "STATE" (% "type")))
+                                last)
+                           "value")]
+      ;; Make sure the interrupted state is valid
+      (is (= true (sync/valid-full-table-state? first-state table-name))))))

@@ -44,15 +44,10 @@
              replication-key)))
 
 (defn update-last-pk-fetched [stream-name bookmark-keys state record]
-  (assoc-in state
-            ["bookmarks" stream-name "last_pk_fetched"]
-            (zipmap bookmark-keys (map (partial get record) bookmark-keys))))
-
-
-(comment
-
-  (get-in catalog ["streams"
-                "full_table_interruptible_sync_test_dbo_view_with_table_ids"])
-
-
-  )
+  ;; bookmark-keys can be nil under certain conditions:
+  ;; ex: if a view is missing view-key-properties
+  (if bookmark-keys
+    (assoc-in state
+              ["bookmarks" stream-name "last_pk_fetched"]
+              (zipmap bookmark-keys (map (partial get record) bookmark-keys)))
+    state))
