@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.1
+  * Fix bugs with Views being interrupted during a full table sync [#28](https://github.com/singer-io/tap-mssql/pull/28)
+
 ## 1.6.0
   * Configure ResultSet options for concurrency mode and cursor type [#25](https://github.com/singer-io/tap-mssql/pull/25)
 
