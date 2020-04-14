@@ -113,6 +113,8 @@
     (maybe-destroy-test-db config)
     (create-test-db config)
     (populate-data config)
+    ;; TODO: This atom is used by write-state-buffered! and this should be fixed in a better way
+    (reset! singer-messages/records-since-last-state 0)
     (f)))
 
 (defn get-messages-from-output
@@ -204,12 +206,12 @@
           _ (set-include-db-and-schema-names-in-messages! test-db-config)
           old-write-record singer-messages/write-record!]
       (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
-                                    (swap! record-count inc)
-                                    (if (> @record-count 120)
-                                      (do
-                                        (reset! record-count 0)
-                                        (throw (ex-info "Interrupting!" {:ignore true})))
-                                      (old-write-record stream-name state record catalog)))]
+                                                    (swap! record-count inc)
+                                                    (if (> @record-count 120)
+                                                      (do
+                                                        (reset! record-count 0)
+                                                        (throw (ex-info "Interrupting!" {:ignore true})))
+                                                      (old-write-record stream-name state record catalog)))]
         (let [first-messages (->> (catalog/discover test-db-config)
                                   (select-stream "full_table_interruptible_sync_test_dbo_data_table_rowversion")
                                   (get-messages-from-output test-db-config
@@ -232,22 +234,15 @@
                       (->> first-messages
                            (filter #(= "RECORD" (% "type")))
                            (map #(get-in % ["record" "rowversion"])))))
-          ;; Next state emitted has the pk of the last record emitted before that state
-          (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 5) ;; Ignore first state
-                                                  (partition 2 1)
-                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  first)]
-                (= (get-in last-record ["record" "rowversion"])
+          ;; Next state emitted has the pk and version of the last record emitted before that state
+          (let [[last-record last-state] (->> first-messages
+                                              (drop 5) ;; Ignore first state
+                                              (partition 2 1)
+                                              (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                              first)]
+            (is (= (get-in last-record ["record" "rowversion"])
                    (transform/transform-binary (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"]))))
-              "Either no state emitted, or state does not match previous record")
-          ;; Next state emitted has the version of the last record emitted before that state
-          (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 5) ;; Ignore first state
-                                                  (partition 2 1)
-                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  first)]
-                (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
+            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages

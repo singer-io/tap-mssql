@@ -152,9 +152,11 @@
 
 (def records-since-last-state (atom 0))
 
+(def record-buffer-size 100)
+
 (defn write-state-buffered! [stream-name state]
   (swap! records-since-last-state inc)
-  (if (> @records-since-last-state 100)
+  (if (> @records-since-last-state record-buffer-size)
     (do
       (reset! records-since-last-state 0)
       (write-state! stream-name state))
