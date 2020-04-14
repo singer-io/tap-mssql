@@ -69,7 +69,11 @@
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:number "int NOT NULL"]
                             [:timestamp "timestamp NOT NULL"]
-                            [:value "varchar(5000)"]])])))
+                            [:value "varchar(5000)"]])])
+   (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         ["CREATE VIEW view_with_table_ids
+                           AS
+                           SELECT id FROM data_table"])))
 
 (defn populate-data
   [config]
@@ -109,6 +113,8 @@
     (maybe-destroy-test-db config)
     (create-test-db config)
     (populate-data config)
+    ;; TODO: This atom is used by write-state-buffered! and this should be fixed in a better way
+    (reset! singer-messages/records-since-last-state 0)
     (f)))
 
 (defn get-messages-from-output
@@ -142,6 +148,10 @@
   [stream-name catalog]
   (-> (assoc-in catalog ["streams" stream-name "metadata" "selected"] true)
       (assoc-in ["streams" stream-name "metadata" "replication-method"] "FULL_TABLE")))
+
+(defn add-view-key-properties
+  [stream-name column-name catalog]
+  (assoc-in catalog ["streams" stream-name "metadata" "view-key-properties"] [column-name]))
 
 (defn deselect-field
   [stream-name field-name catalog]
@@ -196,12 +206,12 @@
           _ (set-include-db-and-schema-names-in-messages! test-db-config)
           old-write-record singer-messages/write-record!]
       (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
-                                    (swap! record-count inc)
-                                    (if (> @record-count 120)
-                                      (do
-                                        (reset! record-count 0)
-                                        (throw (ex-info "Interrupting!" {:ignore true})))
-                                      (old-write-record stream-name state record catalog)))]
+                                                    (swap! record-count inc)
+                                                    (if (> @record-count 120)
+                                                      (do
+                                                        (reset! record-count 0)
+                                                        (throw (ex-info "Interrupting!" {:ignore true})))
+                                                      (old-write-record stream-name state record catalog)))]
         (let [first-messages (->> (catalog/discover test-db-config)
                                   (select-stream "full_table_interruptible_sync_test_dbo_data_table_rowversion")
                                   (get-messages-from-output test-db-config
@@ -224,22 +234,15 @@
                       (->> first-messages
                            (filter #(= "RECORD" (% "type")))
                            (map #(get-in % ["record" "rowversion"])))))
-          ;; Next state emitted has the pk of the last record emitted before that state
-          (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 5) ;; Ignore first state
-                                                  (partition 2 1)
-                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  first)]
-                (= (get-in last-record ["record" "rowversion"])
+          ;; Next state emitted has the pk and version of the last record emitted before that state
+          (let [[last-record last-state] (->> first-messages
+                                              (drop 5) ;; Ignore first state
+                                              (partition 2 1)
+                                              (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                              first)]
+            (is (= (get-in last-record ["record" "rowversion"])
                    (transform/transform-binary (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"]))))
-              "Either no state emitted, or state does not match previous record")
-          ;; Next state emitted has the version of the last record emitted before that state
-          (is (let [[last-record last-state] (->> first-messages
-                                                  (drop 5) ;; Ignore first state
-                                                  (partition 2 1)
-                                                  (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
-                                                  first)]
-                (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
+            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages
@@ -415,3 +418,79 @@
            (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "last_pk_fetched"])))
       (is (nil?
            (get-in (last second-messages) ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_timestamp_bookmark_key" "max_pk_value"]))))))
+
+(deftest ^:integration verify-full-table-view-with-view-key-properties-is-interruptible
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; 1. Sync 150 rows, capture state, and sync the remaining
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          table-name "full_table_interruptible_sync_test_dbo_view_with_table_ids"
+          old-write-record singer-messages/write-record!
+          first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                                       (swap! record-count inc)
+                                                                       (if (> @record-count 150)
+                                                                         (do
+                                                                           (reset! record-count 0)
+                                                                           (throw (ex-info "Interrupting!" {:ignore true})))
+                                                                         (old-write-record stream-name state record catalog)))]
+                           (->> (catalog/discover test-db-config)
+                                (select-stream table-name)
+                                (add-view-key-properties table-name "id")
+                                (get-messages-from-output test-db-config
+                                                          table-name)))
+          first-state (get (->> first-messages
+                                (filter #(= "STATE" (% "type")))
+                                last)
+                           "value")
+          ;; Run the 2nd sync which resumes from the first
+          second-messages (->> (catalog/discover test-db-config)
+                               (select-stream table-name)
+                               (add-view-key-properties table-name "id")
+                               (get-messages-from-output test-db-config
+                                                         table-name
+                                                         first-state))]
+
+      (is (= 200 (count  (reduce
+                          (fn [acc rec]
+                            (conj acc (str (get-in rec ["record" "id"]))))
+                          #{}
+                          (concat
+                           (->> second-messages
+                                (filter #(= "RECORD" (% "type"))))
+                           (->> first-messages
+                                (filter #(= "RECORD" (% "type")))))))))
+
+      ;; Make sure last state has no last_pk_fetched or max_pk_value bookmarks, indicating complete full table
+      (is (= "STATE" (get (last second-messages) "type")))
+      (is (nil?
+           (get-in (last second-messages) ["value" "bookmarks" table-name "last_pk_fetched"])))
+      (is (nil?
+           (get-in (last second-messages) ["value" "bookmarks" table-name "max_pk_value"]))))))
+
+(deftest ^:integration verify-full-table-view-without-view-key-properties-leaves-valid-state
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; 1. Sync 150 rows, capture state, and sync the remaining
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          table-name "full_table_interruptible_sync_test_dbo_view_with_table_ids"
+          old-write-record singer-messages/write-record!
+          first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                                       (swap! record-count inc)
+                                                                       (if (> @record-count 150)
+                                                                         (do
+                                                                           (reset! record-count 0)
+                                                                           (throw (ex-info "Interrupting!" {:ignore true})))
+                                                                         (old-write-record stream-name state record catalog)))]
+                           ;; No view-key-properties added
+                           (->> (catalog/discover test-db-config)
+                                (select-stream table-name)
+                                (get-messages-from-output test-db-config
+                                                          table-name)))
+          first-state (get (->> first-messages
+                                (filter #(= "STATE" (% "type")))
+                                last)
+                           "value")]
+      ;; Make sure the interrupted state is valid
+      (is (= true (sync/valid-full-table-state? first-state table-name))))))

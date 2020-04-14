@@ -19,10 +19,16 @@
                                                     stream-name
                                                     "metadata"
                                                     "properties"]))))
-        table-key-properties (get-in catalog ["streams"
-                                              stream-name
-                                              "metadata"
-                                              "table-key-properties"])]
+        is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
+        table-key-properties (if is-view?
+                               (get-in catalog ["streams"
+                                                stream-name
+                                                "metadata"
+                                                "view-key-properties"])
+                               (get-in catalog ["streams"
+                                                stream-name
+                                                "metadata"
+                                                "table-key-properties"]))]
     (if (not (nil? replication-key))
       [replication-key]
       (if (not (nil? timestamp-column))
@@ -38,6 +44,10 @@
              replication-key)))
 
 (defn update-last-pk-fetched [stream-name bookmark-keys state record]
-  (assoc-in state
-            ["bookmarks" stream-name "last_pk_fetched"]
-            (zipmap bookmark-keys (map (partial get record) bookmark-keys))))
+  ;; bookmark-keys can be nil under certain conditions:
+  ;; ex: if a view is missing view-key-properties
+  (if bookmark-keys
+    (assoc-in state
+              ["bookmarks" stream-name "last_pk_fetched"]
+              (zipmap bookmark-keys (map (partial get record) bookmark-keys)))
+    state))
