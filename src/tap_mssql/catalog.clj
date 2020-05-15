@@ -36,14 +36,23 @@
   ;;   :table_catalog (database name)
   ;;   :table_schem   (schema name)
   [config database]
-  (conj (filter #(not (nil? (:table_catalog %)))
-                (jdbc/with-db-metadata [md (assoc (config/->conn-map config)
-                                                  :dbname
-                                                  (:table_cat database))]
-                  (jdbc/metadata-result (.getSchemas md))))
-        ;; Calling getSchemas does not return dbo so that's added
-        ;; for each database
-        {:table_catalog (:table_cat database) :table_schem "dbo"}))
+  (try
+    (conj (filter #(not (nil? (:table_catalog %)))
+                  (jdbc/with-db-metadata [md (assoc (config/->conn-map config)
+                                                    :dbname
+                                                    (:table_cat database))]
+                    (jdbc/metadata-result (.getSchemas md))))
+          ;; Calling getSchemas does not return dbo so that's added
+          ;; for each database
+          {:table_catalog (:table_cat database) :table_schem "dbo"})
+    (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
+      ;; NB: 4060 is indicative of a lack of permissions or failed login
+      ;; https://docs.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors?view=sql-server-ver15#errors-4000-to-4999
+      (when-not (= 4060 (.getErrorCode ex))
+        (throw ex))
+
+      (log/warnf "%s - Skipping due to error discovering tables: %s" (:table_cat database) (.getMessage ex))
+      [])))
 
 (defn get-databases
   [config]
