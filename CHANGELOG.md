@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.2
+  * Warn on permissions errors when discovering schemas if the user doesn't have access [#33](https://github.com/singer-io/tap-mssql/pull/33)
+
 ## 1.6.1
   * Fix bugs with Views being interrupted during a full table sync [#28](https://github.com/singer-io/tap-mssql/pull/28)
 
