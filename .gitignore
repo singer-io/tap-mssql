@@ -2,3 +2,6 @@
 .lein-failures
 target/
 todo.org
+.mypy_cache
+.pytest_cache
+config.json
