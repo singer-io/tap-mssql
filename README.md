@@ -22,7 +22,7 @@ At minimum, the tap requires the following settings: `host`, `port`, `database`,
 
 ## Running the tap
 
-The tap supports a several different wrappers for different execution patterns.
+The tap supports several different wrappers and execution patterns for different types of environments.
 
 ### Running in production
 
@@ -49,7 +49,7 @@ When executing in production, the following patterns are generally recommended:
     ```
 
 3. Instructions to execute using docker:
-    - TK - TODO: Which image to use in place of `__TK__` below.
+    - ***TK - TODO: Which image to use in place of `__TK__` below?***
 
     ```bash
     # Discover metadata catalog:
