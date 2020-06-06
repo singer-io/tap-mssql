@@ -48,6 +48,18 @@ When executing in production, the following patterns are generally recommended:
     bin/tap-mssql  --config config.json --sync | target-csv > state.json
     ```
 
+3. Instructions to execute using docker:
+    - TK - TODO: Which image to use in place of `__TK__` below.
+
+    ```bash
+    # Discover metadata catalog:
+    docker run --rm -it -v .:/home/tap-mssql __TK__/tap-mssql --config config.json --discover > catalog.json
+
+    # Execute sync to target-csv (for example):
+    docker run --rm -it -v .:/home/tap-mssql __TK__/tap-mssql --config config.json --sync | target-csv > state.json
+    ```
+
+
 ### Other ways to run and test
 
 For more ways to execute the tap, including dockerized methods, REPL methods, and various other testing configurations, see the the [Developers Guide](docs/dev_guide.md).
