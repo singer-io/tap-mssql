@@ -20,7 +20,7 @@ At minimum, the tap requires the following settings: `host`, `port`, `database`,
 
 * For detailed configuration instructions, including a list of supported settings, please check the [configuration guide](docs/config.md).
 
-## Executing the tap
+## Running the tap
 
 The tap supports a several different wrappers for different execution patterns.
 

@@ -44,6 +44,20 @@ _These instructions require the [Chocolatey](chocolatey.org) package manager to 
     git clone https://github.com/singer-io/tap-mssql.git
     ```
 
+5. Test `tap-mssql` using `lein`:
+
+    ```cmd
+    # Change to the tap-mssql root directory:
+    cd tap-mssql
+
+    # Test using lein:
+    lein run -m tap-mssql.core --config config.json --discover
+
+    # NOTE: If working properly, at this point you should receive an error that config.json is not found.
+    ```
+
+* If you've gotten this far, you have successfully installed tap-mssql. You are ready to start [running the tap](../README.md#Running_the_tap).
+
 ### Mac
 
 _These instructions require the [homebrew](brew.sh) package manager to automate the install process._
@@ -74,12 +88,26 @@ _These instructions require the [homebrew](brew.sh) package manager to automate 
 
     ```cmd
     # Optionally, make a new directory:
-    mkdir c:\Files\Source
-    cd c:\Files\Source
+    mkdir -p ~/Source
+    cd ~/Source
 
     # Download the tap:
     git clone https://github.com/singer-io/tap-mssql.git
     ```
+
+5. Test `tap-mssql` using `lein`:
+
+    ```cmd
+    # Change to the tap-mssql root directory:
+    cd tap-mssql
+
+    # Test using lein:
+    lein run -m tap-mssql.core --config config.json --discover
+
+    # NOTE: If working properly, at this point you should receive an error that config.json is not found.
+    ```
+
+* If you've gotten this far, you have successfully installed tap-mssql. You are ready to start [running the tap](../README.md#Running_the_tap).
 
 ### Linux (Ubuntu)
 
@@ -90,3 +118,5 @@ apt-get update && apt-get install -y openjdk-8-jdk
 ```
 
 ## Dev Environment Setup
+
+- TK - TODO: What additional installation or config needed for dev users?
