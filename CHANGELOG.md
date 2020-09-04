@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.3
+  * Properly check whether change tracking is enabled on a DB in Azure [#41](https://github.com/singer-io/tap-mssql/pull/41)
+
 ## 1.6.2
   * Warn on permissions errors when discovering schemas if the user doesn't have access [#33](https://github.com/singer-io/tap-mssql/pull/33)
 
