@@ -1,9 +1,9 @@
 (defproject tap-mssql
-  "1.6.1"
+  "1.6.2"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
-  :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
-            :url "https://www.eclipse.org/legal/epl-2.0/"}
+  :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
+            :url "https://www.gnu.org/licenses/agpl-3.0.en.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [org.clojure/tools.cli "0.4.1"]
                  [org.clojure/data.json "0.2.6"]
