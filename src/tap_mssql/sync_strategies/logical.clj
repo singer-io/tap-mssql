@@ -30,8 +30,10 @@
 (defn get-change-tracking-databases* [conf]
   (set (map #(:db_name %)
             (jdbc/query (config/->conn-map conf)
-                        [(str "SELECT DB_NAME(database_id) AS db_name "
-                              "FROM sys.change_tracking_databases")]))))
+                        [(str "SELECT DB.name AS db_name "
+                              "FROM sys.change_tracking_databases CTDB "
+                              "INNER JOIN sys.databases DB "
+                              "ON CTDB.database_id=DB.database_id")]))))
 
 (def get-change-tracking-databases (memoize get-change-tracking-databases*))
 
