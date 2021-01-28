@@ -51,20 +51,22 @@ jobs:
       - run:
           name: 'Tap Tester'
           command: |
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox tap-tester.env
-            source tap-tester.env
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox dev_env.sh
+            source dev_env.sh
             aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
             source tap-mssql.env
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             cd /root/project/
             lein deps
-            run-a-test --tap=/root/project/bin/tap-mssql \
-                       --target=target-stitch \
-                       --orchestrator=stitch-orchestrator \
-                       --email=harrison+sandboxtest@stitchdata.com \
-                       --password=$SANDBOX_PASSWORD \
-                       --client-id=50 \
-                       tap_tester.suites.mssql
+            source /usr/local/share/virtualenvs/tap-tester/bin/activate
+            run-test --tap=tap-mssql \
+                     --target=target-stitch \
+                     --orchestrator=stitch-orchestrator \
+                     --email=harrison+sandboxtest@stitchdata.com \
+                     --password=$SANDBOX_PASSWORD \
+                     --client-id=50 \
+                     tests
+
 workflows:
   version: 2
   build_and_test:
