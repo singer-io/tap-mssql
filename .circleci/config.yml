@@ -58,7 +58,7 @@ jobs:
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            run-test --tap=tap-mssql \
+            run-test --tap=/root/project/tap-mssql.env \
                      --target=target-stitch \
                      --orchestrator=stitch-orchestrator \
                      --email=harrison+sandboxtest@stitchdata.com \
