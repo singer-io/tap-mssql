@@ -83,3 +83,6 @@ workflows:
                 - master
     jobs:
       - build
+      - tap_tester:
+          requires:
+            - build
