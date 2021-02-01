@@ -56,7 +56,6 @@ jobs:
             source dev_env.sh
             aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
             source tap-mssql.env
-            source /usr/local/share/virtualenvs/tap-tester/bin/activate
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             run-test --tap=/root/project/bin/tap-mssql \
