@@ -65,6 +65,7 @@ jobs:
                      --email=harrison+sandboxtest@stitchdata.com \
                      --password=$SANDBOX_PASSWORD \
                      --client-id=50 \
+                     --token=$STITCH_API_TOKEN
                      tests
 
 workflows:

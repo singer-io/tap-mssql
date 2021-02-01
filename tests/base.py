@@ -9,7 +9,7 @@ from datetime import timezone as tz
 
 from tap_tester import connections, menagerie, runner
 
-from .spec import TapSpec
+from spec import TapSpec
 
 
 class BaseTapTest(TapSpec, unittest.TestCase):

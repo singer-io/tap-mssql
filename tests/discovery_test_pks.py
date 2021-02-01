@@ -8,7 +8,7 @@ from tap_tester.scenario import SCENARIOS
 from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, create_view
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
 class DiscoveryTestKeys(BaseTapTest):
