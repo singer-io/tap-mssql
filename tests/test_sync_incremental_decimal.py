@@ -10,7 +10,7 @@ from tap_tester import menagerie, runner
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 getcontext().prec = 38
 DECIMAL_PRECISION_SCALE = [(9, 4), (19, 6), (28, 6), (38, 13)]

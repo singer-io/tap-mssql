@@ -9,7 +9,7 @@ from dateutil.parser import parse
 from tap_tester import menagerie, runner
 
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
 class StartDateTest():  # BaseTapTest):

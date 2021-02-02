@@ -9,7 +9,7 @@ from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk, \
     create_view
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
 class SyncPkLogical(BaseTapTest):

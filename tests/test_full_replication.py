@@ -6,7 +6,7 @@ import json
 from tap_tester import menagerie, runner
 
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
 class FullReplicationTest():  # BaseTapTest):
