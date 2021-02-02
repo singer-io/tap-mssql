@@ -8,7 +8,7 @@ from numpy import float32
 from datetime import datetime, timedelta
 
 from tap_tester import menagerie, runner
-from tap_tester.scenario import SCENARIOS
+
 from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
 
@@ -408,6 +408,3 @@ class SyncFloatLogical(BaseTapTest):
                                  expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
-
-
-SCENARIOS.add(SyncFloatLogical)

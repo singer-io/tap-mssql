@@ -5,7 +5,7 @@ import json
 
 from tap_tester import menagerie, runner
 
-from tap_tester.scenario import SCENARIOS
+
 from .base import BaseTapTest
 
 
@@ -90,6 +90,3 @@ class FullReplicationTest():  # BaseTapTest):
 
                 self.assertEqual(len(first_data), same_records,
                                  msg="Not all data from the first sync was in the second sync")
-
-
-# SCENARIOS.add(FullReplicationTest)

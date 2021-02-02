@@ -161,6 +161,7 @@ class BaseTapTest(TapSpec, unittest.TestCase):
 
     def create_connection(self, original_properties: bool = True):
         """Create a new connection with the test name"""
+
         # Create the connection
         conn_id = connections.ensure_connection(self, original_properties)
 

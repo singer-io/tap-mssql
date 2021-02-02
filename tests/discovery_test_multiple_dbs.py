@@ -4,7 +4,7 @@ Test tap discovery
 from json import dumps
 
 from tap_tester import menagerie
-from tap_tester.scenario import SCENARIOS
+
 from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, create_schema
 
@@ -266,6 +266,3 @@ class DiscoveryTestManyDbs(BaseTapTest):
                             dumps(actual_field, sort_keys=True),
                             dumps(expected_field, sort_keys=True),
                             msg="field metadata mismatches")
-
-
-SCENARIOS.add(DiscoveryTestManyDbs)

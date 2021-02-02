@@ -3,7 +3,7 @@ Test tap discovery
 """
 
 from tap_tester import menagerie, runner
-from tap_tester.scenario import SCENARIOS
+
 from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, create_schema
 
@@ -386,6 +386,3 @@ class SyncMultipleFull(BaseTapTest):
                                  expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
-
-
-SCENARIOS.add(SyncMultipleFull)

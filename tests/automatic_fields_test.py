@@ -3,8 +3,8 @@ Test that with no fields selected for a stream automatic fields are still replic
 """
 
 from tap_tester import runner, menagerie
-from tap_tester.scenario import SCENARIOS
-from .base import BaseTapTest
+
+from base import BaseTapTest
 
 
 class MinimumSelectionTest():  # BaseTapTest):
@@ -53,6 +53,3 @@ class MinimumSelectionTest():  # BaseTapTest):
                     self.expected_foreign_keys().get(stream, set()),
                     msg="The fields sent to the target are not the automatic fields"
                 )
-
-
-# SCENARIOS.add(MinimumSelectionTest)
