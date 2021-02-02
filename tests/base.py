@@ -188,7 +188,7 @@ class BaseTapTest(TapSpec, unittest.TestCase):
 
         # Verify actual rows were synced
         sync_record_count = runner.examine_target_output_file(
-            self, conn_id, self.expected_streams(), self.expected_primary_keys())
+            self, conn_id, self.expected_streams(), self.expected_primary_keys_by_stream_id())
         return sync_record_count
 
     @staticmethod
