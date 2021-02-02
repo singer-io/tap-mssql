@@ -188,13 +188,16 @@ class SyncDateIncremental(BaseTapTest):
 
         cls.expected_metadata = cls.discovery_expected_metadata
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """stream_expected_data[self.VALUES]
         Verify that a full sync can send capture all data and send it in the correct format
         for integer and boolean (bit) data.
         Verify that the fist sync sends an activate immediately.
         Verify that the table version is incremented up
         """
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
 
         # run in check mode
         check_job_name = runner.run_check_mode(self, conn_id)

@@ -9,13 +9,13 @@ from tap_tester import menagerie, runner
 from base import BaseTapTest
 
 
-class FullReplicationTest():  # BaseTapTest):
+class FullReplicationTest(BaseTapTest):
     """Test tap gets all records for streams with full replication"""
 
     def name(self):
         return "{}_full_test".format(super().name())
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that a bookmark doesn't exist for the stream
         Verify that the second sync includes the same number or more records than the first sync
@@ -26,6 +26,10 @@ class FullReplicationTest():  # BaseTapTest):
         For EACH stream that is fully replicated there are multiple rows of data with
             different values for the replication key
         """
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
+
         # Select all streams and no fields within streams
         found_catalogs = menagerie.get_catalogs(conn_id)
         full_streams = {key for key, value in self.expected_replication_method().items()

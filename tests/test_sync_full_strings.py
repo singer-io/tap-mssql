@@ -277,10 +277,14 @@ class SyncTestStringFull(BaseTapTest):
 
         mssql_cursor_context_manager(*query_list)
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that a full sync can send capture all data and send it in the correct format
         """
+
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
 
         self.maxDiff = None
 

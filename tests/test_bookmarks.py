@@ -17,7 +17,7 @@ class BookmarkTest(BaseTapTest):
     def name(self):
         return "{}_bookmark_test".format(super().name())
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that for each stream you can do a sync which records bookmarks.
         That the bookmark is the maximum value sent to the target for the replication key.
@@ -34,6 +34,11 @@ class BookmarkTest(BaseTapTest):
         For EACH stream that is incrementally replicated there are multiple rows of data with
             different values for the replication key
         """
+
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
+
         # Select all streams and no fields within streams
         found_catalogs = menagerie.get_catalogs(conn_id)
         incremental_streams = {key for key, value in self.expected_replication_method().items()

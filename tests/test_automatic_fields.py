@@ -13,7 +13,7 @@ class MinimumSelectionTest(BaseTapTest):
     def name(self):
         return "{}_no_fields_test".format(super().name())
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that for each stream you can get multiple pages of data
         when no fields are selected and only the automatic fields are replicated.
@@ -23,6 +23,11 @@ class MinimumSelectionTest(BaseTapTest):
         fetch of data.  For instance if you have a limit of 250 records ensure
         that 251 (or more) records have been posted for that stream.
         """
+
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
+
         # Select all streams and no fields within streams
         # IF THERE ARE NO AUTOMATIC FIELDS FOR A STREAM
         # WE WILL NEED TO UPDATE THE BELOW TO SELECT ONE

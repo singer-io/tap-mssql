@@ -446,7 +446,7 @@
 #
 #         cls.expected_metadata = cls.discovery_expected_metadata
 #
-#     def do_test(self, conn_id):
+#     def test_run(self):
 #         """
 #         Verify that a full sync can send capture all data and send it in the correct format
 #         """

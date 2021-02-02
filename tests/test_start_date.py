@@ -12,7 +12,7 @@ from tap_tester import menagerie, runner
 from base import BaseTapTest
 
 
-class StartDateTest():  # BaseTapTest):
+class StartDateTest(BaseTapTest):
     """
     Test that the start_date configuration is respected
     
@@ -27,8 +27,12 @@ class StartDateTest():  # BaseTapTest):
     def name(self):
         return "{}_start_date_test".format(super().name())
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """Test we get a lot of data back based on the start date configured in base"""
+
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
 
         # Select all streams and all fields within streams
         found_catalogs = menagerie.get_catalogs(conn_id)

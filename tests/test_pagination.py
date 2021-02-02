@@ -7,13 +7,13 @@ from tap_tester import menagerie, runner
 from base import BaseTapTest
 
 
-class PaginationTest():  # BaseTapTest):
+class PaginationTest(BaseTapTest):
     """ Test the tap pagination to get multiple pages of data """
 
     def name(self):
         return "{}_pagination_test".format(super().name())
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that for each stream you can get multiple pages of data
         and that when all fields are selected more than the automatic fields are replicated.
@@ -23,6 +23,10 @@ class PaginationTest():  # BaseTapTest):
         fetch of data.  For instance if you have a limit of 250 records ensure
         that 251 (or more) records have been posted for that stream.
         """
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
+
         # Select all streams and all fields within streams
         found_catalogs = menagerie.get_catalogs(conn_id)
         self.select_all_streams_and_fields(conn_id, found_catalogs, select_all_fields=True)

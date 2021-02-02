@@ -138,7 +138,7 @@ class DiscoveryTestKeys(BaseTapTest):
 
         cls.expected_metadata = cls.discovery_expected_metadata
 
-    def do_test(self, conn_id):
+    def test_run(self):
         """
         Verify that discover creates the appropriate catalog, schema, metadata, etc.
 
@@ -155,6 +155,10 @@ class DiscoveryTestKeys(BaseTapTest):
           are given the inclusion of automatic (metadata and annotated schema).
         • verify that all other fields have inclusion of available (metadata and schema)
         """
+
+        print("running test {}".format(self.name()))
+
+        conn_id = self.create_connection()
 
         # Verify number of actual streams discovered match expected
         found_catalogs = menagerie.get_catalogs(conn_id)
