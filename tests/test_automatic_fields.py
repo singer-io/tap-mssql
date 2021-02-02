@@ -7,7 +7,7 @@ from tap_tester import runner, menagerie
 from base import BaseTapTest
 
 
-class MinimumSelectionTest():  # BaseTapTest):
+class MinimumSelectionTest(BaseTapTest):
     """Test that with no fields selected for a stream automatic fields are still replicated"""
 
     def name(self):

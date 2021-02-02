@@ -8,10 +8,10 @@ from dateutil.parser import parse
 from tap_tester import menagerie, runner
 
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
-class BookmarkTest():  # BaseTapTest):
+class BookmarkTest(BaseTapTest):
     """Test tap sets a bookmark and respects it for the next sync of a stream"""
 
     def name(self):

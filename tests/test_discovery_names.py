@@ -5,10 +5,10 @@ from json import dumps
 
 from tap_tester import menagerie
 
-from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
+from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager
 
-from .base import BaseTapTest
+from base import BaseTapTest
 
 
 LOWER_ALPHAS, UPPER_ALPHAS, DIGITS, OTHERS = [], [], [], []
