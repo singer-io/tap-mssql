@@ -72,6 +72,7 @@ workflows:
     jobs:
       - build
       - tap_tester:
+          context: circleci-user
           requires:
             - build
   build_daily:
@@ -85,5 +86,6 @@ workflows:
     jobs:
       - build
       - tap_tester:
+          context: circleci-user
           requires:
             - build

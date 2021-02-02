@@ -8,7 +8,7 @@ from numpy.core import float32
 
 from tap_tester import menagerie, runner
 
-from tap_tester.suites.mssql.database import drop_all_user_databases, create_database, \
+from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
 
 from .base import BaseTapTest
