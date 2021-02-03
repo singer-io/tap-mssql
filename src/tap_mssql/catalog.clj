@@ -172,6 +172,8 @@
                                                "maxLength" (:column_size column)}
                            "nvarchar"         {"type"      ["string"]
                                                "maxLength" (:column_size column)}
+                           "text"             {"type"      ["string"]}
+                           "ntext"            {"type"      ["string"]}
                            "binary"           {"type"      ["string"]}
                            "varbinary"        {"type"      ["string"]}
                            "uniqueidentifier" {"type"    ["string"]
