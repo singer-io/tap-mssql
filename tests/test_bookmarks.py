@@ -2,20 +2,170 @@
 Test tap sets a bookmark and respects it for the next sync of a stream
 """
 from datetime import datetime as dt
-
 from dateutil.parser import parse
 
 from tap_tester import menagerie, runner
 
-
+from database import drop_all_user_databases, create_database, \
+    create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
 from base import BaseTapTest
 
 
 class BookmarkTest(BaseTapTest):
     """Test tap sets a bookmark and respects it for the next sync of a stream"""
 
+    EXPECTED_METADATA = dict()
+
     def name(self):
         return "{}_bookmark_test".format(super().name())
+
+    @classmethod
+    def discovery_expected_metadata(cls):
+        """The expected streams and metadata about the streams"""
+
+        return cls.EXPECTED_METADATA
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Create the expected schema in the test database"""
+
+        database_name = "data_types_database"
+        schema_name = "dbo"
+
+        cls.EXPECTED_METADATA = {
+            'data_types_database_dbo_integers': {
+                'is-view': False,
+                'schema-name': schema_name,
+                'row-count': 0,
+                'values': [
+                    (0, -9223372036854775808, -2147483648, -32768),
+                    (1, 0, 0, 0),
+                    (2, 9223372036854775805, 2147483647, 32767),
+                    (3, 42, None, None), # TODO This was None before, is that something that should even be handled?
+                    (4, 5603121835631323156, 9665315, 11742),
+                    (5, -4898597031243117659, 140946744, -16490),
+                    (6, -5168593529138936444, -1746890910, 2150),
+                    (7, 1331162887494168851, 1048867088, 12136),
+                    (8, -4495110645908459596, -1971955745, 18257),
+                    (9, -1575653240237191360, -533282078, 22022),
+                    (10, 6203877631305833079, 271324086, -18782),
+                    (11, 7293147954924079156, 1003163272, 3593),
+                    (12, -1302715001442736465, -1626372079, 3788),
+                    (13, -9062593720232233398, 1646478731, 17621)],
+                'table-key-properties': {'pk'},
+                'selected': None,
+                'database-name': database_name,
+                'stream_name': 'integers',
+                'fields': [
+                    {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                    {'replication_key_column': {'sql-datatype': 'bigint', 'selected-by-default': True,
+                                        'inclusion': 'available'}},
+                    {'MyIntColumn': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}},
+                    {'MySmallIntColumn': {'sql-datatype': 'smallint', 'selected-by-default': True,
+                                          'inclusion': 'available'}}],
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'MySmallIntColumn': {
+                            'type': ['integer', 'null'],
+                            'minimum': -32768,
+                            'maximum': 32767,
+                            'inclusion': 'available',
+                            'selected': True},
+                        'pk':
+                            {'type': ['integer'],
+                             'minimum': -2147483648,
+                             'maximum': 2147483647,
+                             'inclusion': 'automatic',
+                             'selected': True},
+                        'replication_key_column': {
+                            'type': ['integer', 'null'],
+                            'minimum': -9223372036854775808,
+                            'maximum': 9223372036854775807,
+                            'inclusion': 'available',
+                            'selected': True},
+                        'MyIntColumn': {
+                            'type': ['integer', 'null'],
+                            'minimum': -2147483648,
+                            'maximum': 2147483647,
+                            'inclusion': 'available',
+                            'selected': True}},
+                    'selected': True}},
+            'data_types_database_dbo_tiny_integers_and_bools': {
+                'is-view': False,
+                'schema-name': schema_name,
+                'row-count': 0,
+                'values': [
+                    (0, 0, False),
+                    (1, 253, True),
+                    (2, 255, None),
+                    (3, 230, False),
+                    (4, 6, True),
+                    (5, 236, True),
+                    (6, 27, True),
+                    (7, 132, True),
+                    (8, 251, False),
+                    (9, 187, True),
+                    (10, 157, True),
+                    (11, 51, True),
+                    (12, 144, True)],
+                'table-key-properties': {'pk'},
+                'selected': None,
+                'database-name': database_name,
+                'stream_name': 'tiny_integers_and_bools',
+                'fields': [
+                    {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                    {'replication_key_column': {'sql-datatype': 'tinyint', 'selected-by-default': True,
+                                         'inclusion': 'available'}},
+                    {'my_boolean': {'sql-datatype': 'bit', 'selected-by-default': True, 'inclusion': 'available'}}],
+                'schema': {
+                    'type': 'object',
+                    'properties': {
+                        'replication_key_column': {
+                            'type': ['integer', 'null'],
+                            'minimum': 0,
+                            'maximum': 255,
+                            'inclusion': 'available',
+                            'selected': True},
+                        'pk': {
+                            'type': ['integer'],
+                            'minimum': -2147483648,
+                            'maximum': 2147483647,
+                            'inclusion': 'automatic',
+                            'selected': True},
+                        'my_boolean': {
+                            'type': ['boolean', 'null'],
+                            'inclusion': 'available',
+                            'selected': True}},
+                    'selected': True}}}
+
+        drop_all_user_databases()
+
+        query_list = list(create_database(database_name, "Latin1_General_CS_AS"))
+        query_list.extend(enable_database_tracking(database_name))
+
+        table_name = "integers"
+        column_name = ["pk", "replication_key_column", "MyIntColumn", "MySmallIntColumn"]
+        column_type = ["int", "bigint", "int", "smallint"]
+        primary_key = {"pk"}
+        column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
+        query_list.extend(create_table(database_name, schema_name, table_name, column_def,
+                                       primary_key=primary_key, tracking=True))
+        query_list.extend(insert(database_name, schema_name, table_name,
+                                 cls.EXPECTED_METADATA["data_types_database_dbo_integers"]["values"]))
+
+        table_name = "tiny_integers_and_bools"
+        column_name = ["pk", "replication_key_column", "my_boolean"]
+        column_type = ["int", "tinyint", "bit"]
+        primary_key = {"pk"}
+        column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
+        query_list.extend(create_table(database_name, schema_name, table_name, column_def,
+                                       primary_key=primary_key, tracking=True))
+        query_list.extend(insert(database_name, schema_name, table_name,
+                                 cls.EXPECTED_METADATA["data_types_database_dbo_tiny_integers_and_bools"]["values"]))
+
+        mssql_cursor_context_manager(*query_list)
+        cls.expected_metadata = cls.discovery_expected_metadata
 
     def test_run(self):
         """
@@ -50,7 +200,7 @@ class BookmarkTest(BaseTapTest):
         our_catalogs = [catalog for catalog in found_catalogs if
                         catalog.get('tap_stream_id') in incremental_streams.difference(
                             untested_streams)]
-        self.select_all_streams_and_fields(conn_id, our_catalogs, select_all_fields=False)
+        self.select_all_streams_and_fields(conn_id, our_catalogs)
 
         # Run a sync job using orchestrator
         first_sync_record_count = self.run_sync(conn_id)
@@ -144,4 +294,6 @@ class BookmarkTest(BaseTapTest):
 
                 # verify that the minimum bookmark sent to the target for the second sync
                 # is greater than or equal to the bookmark from the first sync
-                self.assertGreaterEqual(target_value, state_value)
+                self.assertGreaterEqual(target_value, state_value) # TODO no data changes b/t syncs, this is a bit misleading
+
+                # TODO TEST GOAL | create and update data between syncs
