@@ -31,7 +31,7 @@ jobs:
             - /root/.m2
   tap_tester:
     docker:
-      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj-v4
       - image: mcr.microsoft.com/mssql/server:2017-latest
         environment:
           ACCEPT_EULA: Y
@@ -51,26 +51,28 @@ jobs:
       - run:
           name: 'Tap Tester'
           command: |
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox tap-tester.env
-            source tap-tester.env
+            cd /root/project
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox dev_env.sh
+            source dev_env.sh
             aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
             source tap-mssql.env
-            source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            cd /root/project/
             lein deps
-            run-a-test --tap=/root/project/bin/tap-mssql \
-                       --target=target-stitch \
-                       --orchestrator=stitch-orchestrator \
-                       --email=harrison+sandboxtest@stitchdata.com \
-                       --password=$SANDBOX_PASSWORD \
-                       --client-id=50 \
-                       tap_tester.suites.mssql
+            source /usr/local/share/virtualenvs/tap-tester/bin/activate
+            run-test --tap=/root/project/bin/tap-mssql \
+                     --target=target-stitch \
+                     --orchestrator=stitch-orchestrator \
+                     --email=harrison+sandboxtest@stitchdata.com \
+                     --password=$SANDBOX_PASSWORD \
+                     --client-id=50 \
+                     tests
+
 workflows:
   version: 2
   build_and_test:
     jobs:
       - build
       - tap_tester:
+          context: circleci-user
           requires:
             - build
   build_daily:
@@ -83,3 +85,7 @@ workflows:
                 - master
     jobs:
       - build
+      - tap_tester:
+          context: circleci-user
+          requires:
+            - build
