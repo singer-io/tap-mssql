@@ -20,7 +20,11 @@
     (if (not (empty? bookmark-keys))
       (do
         (log/infof "Executing query: %s" (pr-str sql-query))
-        (->> (jdbc/query (assoc (config/->conn-map config) :dbname dbname) sql-query {:keywordize? false :identifiers identity})
+        (->> (jdbc/query (assoc (config/->conn-map config)
+                                :dbname dbname
+                                :ApplicationIntent "ReadOnly")
+                         sql-query
+                         {:keywordize? false :identifiers identity})
              first
              (assoc-in state ["bookmarks" stream-name "max_pk_values"])))
       state)))
@@ -125,7 +129,8 @@
                          (singer-messages/write-state-buffered! stream-name))))
                 state
                 (jdbc/reducible-query (assoc (config/->conn-map config)
-                                             :dbname dbname)
+                                             :dbname dbname
+                                             :ApplicationIntent "ReadOnly")
                                       sql-params
                                       common/result-set-opts))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
