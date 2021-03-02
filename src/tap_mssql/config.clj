@@ -15,8 +15,7 @@
                   :host (config "host")
                   :port (or (config "port") 0) ;; port is optional - if omitted it is set to 0 for a dynamic port
                   :password (config "password")
-                  :user (config "user")
-                  :ApplicationIntent "ReadOnly"}
+                  :user (config "user")}
         conn-map (if (= "true" (config "ssl"))
                    ;; TODO: The only way I can get a test failure is by
                    ;; changing the code to say ":trustServerCertificate

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.5
+  * Only adds `ApplicationIntent=ReadOnly` to query-based connections due to an issue with Change Tracking and secondary read replicas not supporting it [#52](https://github.com/singer-io/tap-mssql/pull/52)
+
 ## 1.6.4
   * Adds `ApplicationIntent=ReadOnly` to the connection string [#50](https://github.com/singer-io/tap-mssql/pull/50)
 

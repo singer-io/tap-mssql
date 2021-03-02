@@ -54,7 +54,8 @@
                      (singer-messages/write-state-buffered! stream-name))))
             state
             (jdbc/reducible-query (assoc (config/->conn-map config)
-                                         :dbname dbname)
+                                         :dbname dbname
+                                         :ApplicationIntent "ReadOnly")
                                   sql-params
                                   common/result-set-opts))))
 
