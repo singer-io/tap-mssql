@@ -1,5 +1,5 @@
 (defproject tap-mssql
-  "1.6.4"
+  "1.6.5"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
