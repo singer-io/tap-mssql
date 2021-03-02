@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.4
+  * Adds `ApplicationIntent=ReadOnly` to the connection string [#50](https://github.com/singer-io/tap-mssql/pull/50)
+
 ## 1.6.3
   * Properly check whether change tracking is enabled on a DB in Azure [#41](https://github.com/singer-io/tap-mssql/pull/41)
 
