@@ -37,9 +37,18 @@
                           ;;
                           ;; [1]: https://docs.microsoft.com/en-us/sql/connect/jdbc/setting-the-connection-properties?view=sql-server-2017
                           :authentication "SqlPassword"
-                          :trustServerCertificate false)
+                          :trustServerCertificate false
+                          :ApplicationIntent "ReadOnly")
                    conn-map)]
     ;; returns conn-map and logs on successful connection
-    (check-connection conn-map)))
+    ;; TODO: Needs test to confirm happy path, first failure, both failure
+    (loop [test-conn conn-map
+           retry? true]
+      (if-let [checked-conn (try
+                              (check-connection test-conn)
+                              (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
+                                (when-not retry? (throw ex))))]
+        checked-conn
+        (recur (dissoc test-conn :ApplicationIntent) false)))))
 
 (def ->conn-map (memoize ->conn-map*))
