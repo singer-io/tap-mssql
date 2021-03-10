@@ -28,17 +28,15 @@
                           ;; Based on the [docs][1], we believe thet
                           ;; setting `authentication` to anything but
                           ;; `NotSpecified` (the default) activates SSL
-                          ;; for the connection and have verified that
-                          ;; by setting `trustServerCertificate` to
-                          ;; `false` with `authentication` set to
-                          ;; `SqlPassword` and observing SSL handshake
-                          ;; errors. Because of this, we don't believe
-                          ;; it's necessary to set `encrypt` to `true`
-                          ;; as it used to be prior to Driver version
-                          ;; 6.0.
+                          ;; for the connection and have verified that by
+                          ;; setting `trustServerCertificate` to `false`
+                          ;; with `authentication` set to `SqlPassword`
+                          ;; and observing SSL handshake errors. Because
+                          ;; of this, we don't believe it's necessary to
+                          ;; set `encrypt` to `true` as it used to be
+                          ;; prior to Driver version 6.0.
                           ;;
-                          ;; [1]:
-                          ;; https://docs.microsoft.com/en-us/sql/connect/jdbc/setting-the-connection-properties?view=sql-server-2017
+                          ;; [1]: https://docs.microsoft.com/en-us/sql/connect/jdbc/setting-the-connection-properties?view=sql-server-2017
                           :authentication "SqlPassword"
                           :trustServerCertificate false))]
     ;; returns conn-map and logs on successful connection
