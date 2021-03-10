@@ -24,8 +24,7 @@
                    ;; specified. This is for the "correct" way of doing
                    ;; things, where we are validating SSL, but for now,
                    ;; leaving the certificate unverified should work.
-                   (assoc conn-map
-                          ;; Based on the [docs][1], we believe thet
+                   (assoc ;; Based on the [docs][1], we believe thet
                           ;; setting `authentication` to anything but
                           ;; `NotSpecified` (the default) activates SSL
                           ;; for the connection and have verified that by
