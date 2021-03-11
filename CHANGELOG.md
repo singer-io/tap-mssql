@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.6
+  * Handle cases where `ApplicationIntent=ReadOnly` is not doable for log-based sync's initial full table [#53](https://github.com/singer-io/tap-mssql/pull/53)
+
 ## 1.6.5
   * Only adds `ApplicationIntent=ReadOnly` to query-based connections due to an issue with Change Tracking and secondary read replicas not supporting it [#52](https://github.com/singer-io/tap-mssql/pull/52)
 

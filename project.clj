@@ -1,5 +1,5 @@
 (defproject tap-mssql
-  "1.6.5"
+  "1.6.6"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
@@ -18,9 +18,10 @@
                                               javax.jms/jms
                                               com.sun.jdmk/jmxtools
                                               com.sun.jmx/jmxri]]
+
                  ;; repl
-                 [org.clojure/tools.nrepl "0.2.13"]
-                 [cider/cider-nrepl "0.17.0"]
+                 [nrepl "0.6.0"] ;; For Lein 2.9.X
+                 [cider/cider-nrepl "0.25.4"] ;; For cider-emacs 0.26.1
 
                  ;; test
                  [org.clojure/data.generators "0.1.2"]

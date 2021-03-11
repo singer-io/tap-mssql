@@ -7,7 +7,7 @@
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.singer.messages :as singer-messages]
             [clojure.tools.logging :as log]
-            [clojure.tools.nrepl.server :as nrepl-server]
+            [nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.string :as string]
             [clojure.data.json :as json])
