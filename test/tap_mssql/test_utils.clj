@@ -59,3 +59,10 @@
                 `(let [~(symbol "test-db-config") ~test-db-config]
                    (~fixture-fn (fn [] ~@body) ~(symbol "test-db-config"))))
               test-configs))))
+
+(defn sql-server-exception []
+  (.newInstance (doto (.getDeclaredConstructor com.microsoft.sqlserver.jdbc.SQLServerException
+                                               (into-array [String Throwable]))
+                  (.setAccessible true))
+                (object-array ["__TEST_BOOM__"
+                               (Exception. "Inner BOOM")])))

@@ -9,7 +9,8 @@
             [tap-mssql.config :as config]
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
-                                          test-db-config]]))
+                                          test-db-config
+                                          sql-server-exception]]))
 
 (defn get-destroy-database-command
   [database]
@@ -220,16 +221,10 @@
 ;;      (for [expected-stream-name expected-stream-names]
 ;;        (is (contains? discovered-streams expected-stream-name))))))
 
+
 (deftest ^:integration verify-application-intent-only-set-if-check-succeeds
   (is (= "ReadOnly"
          (:ApplicationIntent (config/->conn-map* test-db-config)))))
-
-(defn sql-server-exception []
-  (.newInstance (doto (.getDeclaredConstructor com.microsoft.sqlserver.jdbc.SQLServerException
-                                               (into-array [String Throwable]))
-                  (.setAccessible true))
-                (object-array ["__TEST_BOOM__"
-                               (Exception. "Inner BOOM")])))
 
 (deftest ^:integration verify-application-intent-only-unset-if-check-fails-first-time
   (let [times (atom 0)]
