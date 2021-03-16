@@ -53,7 +53,7 @@
                 (->> (singer-bookmarks/update-state stream-name replication-key record acc)
                      (singer-messages/write-state-buffered! stream-name))))
             state
-            (jdbc/reducible-query (assoc (config/->conn-map config)
+            (jdbc/reducible-query (assoc (config/->conn-map config true)
                                          :dbname dbname)
                                   sql-params
                                   common/result-set-opts))))

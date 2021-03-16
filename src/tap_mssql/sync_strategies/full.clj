@@ -20,7 +20,7 @@
     (if (not (empty? bookmark-keys))
       (do
         (log/infof "Executing query: %s" (pr-str sql-query))
-        (->> (jdbc/query (assoc (config/->conn-map config)
+        (->> (jdbc/query (assoc (config/->conn-map config true)
                                 :dbname dbname)
                          sql-query
                          {:keywordize? false :identifiers identity})
@@ -127,7 +127,7 @@
                     (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
                          (singer-messages/write-state-buffered! stream-name))))
                 state
-                (jdbc/reducible-query (assoc (config/->conn-map config)
+                (jdbc/reducible-query (assoc (config/->conn-map config true)
                                              :dbname dbname)
                                       sql-params
                                       common/result-set-opts))

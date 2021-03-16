@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.7
+  * Apply approaches from 1.6.5 and 1.6.6 to only try `ApplicationIntent=ReadOnly` for query-based connections, and fall-back to not read only if the check fails. [#55](https://github.com/singer-io/tap-mssql/pull/55)
+
 ## 1.6.6
   * Handle cases where `ApplicationIntent=ReadOnly` is not doable for log-based sync's initial full table [#53](https://github.com/singer-io/tap-mssql/pull/53)
 
