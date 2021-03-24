@@ -32,6 +32,9 @@ jobs:
           key: dependency-cache-{{ checksum "project.clj" }}
           paths:
             - /root/.m2
+      - slack/notify-on-failure:
+          only_for_branches: master
+
   tap_tester:
     docker:
       - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj-v4
