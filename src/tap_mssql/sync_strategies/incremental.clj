@@ -1,5 +1,6 @@
 (ns tap-mssql.sync-strategies.incremental
   (:require [tap-mssql.config :as config]
+            [tap-mssql.utils :refer [try-read-only]]
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
@@ -47,16 +48,17 @@
                                                       replication-key
                                                       state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
-    (reduce (fn [acc result]
-              (let [record (select-keys result record-keys)]
-                (singer-messages/write-record! stream-name acc record catalog)
-                (->> (singer-bookmarks/update-state stream-name replication-key record acc)
-                     (singer-messages/write-state-buffered! stream-name))))
-            state
-            (jdbc/reducible-query (assoc (config/->conn-map config true)
-                                         :dbname dbname)
-                                  sql-params
-                                  common/result-set-opts))))
+    (try-read-only [conn-map (assoc (config/->conn-map config true)
+                                    :dbname dbname)]
+                   (reduce (fn [acc result]
+                             (let [record (select-keys result record-keys)]
+                               (singer-messages/write-record! stream-name acc record catalog)
+                               (->> (singer-bookmarks/update-state stream-name replication-key record acc)
+                                    (singer-messages/write-state-buffered! stream-name))))
+                           state
+                           (jdbc/reducible-query conn-map
+                                                 sql-params
+                                                 common/result-set-opts)))))
 
 (defn sync!
   [config catalog stream-name state]
