@@ -1,5 +1,6 @@
 (ns tap-mssql.config
-  (:require [clojure.tools.logging :as log]
+  (:require [tap-mssql.utils :refer [with-read-only]]
+            [clojure.tools.logging :as log]
             [clojure.java.jdbc :as jdbc]))
 
 (defn check-connection [conn-map]
@@ -18,8 +19,6 @@
                            :port (or (config "port") 0) ;; port is optional - if omitted it is set to 0 for a dynamic port
                            :password (config "password")
                            :user (config "user")}
-                    is-readonly?
-                    (assoc :ApplicationIntent "ReadOnly")
 
                     (= "true" (config "ssl"))
                     ;; TODO: The only way I can get a test failure is by
@@ -43,13 +42,9 @@
                      :authentication "SqlPassword"
                      :trustServerCertificate false))]
      ;; returns conn-map and logs on successful connection
-     (loop [test-conn conn-map
-            retry? true]
-       (if-let [checked-conn (try
-                               (check-connection test-conn)
-                               (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
-                                 (when-not retry? (throw ex))))]
-         checked-conn
-         (recur (dissoc test-conn :ApplicationIntent) false))))))
+     (if is-readonly?
+       (with-read-only [test-conn conn-map]
+         (check-connection test-conn))
+       (check-connection conn-map)))))
 
 (def ->conn-map (memoize ->conn-map*))
