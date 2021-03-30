@@ -1,5 +1,5 @@
 (ns tap-mssql.config
-  (:require [tap-mssql.utils :refer [with-read-only]]
+  (:require [tap-mssql.utils :refer [try-read-only]]
             [clojure.tools.logging :as log]
             [clojure.java.jdbc :as jdbc]))
 
@@ -43,7 +43,7 @@
                      :trustServerCertificate false))]
      ;; returns conn-map and logs on successful connection
      (if is-readonly?
-       (with-read-only [test-conn conn-map]
+       (try-read-only [test-conn conn-map]
          (check-connection test-conn))
        (check-connection conn-map)))))
 

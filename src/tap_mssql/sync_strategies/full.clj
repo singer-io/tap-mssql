@@ -1,7 +1,7 @@
 (ns tap-mssql.sync-strategies.full
   (:refer-clojure :exclude [sync])
   (:require [tap-mssql.config :as config]
-            [tap-mssql.utils :refer [with-read-only]]
+            [tap-mssql.utils :refer [try-read-only]]
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
@@ -21,7 +21,7 @@
     (if (not (empty? bookmark-keys))
       (do
         (log/infof "Executing query: %s" (pr-str sql-query))
-        (->> (with-read-only [conn-map (assoc (config/->conn-map config)
+        (->> (try-read-only [conn-map (assoc (config/->conn-map config)
                                               :dbname dbname)]
                (jdbc/query conn-map
                            sql-query
@@ -120,7 +120,7 @@
         schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
-    (-> (with-read-only [conn-map (assoc (config/->conn-map config)
+    (-> (try-read-only [conn-map (assoc (config/->conn-map config)
                                          :dbname dbname)]
           (reduce (fn [acc result]
                     (let [record (select-keys result record-keys)]
