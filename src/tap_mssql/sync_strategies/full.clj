@@ -1,6 +1,7 @@
 (ns tap-mssql.sync-strategies.full
   (:refer-clojure :exclude [sync])
   (:require [tap-mssql.config :as config]
+            [tap-mssql.utils :refer [try-read-only]]
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
@@ -20,10 +21,11 @@
     (if (not (empty? bookmark-keys))
       (do
         (log/infof "Executing query: %s" (pr-str sql-query))
-        (->> (jdbc/query (assoc (config/->conn-map config true)
-                                :dbname dbname)
-                         sql-query
-                         {:keywordize? false :identifiers identity})
+        (->> (try-read-only [conn-map (assoc (config/->conn-map config)
+                                              :dbname dbname)]
+               (jdbc/query conn-map
+                           sql-query
+                           {:keywordize? false :identifiers identity}))
              first
              (assoc-in state ["bookmarks" stream-name "max_pk_values"])))
       state)))
@@ -118,19 +120,20 @@
         schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
-    (-> (reduce (fn [acc result]
-                  (let [record (select-keys result record-keys)]
-                    (singer-messages/write-record! stream-name
-                                                   state
-                                                   record
-                                                   catalog)
-                    (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
-                         (singer-messages/write-state-buffered! stream-name))))
-                state
-                (jdbc/reducible-query (assoc (config/->conn-map config true)
-                                             :dbname dbname)
-                                      sql-params
-                                      common/result-set-opts))
+    (-> (try-read-only [conn-map (assoc (config/->conn-map config)
+                                         :dbname dbname)]
+          (reduce (fn [acc result]
+                    (let [record (select-keys result record-keys)]
+                      (singer-messages/write-record! stream-name
+                                                     state
+                                                     record
+                                                     catalog)
+                      (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
+                           (singer-messages/write-state-buffered! stream-name))))
+                  state
+                  (jdbc/reducible-query conn-map
+                                        sql-params
+                                        common/result-set-opts)))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!

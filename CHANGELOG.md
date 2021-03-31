@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.8
+  * Attempt readonly connections on `jdbc/reducible-query` and `jdbc/query` calls in Full Table and Incremental Syncs [#58](https://github.com/singer-io/tap-mssql/pull/58)
+
 ## 1.6.7
   * Apply approaches from 1.6.5 and 1.6.6 to only try `ApplicationIntent=ReadOnly` for query-based connections, and fall-back to not read only if the check fails. [#55](https://github.com/singer-io/tap-mssql/pull/55)
 
