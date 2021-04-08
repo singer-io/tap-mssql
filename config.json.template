@@ -1,0 +1,8 @@
+{
+  "host": "mytestsqlserver.cqaqbfvfo67k.us-east-1.rds.amazonaws.com",
+  "port": "1433",
+  "database": "sales_db",
+  "user": "automation_user",
+  "password": "t0p-sEcr3t!",
+  "ssl": true
+}

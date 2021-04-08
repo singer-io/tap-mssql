@@ -1,0 +1,7 @@
+# Ignore all
+*
+# Except `src` folder and `project.clj`
+!bin
+!resources
+!src
+!project.clj

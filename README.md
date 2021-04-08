@@ -6,127 +6,73 @@
 
 ## Requirements
 
-This tap is written in Clojure, and as such, requires the JVM. It has been consistently tested to run using `OpenJDK 8`, which can be installed on Ubuntu using these commands.
+This tap is written in [Clojure](https://clojure.org/), and as such, requires Java and [Leiningen](https://leiningen.org/).
 
-```
-apt-get update && apt-get install -y openjdk-8-jdk
-```
+* For full installation instructions, please see the [installation guide](docs/installation.md).
 
-Associated tooling required to use the scripts in this repository follow. (Running the latest versions)
+## Onboarding for Developers and Testers
 
-- [**Leiningen**](https://leiningen.org/)
-- [**Docker (for integration tests)**](https://www.docker.com/)
-- [**MSSQL CLI (to connect to test database)**](https://docs.microsoft.com/en-us/sql/tools/mssql-cli?view=sql-server-2017)
+To get started as a contributor and/or tester, see the [contribution guidelines](docs/CONTRIBUTING.md) and [developer guide](docs/dev_guide.md).
 
-## Quick Start
+## Configuring `tap-mssql`
 
-```
-$ bin/tap-mssql --config config.json --discover > catalog.json
-$ bin/tap-mssql --config config.json --catalog catalog.json --state state.json | target...
-```
+At minimum, the tap requires the following settings: `host`, `port`, `database`, `username`, and `password`.
 
-## Usage
+* For detailed configuration instructions, including a list of supported settings, please check the [configuration guide](docs/config.md).
 
-In the `bin` folder, there are a few utility scripts to simplify interacting with this tap. Many of these scripts rely on some environment variables being set, see "Testing Infrastructure Design" for more information.
+## Running the tap
 
-**bin/tap-mssql** - This script wraps the `lein` command to run the tap from source code. It is analogous to the command installed by setuptools in Python taps.
+The tap supports several different wrappers and execution patterns for different types of environments.
 
-As this is a Clojure tap, it supports a non-standard mode of operation by passing the `--repl` flag. This will start an NREPL server and log the port that it is running on to connect from an IDE for REPL driven development. It is compatible with all other command-line arguments, or can be used on its own. If the tap is invoked in discovery or sync mode along with `--repl`, the process will be kept alive after the usual Singer process is completed.
+### Running in production
 
-```
-Example:
-# Discovery
-$ bin/tap-mssql --config config.json --discover > catalog.json
+When executing in production, the following patterns are generally recommended:
 
-# Sync
-$ bin/tap-mssql --config config.json --catalog catalog.json --state state.json
+1. Executing using `lein` directly (platform agnostic):
 
-# REPL Mode
-$ bin/tap-mssql --config config.json --repl
-```
+    ```bash
+    # Discover metadata catalog:
+    lein run -m tap-mssql.core --config config.json --discover > catalog.json
 
-**bin/test** - This script wraps `lein test` in order to run the Clojure unit and integration tests against a database running locally.
+    # Execute sync to target-csv (for example):
+    lein run -m tap-mssql.core --config config.json --sync | target-csv > state.json
+    ```
 
-```
-Example:
-$ bin/test
-```
+2. Executing using the `tap-mssql` shell script wrapper (Linux/Mac only):
 
-**bin/test-db** - This script uses docker to run a SQL Server container locally that can be used to run the unit tests against. See the usage text for more information.
+    ```bash
+    # Discover metadata catalog:
+    bin/tap-mssql --config config.json --discover > catalog.json
 
-Note: It also depends on the `mssql-cli` tool being installed in order to use the `connect` option.
+    # Execute sync to target-csv (for example):
+    bin/tap-mssql  --config config.json --sync | target-csv > state.json
+    ```
 
-```
-Example:
-$ bin/test-db start
-$ bin/test-db connect
-$ bin/test-db stop
-```
+3. Instructions to execute using docker:
+    * ***TK - TODO: Which image name to use in place of `local/tap-mssql` below?***
+    * Build the docker image:
 
-**bin/circleci-local** - This script wraps the [`circleci` CLI tool](https://circleci.com/docs/2.0/local-cli/) to run the Clojure unit and integration tests in the way CircleCI does, on localhost.
+        ```bash
+        docker build -t local/tap-mssql .
+        ```
 
-```
-Example:
-$ bin/circleci-local
-```
+    * Run using docker:
 
-## Testing Infrastructure Design
+        ```bash
+        # Discover metadata catalog:
+        docker run --rm -it -v .:/home/tap-mssql local/tap-mssql --config config.json --discover > catalog.json
 
-Each actor (developer, CI, etc.) needs their own testing infrastructure so
-that development can proceed and be verified independently of each other.
-In order to provide this isolation, we've migrated towards a Docker-based
-solution.
+        # Execute sync to target-csv (for example):
+        docker run --rm -it -v .:/home/tap-mssql local/tap-mssql --config config.json --sync | target-csv > state.json
+        ```
 
-A script, `bin/test-db` has been provided that will honor several
-environment variables and manage the container required by the development
-and testing.
+### Other ways to run and test
 
-The environment variables are:
+For more ways to execute the tap, including dockerized methods, REPL methods, and various other testing configurations, see the the [Developers Guide](docs/dev_guide.md).
 
-| name | description |
-| --- | --- |
-| `STITCH_TAP_MSSQL_TEST_DATABASE_USER` | The admin user that should be used to connect to the test database (for docker, this is SA) |
-| `STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD` | The password for the user (if docker, the SA user will be configured with this password) |
-| `STITCH_TAP_MSSQL_TEST_DATABASE_PORT` | The port for hosting the server. (Default 1433)|
+## Troubleshooting
 
-To interact with the container, these commands are available:
-
-`bin/test-db start` - Starts the container under the name `sql1`
-
-`bin/test-db connect` - Uses `mssql-cli` to open a shell to the local MSSQL instance
-
-`bin/test-db stop` - Tears down and removes the container
-
-**Note:** There is no volume binding, so all of the data and state in the
-  running container is entirely ephemeral
-
-## Observed error messages:
-
-```
-# Bad Host Message
-
-The TCP/IP connection to the host charnock.org, port 51552 has failed.
-Error: "connect timed out. Verify the connection properties. Make sure
-that an instance of SQL Server is running on the host and accepting
-TCP/IP connections at the port. Make sure that TCP connections to the
-port are not blocked by a firewall.".
-
-# Unspecified azure server error message
-
-Cannot open server "127.0.0.1" requested by the login. The login
-failed. ClientConnectionId:33b6ae38-254a-483b-ba24-04d69828fe0c
-
-
-# Bad dbname error message
-
-Login failed for user 'foo'.
-ClientConnectionId:4c47c255-a330-4bc9-94bd-039c592a8a31
-
-# Database does not exist
-
-Cannot open database "foo" requested by the login. The login
-failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
-```
+For help common errors, please see the [troubleshooting guide](docs/troubleshooting.md).
 
 ---
 
