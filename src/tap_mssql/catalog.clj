@@ -239,7 +239,7 @@
 
 (defn get-database-raw-columns
   [conn-map database]
-  (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
+  (log/infof "Discovering columns and tables for database and schema: %s %s" (:table_cat database) (:table_schem database))
   (let [columns (jdbc/with-db-metadata [md conn-map]
                   (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil)))
         table-names (set (get-table-names conn-map))]
