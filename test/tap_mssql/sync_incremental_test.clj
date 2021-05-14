@@ -31,7 +31,7 @@
     (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
                          [(jdbc/create-table-ddl
                            "data_table"
-                           [["id with spaces" "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                           [["[id with spaces]" "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]
                             [:other_value "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
