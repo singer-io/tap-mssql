@@ -31,14 +31,14 @@
     (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
                          [(jdbc/create-table-ddl
                            "data_table"
-                           [["[id with spaces]" "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                            ["[column with spaces]" "int"]
                             [:other_value "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
                          [(jdbc/create-table-ddl
                            "datetime_table"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]
+                            ["[column with spaces]" "int"]
                             [:date1 "datetimeoffset"]
                             [:date2 "datetime2"]
                             [:date3 "smalldatetime"]])])))
@@ -48,12 +48,12 @@
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "incremental_sync_test"))
                       "data_table"
-                      (take 200 (map #(hash-map :value % :other_value % ) (range))))
+                      (take 200 (map #(hash-map "[column with spaces]" % :other_value % ) (range))))
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "incremental_sync_test"))
                       "datetime_table"
                       (take 100
-                            (map #(hash-map :value %
+                            (map #(hash-map "[column with spaces]" %
                                             :date1 (str (+ % 1900) "0618 10:34:09") ; Make the year increment
                                             :date2 (str (+ % 1900) "0618 10:34:09")
                                             :date3 (str (+ % 1900) "0618 10:34:09"))
@@ -108,7 +108,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (let [selected-catalog (->> (catalog/discover test-db-config)
                                 (select-stream "incremental_sync_test_dbo_data_table")
-                                (set-replication-key "incremental_sync_test_dbo_data_table" "value"))
+                                (set-replication-key "incremental_sync_test_dbo_data_table" "column with spaces"))
           first-messages (->> selected-catalog
                               (get-messages-from-output test-db-config nil))
           end-state (->> first-messages
@@ -122,9 +122,9 @@
       ;; Insert and update some rows
       (let [db-spec (config/->conn-map test-db-config)]
         (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
-                             ["INSERT INTO dbo.data_table (value) VALUES (404)"])
+                             ["INSERT INTO dbo.data_table ([column with spaces]) VALUES (404)"])
         (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
-                             ["UPDATE dbo.data_table SET value=205 WHERE value=199"]))
+                             ["UPDATE dbo.data_table SET [column with spaces]=205 WHERE [column with spaces]=199"]))
 
       ;; Sync again and inspect the results
       (let [second-messages (->> selected-catalog
@@ -141,7 +141,7 @@
   (with-matrix-assertions test-db-configs test-db-fixture
     (let [selected-catalog (->> (catalog/discover test-db-config)
                                 (select-stream "incremental_sync_test_dbo_data_table")
-                                (set-replication-key "incremental_sync_test_dbo_data_table" "value"))
+                                (set-replication-key "incremental_sync_test_dbo_data_table" "column with spaces"))
           first-messages (->> selected-catalog
                               (get-messages-from-output test-db-config nil))
           end-state (->> first-messages
@@ -174,9 +174,9 @@
       ;; Insert and update some rows
       (let [db-spec (config/->conn-map test-db-config)]
         (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
-                             ["INSERT INTO dbo.datetime_table (value, date1, date2, date3) VALUES (300, '20190829 10:34:01 AM', '20190829 10:34:02 AM', '20190829 10:34:03 AM')"])
+                             ["INSERT INTO dbo.datetime_table ([column with spaces], date1, date2, date3) VALUES (300, '20190829 10:34:01 AM', '20190829 10:34:02 AM', '20190829 10:34:03 AM')"])
         (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
-                             ["UPDATE dbo.datetime_table SET date1='20190829 11:00:00 AM', date2='20190829 11:00:00 AM', date3='20190829 11:00:00 AM' WHERE value=99"]))
+                             ["UPDATE dbo.datetime_table SET date1='20190829 11:00:00 AM', date2='20190829 11:00:00 AM', date3='20190829 11:00:00 AM' WHERE [column with spaces]=99"]))
 
       ;; Sync again and inspect the results
       (let [second-messages (->> selected-catalog
@@ -187,4 +187,4 @@
         (is (= 2 (->> second-messages
                       (filter #(= "RECORD" (% "type")))
                       count)))
-        (is (= "2019-08-29T11:00:00Z" (get-in end-state ["value" "bookmarks" "incremental_sync_test_dbo_datetime_table" "replication_key_value"])))))))
+        (is (= "2019-08-29T11:00:00Z" (get-in end-state ["column with spaces" "bookmarks" "incremental_sync_test_dbo_datetime_table" "replication_key_value"])))))))
