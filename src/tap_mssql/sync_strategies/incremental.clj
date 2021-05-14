@@ -14,12 +14,12 @@
   {:pre [(not (empty? record-keys))]} ;; Is there more incoming state that we think is worth asserting?
   (let [replication-key-name (get-in state ["bookmarks" stream-name "replication_key_name"])
         replication-key-value (get-in state ["bookmarks" stream-name "replication_key_value"])
-        bookmarking-clause    (format "%s >= ?" replication-key)
+        bookmarking-clause    (format "%s >= ?" (common/sanitize-names replication-key))
         add-where-clause?     (and (some? replication-key-value)
                                    (= replication-key replication-key-name)) ;; if the replication-key in metadata changes, we negate our bookmark
         where-clause          (when add-where-clause?
                                 (str " WHERE " bookmarking-clause))
-        order-by              (str " ORDER BY " replication-key)
+        order-by              (str " ORDER BY " (common/sanitize-names replication-key))
         sql-params            [(str (format "SELECT %s FROM %s.%s"
                                             (string/join ", " (map common/sanitize-names record-keys))
                                             (common/sanitize-names schema-name)
