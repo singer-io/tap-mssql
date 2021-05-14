@@ -187,4 +187,4 @@
         (is (= 2 (->> second-messages
                       (filter #(= "RECORD" (% "type")))
                       count)))
-        (is (= "2019-08-29T11:00:00Z" (get-in end-state ["column with spaces" "bookmarks" "incremental_sync_test_dbo_datetime_table" "replication_key_value"])))))))
+        (is (= "2019-08-29T11:00:00Z" (get-in end-state ["value" "bookmarks" "incremental_sync_test_dbo_datetime_table" "replication_key_value"])))))))
