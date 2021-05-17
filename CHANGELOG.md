@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.9
+  * Quote the `ORDER BY` columns in incremental queries [#59](https://github.com/singer-io/tap-mssql/pull/59)
+
 ## 1.6.8
   * Attempt readonly connections on `jdbc/reducible-query` and `jdbc/query` calls in Full Table and Incremental Syncs [#58](https://github.com/singer-io/tap-mssql/pull/58)
 
