@@ -41,7 +41,7 @@
   [args]
   (require 'cider.nrepl)
   (let [the-nrepl-server
-        (nrepl-server/start-server :bind "0.0.0.0"
+        (nrepl-server/start-server :bind "127.0.0.1"
                                    :handler (ns-resolve 'cider.nrepl 'cider-nrepl-handler))]
     (spit ".nrepl-port" (:port the-nrepl-server))
     (log/infof "Started nrepl server at %s"
