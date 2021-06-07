@@ -456,7 +456,7 @@
   (ns-resolve 'cider.nrepl 'cider-nrepl-handler))
 
 (defonce the-nrepl-server
-  (nrepl-server/start-server :bind "0.0.0.0"
+  (nrepl-server/start-server :bind "127.0.0.1"
                              :handler (nrepl-handler)))
 
 (defn log-infof
