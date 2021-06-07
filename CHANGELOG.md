@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.10
+  * Update `nrepl` server binding from `0.0.0.0` to `127.0.0.1` [#62](https://github.com/stitchdata/tap-mssql/pull/62)
+
 ## 1.6.9
   * Quote the `ORDER BY` columns in incremental queries [#59](https://github.com/singer-io/tap-mssql/pull/59)
 
