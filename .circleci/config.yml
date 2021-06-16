@@ -58,9 +58,9 @@ jobs:
           name: 'Tap Tester'
           command: |
             cd /root/project
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox dev_env.sh
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/tap_tester_sandbox dev_env.sh
             source dev_env.sh
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/tap_tester_sandbox tap-mssql.env
             source tap-mssql.env
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
@@ -87,7 +87,7 @@ workflows:
   build_daily:
     triggers:
       - schedule:
-          cron: "0 0 * * *"
+          cron: "0 6 * * *"
           filters:
             branches:
               only:
