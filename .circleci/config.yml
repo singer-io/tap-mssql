@@ -37,7 +37,7 @@ jobs:
 
   tap_tester:
     docker:
-      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj-v4
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:stitch-tap-tester-clj
       - image: mcr.microsoft.com/mssql/server:2017-latest
         environment:
           ACCEPT_EULA: Y
@@ -65,11 +65,6 @@ jobs:
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             run-test --tap=/root/project/bin/tap-mssql \
-                     --target=target-stitch \
-                     --orchestrator=stitch-orchestrator \
-                     --email=harrison+sandboxtest@stitchdata.com \
-                     --password=$SANDBOX_PASSWORD \
-                     --client-id=50 \
                      tests
       - slack/notify-on-failure:
           only_for_branches: master
