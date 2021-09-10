@@ -8,6 +8,7 @@ import pyodbc
 USERNAME = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_USER")
 PASSWORD = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
 HOST = "localhost"
+DATABASE_DEPS = ['msodbcsql17', 'unixodbc-dev']
 
 LOWER_ALPHAS, UPPER_ALPHAS, DIGITS, OTHERS = set(), set(), set(), set()
 for letter in range(97, 123):
@@ -36,7 +37,14 @@ def mssql_cursor_context_manager(*args):
             server, database, USERNAME, PASSWORD))
 
     print(connection_string.replace(PASSWORD, "[REDACTED]"))
-    connection = pyodbc.connect(connection_string, autocommit=True)
+    try:
+        connection = pyodbc.connect(connection_string, autocommit=True)
+    except pyodbc.Error as err:
+        conection_error_code = '01000'
+        conection_error_msg = 'ODBC Driver 17 for SQL Server'
+        if err.args[0] == conection_error_code and conection_error_msg in err.args[1]:
+            raise RuntimeError(f"Ensure you have the following dependencies installed! {DATABASE_DEPS}") from err
+
     # https://github.com/mkleehammer/pyodbc/wiki/Unicode#configuring-specific-databases
     # connection.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
     # connection.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
