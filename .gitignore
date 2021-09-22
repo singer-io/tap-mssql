@@ -2,3 +2,9 @@
 .lein-failures
 target/
 todo.org
+.mypy_cache
+.pytest_cache
+
+# Config sample is saved as `config.json.template`
+# Real `config.json` files (with actual creds) should always be ignored.
+config.json
