@@ -193,7 +193,7 @@ class SyncIntIncremental(BaseTapTest):
             conn_id, found_catalogs, additional_md=additional_md)
 
         # run sync and verify exit codes
-        record_count_by_stream = self.run_sync(conn_id, , clear_state=True)
+        record_count_by_stream = self.run_sync(conn_id, clear_state=True)
 
         # verify record counts of streams
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
