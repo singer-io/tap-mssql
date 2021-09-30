@@ -4,12 +4,21 @@ Run discovery for as a prerequisite for most tests
 """
 import unittest
 import os
+import backoff
 from datetime import datetime as dt
 from datetime import timezone as tz
 
 from tap_tester import connections, menagerie, runner
 
 from spec import TapSpec
+
+def backoff_wait_times():
+    """Create a generator of wait times as [30, 60, 120, 240, 480, ...]"""
+    return backoff.expo(factor=30)
+
+class RetryableTapError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
 
 
 class BaseTapTest(TapSpec, unittest.TestCase):
@@ -159,18 +168,31 @@ class BaseTapTest(TapSpec, unittest.TestCase):
         menagerie.verify_check_exit_status(self, exit_status, check_job_name)
         return conn_id
 
-    def run_sync(self, conn_id):
+    @backoff.on_exception(backoff_wait_times,
+                          RetryableTapError,
+                          max_tries=3)
+    def run_sync(self, conn_id, clear_state=False):
         """
         Run a sync job and make sure it exited properly.
         Return a dictionary with keys of streams synced
         and values of records synced for each stream
         """
+        if clear_state:
+            menagerie.set_state(conn_id, {})
+
         # Run a sync job using orchestrator
         sync_job_name = runner.run_sync_mode(self, conn_id)
 
         # Verify tap and target exit codes
         exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
-        menagerie.verify_sync_exit_status(self, exit_status, sync_job_name)
+        try:
+            menagerie.verify_sync_exit_status(self, exit_status, sync_job_name)
+        except AssertionError as e:
+            if exit_status['discovery_error_message'] or exit_status['tap_error_message']:
+                print("*******************RETRYING SYNC DUE TO BUG*******************")
+                raise RetryableTapError(e)
+
+            raise
 
         # Verify actual rows were synced
         sync_record_count = runner.examine_target_output_file(
