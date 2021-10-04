@@ -17,6 +17,9 @@ def backoff_wait_times():
     return backoff.expo(factor=30)
 
 class RetryableTapError(Exception):
+    """
+    BUG https://jira.talendforge.org/browse/TDL-15619
+    """
     def __init__(self, message):
         super().__init__(message)
 
