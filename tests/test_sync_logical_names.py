@@ -308,17 +308,10 @@ class SyncNameLogical(BaseTapTest):
         BaseTapTest.select_all_streams_and_fields(
             conn_id, found_catalogs, additional_md=additional_md)
 
-        # clear state
-        menagerie.set_state(conn_id, {})
-        sync_job_name = runner.run_sync_mode(self, conn_id)
-
-        # verify tap and target exit codes
-        exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
-        menagerie.verify_sync_exit_status(self, exit_status, sync_job_name)
+        # run a sync and verify exit codes
+        record_count_by_stream = self.run_sync(conn_id, clear_state=True)
 
         # verify record counts of streams
-        record_count_by_stream = runner.examine_target_output_file(
-            self, conn_id, self.expected_streams(), self.expected_primary_keys_by_stream_id())
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
         # self.assertEqual(record_count_by_stream, expected_count)
 
@@ -509,11 +502,9 @@ class SyncNameLogical(BaseTapTest):
                 'sql-datatype': 'datetime', 'selected-by-default': True, 'inclusion': 'automatic'}}
         )
 
-        sync_job_name = runner.run_sync_mode(self, conn_id)
+        # run a sync and verify exit codes
+        record_count_by_stream = self.run_sync(conn_id)
 
-        # verify tap and target exit codes
-        exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
-        menagerie.verify_sync_exit_status(self, exit_status, sync_job_name)
         record_count_by_stream = runner.examine_target_output_file(
             self, conn_id, self.expected_streams(), self.expected_primary_keys_by_stream_id())
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}

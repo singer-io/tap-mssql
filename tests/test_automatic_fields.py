@@ -197,8 +197,7 @@ class MinimumSelectionTest(BaseTapTest):
             non_selected_properties=["MySmallIntColumn","MyBigIntColumn", "MyTinyIntColumn", "my_boolean", "MyIntColumn"])
 
         # Run a sync job using orchestrator
-        menagerie.set_state(conn_id, {})
-        record_count_by_stream = self.run_sync(conn_id)
+        record_count_by_stream = self.run_sync(conn_id, clear_state=True)
 
         actual_fields_by_stream = runner.examine_target_output_for_fields()
 
