@@ -64,7 +64,7 @@ jobs:
             source tap-mssql.env
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            pip install numpy==1.16.4
+            pip install numpy==1.21.2
             run-test --tap=/root/project/bin/tap-mssql \
                      tests
       - slack/notify-on-failure:
