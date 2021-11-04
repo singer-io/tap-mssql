@@ -37,7 +37,7 @@ jobs:
 
   tap_tester:
     docker:
-      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:stitch-tap-tester-clj
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:ubuntu-1804-stitch-tap-tester-clj
       - image: mcr.microsoft.com/mssql/server:2017-latest
         environment:
           ACCEPT_EULA: Y
