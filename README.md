@@ -56,6 +56,13 @@ $ bin/test
 
 Note: It also depends on the `mssql-cli` tool being installed in order to use the `connect` option.
 
+To install `mssql-cli`:
+- create a virtualenv
+- source your new virtualenv
+- `pip install mssql-cli`
+
+Before running `bin/test-db connect`, just make sure your virtualenv is sourced.
+
 ```
 Example:
 $ bin/test-db start
