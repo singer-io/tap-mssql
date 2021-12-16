@@ -6,7 +6,7 @@ jobs:
   build:
     docker:
       - image: clojure:lein-2.5.3
-      - image: mcr.microsoft.com/mssql/server:2017-CU27-ubuntu-16.04
+      - image: mcr.microsoft.com/mssql/server:2017-CU25-ubuntu-16.04
         environment:
           ACCEPT_EULA: Y
           SA_PASSWORD: Password1!
