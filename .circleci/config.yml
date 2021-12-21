@@ -72,26 +72,24 @@ jobs:
 
 workflows:
   version: 2
-  build_and_test:
+  build_and_test: &commit_jobs
     jobs:
       - build:
-          context: circleci-user
+          context:
+            - circleci-user
+            - tier-1-tap-user
       - tap_tester:
-          context: circleci-user
+          context:
+            - circleci-user
+            - tier-1-tap-user
           requires:
             - build
   build_daily:
+    <<: *commit_jobs
     triggers:
       - schedule:
-          cron: "0 6 * * *"
+          cron: "0 1 * * *"
           filters:
             branches:
               only:
                 - master
-    jobs:
-      - build:
-          context: circleci-user
-      - tap_tester:
-          context: circleci-user
-          requires:
-            - build
