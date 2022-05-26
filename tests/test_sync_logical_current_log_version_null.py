@@ -1,5 +1,5 @@
 """
-Test tap log sync for decimal data type
+Test tap logical sync with current log version null
 """
 from datetime import datetime, timedelta
 from decimal import getcontext, Decimal
@@ -18,13 +18,13 @@ DECIMAL_PRECISION_SCALE = [(9, 4), (19, 6), (28, 6), (38, 13)]
 NUMERIC_PRECISION_SCALE = [(9, 4), (19, 12), (28, 22), (38, 3)]
 
 
-class SyncDecimalLogical(BaseTapTest):
-    """ Test the tap log based sync for decimal data type """
+class SyncCurrentLogVersionNull(BaseTapTest):
+    """ Test the tap sync with current log version null """
 
     EXPECTED_METADATA = dict()
 
     def name(self):
-        return "{}_logical_sync_decimal_test".format(super().name())
+        return "{}_logical_sync_current_log_version_null".format(super().name())
 
     @classmethod
     def discovery_expected_metadata(cls):
@@ -193,7 +193,7 @@ class SyncDecimalLogical(BaseTapTest):
                                       'inclusion': 'available'}}],
                 'schema': decimal_schema}}
         query_list = list(create_database(database_name, "Latin1_General_CS_AS"))
-        query_list.extend(enable_database_tracking(database_name))
+        query_list.extend(enable_database_tracking(database_name)) # comment out for null from db case
 
         # TODO - BUG https://stitchdata.atlassian.net/browse/SRCE-1075
         table_name = "numeric_precisions"
@@ -207,7 +207,7 @@ class SyncDecimalLogical(BaseTapTest):
         primary_key = {"pk"}
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True))
+                                       primary_key=primary_key, tracking=True)) #tracking=False (null from db case)
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA["data_types_database_dbo_numeric_precisions"]["values"]))
 
@@ -222,7 +222,7 @@ class SyncDecimalLogical(BaseTapTest):
         primary_key = {"pk"}
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True))
+                                       primary_key=primary_key, tracking=True)) #tracking=False (null from db case)
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA["data_types_database_dbo_decimal_precisions"]["values"]))
 
@@ -233,9 +233,9 @@ class SyncDecimalLogical(BaseTapTest):
     def test_run(self):
         """
         Verify that a full sync can send capture all data and send it in the correct format
-        for the decimal data type.
+        for integer and boolean (bit) data.
         Verify that the fist sync sends an activate immediately.
-        Verify that the table version is incremented up TODO current_log_version asserted but not table_version add?
+        Verify that the table version is incremented up
         """
         print("running test {}".format(self.name()))
 
@@ -255,7 +255,7 @@ class SyncDecimalLogical(BaseTapTest):
 
         # verify record counts of streams
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count) # TODO update expected_count so this passes?
+        # self.assertEqual(record_count_by_stream, expected_count) # TODO why is this commented out?
 
         # verify records match on the first sync
         records_by_stream = runner.get_records_from_target_output()
@@ -361,179 +361,19 @@ class SyncDecimalLogical(BaseTapTest):
                                  simplejson.loads(simplejson.dumps(expected_schemas), use_decimal=True),
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
+                
+                #  null / none value from state case: update state and verify expected results
+                if stream == 'data_types_database_dbo_decimal_precisions':
+                    saved_current_log_version = bookmark['current_log_version']
+                    bookmark['current_log_version'] = None
+                    menagerie.set_state(conn_id, state)
 
-        # ----------------------------------------------------------------------
-        # invoke the sync job AGAIN and after insert, update, delete or rows
-        # ----------------------------------------------------------------------
+                    failed_sync_job_name = runner.run_sync_mode(self, conn_id)
+                    exit_status = menagerie.get_exit_status(conn_id, failed_sync_job_name)
+                    
+                    self.assertEqual(exit_status['tap_exit_status'], 1)
+                    self.assertIn('Invalid log-based state', exit_status['tap_error_message'])
+                    self.assertIn('not (nil? current-log-version', exit_status['tap_error_message'])
 
-        database_name = "data_types_database"
-        schema_name = "dbo"
-        table_name = "decimal_precisions"
-        precision_scale = DECIMAL_PRECISION_SCALE
-        column_type = [
-            "decimal({},{})".format(precision, scale)
-            for precision, scale in precision_scale
-        ]
-        column_name = ["pk"] + [x.replace("(", "_").replace(",", "_").replace(")", "") for x in column_type]
-        insert_value = [
-            (7,
-             Decimal('-92473.8401'),
-             Decimal('-4182159664734.645653'),
-             Decimal('6101329656084900380190.268036'),
-             Decimal('4778017533841887320066645.9761464001349')), ]
-        update_value = [
-            (3,
-             Decimal('-92473.8401'),
-             Decimal('-4182159664734.645653'),
-             Decimal('6101329656084900380190.268036'),
-             Decimal('4778017533841887320066645.9761464001349')), ]
-        delete_value = [(4, )]
-        query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
-        mssql_cursor_context_manager(*query_list)
-        insert_value = [insert_value[0] + (None, )]
-        update_value = [update_value[0] + (None, )]
-        delete_value = [delete_value[0] + (None, None, None, None, datetime.utcnow())]
-        self.EXPECTED_METADATA["data_types_database_dbo_decimal_precisions"]["values"] = \
-            [self.expected_metadata()["data_types_database_dbo_decimal_precisions"]["values"][-1]] + \
-            insert_value + delete_value + update_value
-        self.EXPECTED_METADATA["data_types_database_dbo_decimal_precisions"]["fields"].append(
-            {"_sdc_deleted_at": {
-                'sql-datatype': 'datetime', 'selected-by-default': True, 'inclusion': 'automatic'}}
-        )
-
-        database_name = "data_types_database"
-        schema_name = "dbo"
-        table_name = "numeric_precisions"
-        precision_scale = NUMERIC_PRECISION_SCALE
-        column_type = [
-            "numeric({},{})".format(precision, scale)
-            for precision, scale in precision_scale
-        ]
-        column_name = ["pk"] + [x.replace("(", "_").replace(",", "_").replace(")", "") for x in column_type]
-        insert_value = [
-            (7,
-             Decimal('96701.9382'),
-             Decimal('-4371716.186100650268'),
-             Decimal('-367352.306093776232045517794'),
-             Decimal('-81147872128956247517327931319278572.985')), ]
-        update_value = [
-            (3,
-             Decimal('96701.9382'),
-             Decimal('-4371716.186100650268'),
-             Decimal('-367352.306093776232045517794'),
-             Decimal('-81147872128956247517327931319278572.985')), ]
-        delete_value = [(4, )]
-        query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
-        mssql_cursor_context_manager(*query_list)
-        insert_value = [insert_value[0] + (None,)]
-        update_value = [update_value[0] + (None,)]
-        delete_value = [delete_value[0] + (None, None, None, None, datetime.utcnow())]
-        self.EXPECTED_METADATA["data_types_database_dbo_numeric_precisions"]["values"] = \
-            insert_value + delete_value + update_value
-        self.EXPECTED_METADATA["data_types_database_dbo_numeric_precisions"]["fields"].append(
-            {"_sdc_deleted_at": {
-                'sql-datatype': 'datetime', 'selected-by-default': True, 'inclusion': 'automatic'}}
-        )
-
-        # run a sync and verify exit codes
-        record_count_by_stream = self.run_sync(conn_id)
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        self.assertEqual(record_count_by_stream, expected_count)
-        records_by_stream = runner.get_records_from_target_output()
-
-        for stream in self.expected_streams():
-            with self.subTest(stream=stream):
-                stream_expected_data = self.expected_metadata()[stream]
-                new_table_version = records_by_stream[stream]['table_version']
-
-                # verify on a subsequent sync you get activate version message only after all data
-                self.assertEqual(
-                    records_by_stream[stream]['messages'][0]['action'],
-                    'activate_version')
-                self.assertTrue(all(
-                    [message["action"] == "upsert" for message in records_by_stream[stream]['messages'][1:]]
-                ))
-
-                column_names = [
-                    list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
-                ]
-
-                expected_messages = [
-                    {
-                        "action": "upsert", "data":
-                        {
-                            column: value for column, value
-                            in list(zip(column_names, stream_expected_data[self.VALUES][row]))
-                        }
-                    } for row in range(len(stream_expected_data[self.VALUES]))
-                ]
-
-                # remove sequences from actual values for comparison
-                [message.pop("sequence") for message
-                 in records_by_stream[stream]['messages'][1:]]
-
-                # Verify all data is correct
-                for expected_row, actual_row in list(
-                        zip(expected_messages, records_by_stream[stream]['messages'][1:])):
-                    with self.subTest(expected_row=expected_row):
-                        self.assertEqual(actual_row["action"], "upsert")
-
-                        # we only send the _sdc_deleted_at column for deleted rows
-                        self.assertGreaterEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
-
-                        for column_name, expected_value in expected_row["data"].items():
-                            if column_name != "_sdc_deleted_at":
-                                if isinstance(expected_value, Decimal):
-                                    self.assertEqual(type(actual_row["data"][column_name]), Decimal,
-                                                     msg="decimal value is not represented as a number")
-                                    self.assertEqual(expected_value, actual_row["data"][column_name],
-                                                     msg="expected: {} != actual {}".format(
-                                                         expected_row, actual_row))
-                                else:
-                                    self.assertEqual(expected_value, actual_row["data"][column_name],
-                                                     msg="expected: {} != actual {}".format(
-                                                         expected_row, actual_row))
-                            elif expected_value:
-                                # we have an expected value for a deleted row
-                                try:
-                                    actual_value = datetime.strptime(actual_row["data"][column_name],
-                                                                     "%Y-%m-%dT%H:%M:%S.%fZ")
-                                except ValueError:
-                                    actual_value = datetime.strptime(actual_row["data"][column_name],
-                                                                     "%Y-%m-%dT%H:%M:%SZ")
-                                self.assertGreaterEqual(actual_value, expected_value - timedelta(seconds=15))
-                                self.assertLessEqual(actual_value, expected_value + timedelta(seconds=15))
-                            else:
-                                # the row wasn't deleted so we can either not pass the column or it can be None
-                                self.assertIsNone(actual_row["data"].get(column_name))
-
-                print("records are correct for stream {}".format(stream))
-
-                # verify state and bookmarks
-                state = menagerie.get_state(conn_id)
-                bookmark = state['bookmarks'][stream]
-
-                self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
-                self.assertIsNotNone(
-                    bookmark.get('current_log_version'),
-                    msg="expected bookmark to have current_log_version because we are using log replication")
-                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
-                new_log_version = bookmark['current_log_version']
-                self.assertGreater(new_log_version, inital_log_version,
-                                   msg='expected log version to increase')
-
-                self.assertEqual(bookmark['version'], table_version[stream],
-                                 msg="expected bookmark for stream to match version")
-                self.assertEqual(bookmark['version'], new_table_version,
-                                 msg="expected bookmark for stream to match version")
-
-                expected_schemas = self.expected_metadata()[stream]['schema']
-                self.assertEqual(records_by_stream[stream]['schema'],
-                                 simplejson.loads(simplejson.dumps(expected_schemas), use_decimal=True),
-                                 msg="expected: {} != actual: {}".format(expected_schemas,
-                                                                         records_by_stream[stream]['schema']))
+                    bookmark['current_log_version'] = saved_current_log_version
+                    menagerie.set_state(conn_id, state)
