@@ -24,7 +24,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
     EXPECTED_METADATA = dict()
 
     def name(self):
-        return "{}_logical_sync_current_log_version_null".format(super().name())
+        return "{}_log_sync_current_log_vers_null".format(super().name())
 
     @classmethod
     def discovery_expected_metadata(cls):
@@ -232,10 +232,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
 
     def test_run(self):
         """
-        Verify that a full sync can send capture all data and send it in the correct format
-        for integer and boolean (bit) data.
-        Verify that the fist sync sends an activate immediately.
-        Verify that the table version is incremented up
+        Verify that logical sync handles current_log_version = null as expected
         """
         print("running test {}".format(self.name()))
 
@@ -255,7 +252,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
 
         # verify record counts of streams
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count) # TODO why is this commented out?
+        # self.assertEqual(record_count_by_stream, expected_count) # TODO update so this check passes?
 
         # verify records match on the first sync
         records_by_stream = runner.get_records_from_target_output()
@@ -361,7 +358,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
                                  simplejson.loads(simplejson.dumps(expected_schemas), use_decimal=True),
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
-                
+
                 #  null / none value from state case: update state and verify expected results
                 if stream == 'data_types_database_dbo_decimal_precisions':
                     saved_current_log_version = bookmark['current_log_version']
@@ -370,7 +367,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
 
                     failed_sync_job_name = runner.run_sync_mode(self, conn_id)
                     exit_status = menagerie.get_exit_status(conn_id, failed_sync_job_name)
-                    
+
                     self.assertEqual(exit_status['tap_exit_status'], 1)
                     self.assertIn('Invalid log-based state', exit_status['tap_error_message'])
                     self.assertIn('not (nil? current-log-version', exit_status['tap_error_message'])
