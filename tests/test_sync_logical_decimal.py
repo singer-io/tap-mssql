@@ -255,7 +255,6 @@ class SyncDecimalLogical(BaseTapTest):
 
         # verify record counts of streams
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count) # TODO update expected_count so this passes?
 
         # verify records match on the first sync
         records_by_stream = runner.get_records_from_target_output()
@@ -266,9 +265,9 @@ class SyncDecimalLogical(BaseTapTest):
                 stream_expected_data = self.expected_metadata()[stream]
                 table_version[stream] = records_by_stream[stream]['table_version']
 
-                # verify on the first sync you get
-                # activate version message before and after all data for the full table
-                # and before the logical replication part
+                # verify on the first sync you get activate version message before and after all data for the full
+                # table and before the logical replication part
+                # TODO the 2 tables replicate differently https://jira.talendforge.org/browse/TDL-19406
                 if records_by_stream[stream]['messages'][-1].get("data"):
                     last_row_data = True
                 else:

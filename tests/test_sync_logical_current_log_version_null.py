@@ -193,7 +193,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
                                       'inclusion': 'available'}}],
                 'schema': decimal_schema}}
         query_list = list(create_database(database_name, "Latin1_General_CS_AS"))
-        query_list.extend(enable_database_tracking(database_name)) # comment out for null from db case
+        query_list.extend(enable_database_tracking(database_name))
 
         # TODO - BUG https://stitchdata.atlassian.net/browse/SRCE-1075
         table_name = "numeric_precisions"
@@ -207,9 +207,9 @@ class SyncCurrentLogVersionNull(BaseTapTest):
         primary_key = {"pk"}
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True)) #tracking=False (null from db case)
+                                       primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
-                                 cls.EXPECTED_METADATA["data_types_database_dbo_numeric_precisions"]["values"]))
+                                 cls.EXPECTED_METADATA["data_types_database_dbo_numeric_precisions"]["values"])) # KDS could just use value variable directly
 
         table_name = "decimal_precisions"
         precision_scale = DECIMAL_PRECISION_SCALE
@@ -222,11 +222,12 @@ class SyncCurrentLogVersionNull(BaseTapTest):
         primary_key = {"pk"}
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True)) #tracking=False (null from db case)
+                                       primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA["data_types_database_dbo_decimal_precisions"]["values"]))
 
         mssql_cursor_context_manager(*query_list)
+        mssql_cursor_context_manager("")
 
         cls.expected_metadata = cls.discovery_expected_metadata
 
@@ -251,21 +252,22 @@ class SyncCurrentLogVersionNull(BaseTapTest):
         record_count_by_stream = self.run_sync(conn_id)
 
         # verify record counts of streams
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count) # TODO update so this check passes?
+        expected_count = {k: len(v['values']) for k, v in self.EXPECTED_METADATA.items()}
 
         # verify records match on the first sync
         records_by_stream = runner.get_records_from_target_output()
 
         table_version = dict()
+        state = menagerie.get_state(conn_id)
+
         for stream in self.expected_streams():
             with self.subTest(stream=stream):
                 stream_expected_data = self.expected_metadata()[stream]
                 table_version[stream] = records_by_stream[stream]['table_version']
 
-                # verify on the first sync you get
-                # activate version message before and after all data for the full table
-                # and before the logical replication part
+                # verify on the first sync you get activate version message before and
+                # after all data for the full table and before the logical replication part
+                # SPIKE https://jira.talendforge.org/browse/TDL-19406
                 if records_by_stream[stream]['messages'][-1].get("data"):
                     last_row_data = True
                 else:
@@ -340,7 +342,6 @@ class SyncCurrentLogVersionNull(BaseTapTest):
                 print("records are correct for stream {}".format(stream))
 
                 # verify state and bookmarks
-                state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
@@ -359,18 +360,19 @@ class SyncCurrentLogVersionNull(BaseTapTest):
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
 
-                #  null / none value from state case: update state and verify expected results
-                if stream == 'data_types_database_dbo_decimal_precisions':
-                    saved_current_log_version = bookmark['current_log_version']
-                    bookmark['current_log_version'] = None
-                    menagerie.set_state(conn_id, state)
+        #  null / none value from state case: update state and verify expected results
+        stream = 'data_types_database_dbo_decimal_precisions'
+        bookmark = state['bookmarks'][stream]
+        saved_current_log_version = bookmark['current_log_version']
+        bookmark['current_log_version'] = None
+        menagerie.set_state(conn_id, state)
 
-                    failed_sync_job_name = runner.run_sync_mode(self, conn_id)
-                    exit_status = menagerie.get_exit_status(conn_id, failed_sync_job_name)
+        failed_sync_job_name = runner.run_sync_mode(self, conn_id)
+        exit_status = menagerie.get_exit_status(conn_id, failed_sync_job_name)
 
-                    self.assertEqual(exit_status['tap_exit_status'], 1)
-                    self.assertIn('Invalid log-based state', exit_status['tap_error_message'])
-                    self.assertIn('not (nil? current-log-version', exit_status['tap_error_message'])
+        self.assertEqual(exit_status['tap_exit_status'], 1)
+        self.assertIn('Invalid log-based state', exit_status['tap_error_message'])
+        self.assertIn('not (nil? current-log-version', exit_status['tap_error_message'])
 
-                    bookmark['current_log_version'] = saved_current_log_version
-                    menagerie.set_state(conn_id, state)
+        bookmark['current_log_version'] = saved_current_log_version
+        menagerie.set_state(conn_id, state)
