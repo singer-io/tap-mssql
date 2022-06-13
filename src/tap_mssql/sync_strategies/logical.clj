@@ -86,6 +86,16 @@
         first
         :current_version)))
 
+(defn get-last-pk-fetched [stream-name state]
+  (reduce
+   (fn [acc [k v]]
+     ;; When state has a PersistentVector, assume its a timestamp byte-array
+     (if (instance? clojure.lang.PersistentVector v)
+       (assoc acc k (bytes (byte-array (map byte v))))
+       (assoc acc k v)))
+   {}
+   (get-in state ["bookmarks" stream-name "last_pk_fetched"])))
+
 ;; belongs in singer?
 (defn update-current-log-version [stream-name version state]
   (let [previous-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
@@ -142,7 +152,7 @@
                                                                                stream-name
                                                                                "metadata"
                                                                                "table-key-properties"])))
-        primary-key-bookmarks (get-in state ["bookmarks" stream-name "last_pk_fetched"])
+        primary-key-bookmarks (get-last-pk-fetched [stream-name state])
         current-log-version   (get-in state ["bookmarks" stream-name "current_log_version"])
         _                     (log/infof "Syncing log-based stream at version: %d" current-log-version)
         record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
