@@ -227,7 +227,6 @@ class SyncCurrentLogVersionNull(BaseTapTest):
                                  cls.EXPECTED_METADATA["data_types_database_dbo_decimal_precisions"]["values"]))
 
         mssql_cursor_context_manager(*query_list)
-        mssql_cursor_context_manager("")
 
         cls.expected_metadata = cls.discovery_expected_metadata
 

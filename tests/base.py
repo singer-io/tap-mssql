@@ -134,7 +134,7 @@ class BaseTapTest(TapSpec, unittest.TestCase):
                 in self.expected_metadata().items()}
 
     def expected_replication_method(self):
-        """return a dictionary with key of table name nd value of replication method"""
+        """return a dictionary with key of table name and value of replication method"""
         return {table: properties.get(self.REPLICATION_METHOD, None)
                 for table, properties
                 in self.expected_metadata().items()}
@@ -194,58 +194,6 @@ class BaseTapTest(TapSpec, unittest.TestCase):
             utc += date.tzinfo._offset
 
         return utc
-
-    def max_bookmarks_by_stream(self, sync_records):
-        """
-        Return the maximum value for the replication key for each stream
-        which is the bookmark expected value.
-
-        Comparisons are based on the class of the bookmark value. Dates will be
-        string compared which works for ISO date-time strings
-        """
-        max_bookmarks = {}
-        for stream, batch in sync_records.items():
-
-            upsert_messages = [m for m in batch.get('messages') if m['action'] == 'upsert']
-            stream_bookmark_key = self.expected_replication_keys().get(stream, set())
-            assert len(stream_bookmark_key) == 1  # There shouldn't be a compound replication key
-            stream_bookmark_key = stream_bookmark_key.pop()
-
-            bk_values = [message["data"].get(stream_bookmark_key) for message in upsert_messages]
-            max_bookmarks[stream] = {stream_bookmark_key: None}
-            for bk_value in bk_values:
-                if bk_value is None:
-                    continue
-
-                if max_bookmarks[stream][stream_bookmark_key] is None:
-                    max_bookmarks[stream][stream_bookmark_key] = bk_value
-
-                if bk_value > max_bookmarks[stream][stream_bookmark_key]:
-                    max_bookmarks[stream][stream_bookmark_key] = bk_value
-        return max_bookmarks
-
-    def min_bookmarks_by_stream(self, sync_records):
-        """Return the minimum value for the replication key for each stream"""
-        min_bookmarks = {}
-        for stream, batch in sync_records.items():
-
-            upsert_messages = [m for m in batch.get('messages') if m['action'] == 'upsert']
-            stream_bookmark_key = self.expected_replication_keys().get(stream, set())
-            assert len(stream_bookmark_key) == 1  # There shouldn't be a compound replication key
-            (stream_bookmark_key, ) = stream_bookmark_key
-
-            bk_values = [message["data"].get(stream_bookmark_key) for message in upsert_messages]
-            min_bookmarks[stream] = {stream_bookmark_key: None}
-            for bk_value in bk_values:
-                if bk_value is None:
-                    continue
-
-                if min_bookmarks[stream][stream_bookmark_key] is None:
-                    min_bookmarks[stream][stream_bookmark_key] = bk_value
-
-                if bk_value < min_bookmarks[stream][stream_bookmark_key]:
-                    min_bookmarks[stream][stream_bookmark_key] = bk_value
-        return min_bookmarks
 
     @staticmethod
     def select_all_streams_and_fields(conn_id, catalogs, select_all_fields: bool = True,
