@@ -1,5 +1,5 @@
 """
-Test tap discovery
+Test table reset feature for incremental replication
 """
 from datetime import datetime, timedelta
 
@@ -11,13 +11,13 @@ from database import drop_all_user_databases, create_database, \
 from base import BaseTapTest
 
 
-class SyncIntIncremental(BaseTapTest):
+class IncrementalTableReset(BaseTapTest):
     """ Test the tap discovery """
 
     EXPECTED_METADATA = dict()
 
     def name(self):
-        return "{}_incremental_sync_integer_test".format(super().name())
+        return "{}_inc_table_reset_test".format(super().name())
 
     @classmethod
     def discovery_expected_metadata(cls):
@@ -169,10 +169,12 @@ class SyncIntIncremental(BaseTapTest):
 
     def test_run(self):
         """stream_expected_data[self.VALUES]
-        Verify that a full sync can send capture all data and send it in the correct format
-        for integer and boolean (bit) data.
-        Verify that the fist sync sends an activate immediately.
-        Verify that the table version is incremented up
+        Verify that the table reset feature works as expected for incremental replication.
+        Simulate table reset by manipulating state to set the replication key value to None between syncs
+        Verify activate_version messages for both tables across both syncs
+        Verify data values for sync'd messages for both tables across both syncs
+        Verify record count for both tables across both syncs
+        Verify that the table version is NOT incremented between syncs
         """
         print("running test {}".format(self.name()))
 
@@ -189,8 +191,8 @@ class SyncIntIncremental(BaseTapTest):
         found_catalogs = menagerie.get_catalogs(conn_id)
         additional_md = [{"breadcrumb": [], "metadata": {'replication-method': 'INCREMENTAL',
                                                          'replication-key': 'replication_key_column'}}]
-        BaseTapTest.select_all_streams_and_fields(
-            conn_id, found_catalogs, additional_md=additional_md)
+
+        self.select_all_streams_and_fields(conn_id, found_catalogs, additional_md=additional_md)
 
         # run sync and verify exit codes
         record_count_by_stream = self.run_sync(conn_id, clear_state=True)
@@ -208,9 +210,7 @@ class SyncIntIncremental(BaseTapTest):
                 stream_expected_data = self.expected_metadata()[stream]
                 table_version[stream] = records_by_stream[stream]['table_version']
 
-                # verify on the first sync you get
-                # activate version message before and after all data for the full table
-                # and before the logical replication part
+                # verify activate version message is present before and after all data on the first sync
                 self.assertEqual(
                     records_by_stream[stream]['messages'][0]['action'],
                     'activate_version')
@@ -271,47 +271,26 @@ class SyncIntIncremental(BaseTapTest):
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
 
-        # ----------------------------------------------------------------------
-        # invoke the sync job AGAIN and after insert, update, delete or rows
-        # ----------------------------------------------------------------------
+        # --------------------------------------------------------------------------
+        # invoke the sync job AGAIN after resetting one table via state manipulation
+        # --------------------------------------------------------------------------
 
-        database_name = "data_types_database"
-        schema_name = "dbo"
-        table_name = "integers"
-        column_name = ["pk", "replication_key_column", "MyIntColumn", "MySmallIntColumn"]
-        insert_value = [(14, 100, 100, 100), (15, 9223372036854775806, 100, 100)]
-        update_value = [(1, 101, 101, 101), (3, 9223372036854775807, 101, 101)]
-        delete_value = [(5, )]
-        query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
-        mssql_cursor_context_manager(*query_list)
-        insert_value = [(15, 9223372036854775806, 100, 100)]  # only repl_key >= gets included
-        update_value = [(3, 9223372036854775807, 101, 101)]
-        self.EXPECTED_METADATA["data_types_database_dbo_integers"]["values"] = \
-            [(2, 9223372036854775805, 2147483647, 32767)] + insert_value + update_value
+        reset_stream = stream # order is random
+        set_of_streams = self.expected_streams()
+        set_of_streams.remove(reset_stream)
+        non_reset_stream = " ".join(set_of_streams) # convert to string
 
-        database_name = "data_types_database"
-        schema_name = "dbo"
-        table_name = "tiny_integers_and_bools"
-        column_name = ["pk", "replication_key_column", "my_boolean"]
-        insert_value = [(14, 100, False), (15, 255, True)]
-        update_value = [(3, 101, True), (2, 254, True)]
-        delete_value = [(5,)]
-        query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
-        mssql_cursor_context_manager(*query_list)
-        insert_value = [(15, 255, True)]
-        update_value = [(2, 254, True)]
-        self.EXPECTED_METADATA["data_types_database_dbo_tiny_integers_and_bools"]["values"] = \
-            [(1, 253, True)] + update_value + insert_value
+        bookmark['replication_key_value'] = None
+        menagerie.set_state(conn_id, state)
 
         # run sync and verify exit codes
         record_count_by_stream = self.run_sync(conn_id)
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        self.assertEqual(record_count_by_stream, expected_count)
         records_by_stream = runner.get_records_from_target_output()
+
+        reset_record_count = 1
+        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
+        expected_count[non_reset_stream] = reset_record_count
+        self.assertEqual(record_count_by_stream, expected_count)
 
         for stream in self.expected_streams():
             with self.subTest(stream=stream):
@@ -324,6 +303,34 @@ class SyncIntIncremental(BaseTapTest):
                 self.assertTrue(all(
                     [message["action"] == "upsert" for message in records_by_stream[stream]['messages'][1:-1]]
                 ))
+
+                # verify state and bookmarks
+                state = menagerie.get_state(conn_id)
+                bookmark = state['bookmarks'][stream]
+
+                self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
+                self.assertIsNone(bookmark.get('current_log_version'), msg="no log_version for incremental")
+                self.assertIsNone(bookmark.get('initial_full_table_complete'), msg="no full table for incremental")
+
+                # find the max value of the replication key
+                self.assertEqual(bookmark['replication_key_value'],
+                                 max([row[1] for row in stream_expected_data[self.VALUES]
+                                      if row[1] != None ]))
+                self.assertEqual(bookmark['replication_key_name'], 'replication_key_column')
+
+                self.assertEqual(bookmark['version'], table_version[stream],
+                                 msg="expected bookmark for stream to match version")
+                self.assertEqual(bookmark['version'], new_table_version,
+                                 msg="expected bookmark for stream to match version")
+
+                # TODO remove debug (confirms table version does not increment between syncs)
+                #print(f'Table version: {table_version[stream]}, new_table_version: {new_table_version}')
+
+                expected_schemas = self.expected_metadata()[stream]['schema']
+                self.assertEqual(records_by_stream[stream]['schema'],
+                                 expected_schemas,
+                                 msg="expected: {} != actual: {}".format(expected_schemas,
+                                                                         records_by_stream[stream]['schema']))
 
                 column_names = [
                     list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
@@ -341,10 +348,26 @@ class SyncIntIncremental(BaseTapTest):
                 ]
 
                 # remove sequences from actual values for comparison
-                [message.pop("sequence") for message
-                 in records_by_stream[stream]['messages'][1:-1]]
+                [message.pop("sequence") for message in records_by_stream[stream]['messages'][1:-1]]
 
-                # Verify all data is correct
+                # verify record count and data values for the stream that was NOT reset
+                if stream != reset_stream:
+                    messages = records_by_stream[stream]['messages']
+
+                    # only the highest rep key value should be replicated, re-define expectations
+                    if stream == 'data_types_database_dbo_integers':
+                        expected_messages = list(stream_expected_data[self.VALUES][2]).sort()
+                    else:
+                        expected_messages = list(stream_expected_data[self.VALUES][1]).sort()
+
+                    self.assertEqual(record_count_by_stream[stream], reset_record_count)
+                    self.assertEqual(messages[1]['action'], 'upsert')
+                    self.assertEqual(expected_messages, list(messages[1]['data'].values()).sort())
+
+                    print("records are correct for stream {}".format(stream))
+                    continue
+
+                # Verify all data is correct for stream that was reset
                 for expected_row, actual_row in list(
                         zip(expected_messages, records_by_stream[stream]['messages'][1:-1])):
                     with self.subTest(expected_row=expected_row):
@@ -359,29 +382,3 @@ class SyncIntIncremental(BaseTapTest):
                                                  expected_row, actual_row))
 
                 print("records are correct for stream {}".format(stream))
-
-                # verify state and bookmarks
-                state = menagerie.get_state(conn_id)
-                bookmark = state['bookmarks'][stream]
-
-                self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
-                self.assertIsNone(bookmark.get('current_log_version'), msg="no log_version for incremental")
-                self.assertIsNone(bookmark.get('initial_full_table_complete'), msg="no full table for incremental")
-                # find the max value of the replication key
-                self.assertEqual(bookmark['replication_key_value'],
-                                 max([row[1] for row in stream_expected_data[self.VALUES]]))
-                # self.assertEqual(bookmark['replication_key'], 'replication_key_value')
-
-                self.assertEqual(bookmark['version'], table_version[stream],
-                                 msg="expected bookmark for stream to match version")
-                self.assertEqual(bookmark['version'], new_table_version,
-                                 msg="expected bookmark for stream to match version")
-
-                state = menagerie.get_state(conn_id)
-                bookmark = state['bookmarks'][stream]
-
-                expected_schemas = self.expected_metadata()[stream]['schema']
-                self.assertEqual(records_by_stream[stream]['schema'],
-                                 expected_schemas,
-                                 msg="expected: {} != actual: {}".format(expected_schemas,
-                                                                         records_by_stream[stream]['schema']))
