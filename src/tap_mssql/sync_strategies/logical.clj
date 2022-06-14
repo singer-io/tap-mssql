@@ -152,7 +152,7 @@
                                                                                stream-name
                                                                                "metadata"
                                                                                "table-key-properties"])))
-        primary-key-bookmarks (get-last-pk-fetched [stream-name state])
+        primary-key-bookmarks (get-last-pk-fetched stream-name state)
         current-log-version   (get-in state ["bookmarks" stream-name "current_log_version"])
         _                     (log/infof "Syncing log-based stream at version: %d" current-log-version)
         record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
