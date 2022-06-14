@@ -2,7 +2,6 @@
 Test table reset feature for incremental replication
 """
 from datetime import datetime, timedelta
-
 from tap_tester import menagerie, runner
 
 from database import drop_all_user_databases, create_database, \
@@ -12,7 +11,7 @@ from base import BaseTapTest
 
 
 class IncrementalTableReset(BaseTapTest):
-    """ Test the tap discovery """
+    """ Test table reset feature for incremental replication """
 
     EXPECTED_METADATA = dict()
 
@@ -168,7 +167,7 @@ class IncrementalTableReset(BaseTapTest):
         cls.expected_metadata = cls.discovery_expected_metadata
 
     def test_run(self):
-        """stream_expected_data[self.VALUES]
+        """
         Verify that the table reset feature works as expected for incremental replication.
         Simulate table reset by manipulating state to set the replication key value to None between syncs
         Verify activate_version messages for both tables across both syncs
