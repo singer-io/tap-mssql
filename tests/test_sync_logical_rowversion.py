@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 from tap_tester import menagerie, runner
+from tap_tester.logger import LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking
@@ -80,7 +81,7 @@ class SyncLogicalRowVersion(BaseTapTest):
         Verify that the fist sync sends an activate immediately.
         Verify that the table version is incremented up
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
