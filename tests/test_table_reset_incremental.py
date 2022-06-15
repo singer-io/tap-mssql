@@ -364,12 +364,7 @@ class IncrementalTableReset(BaseTapTest):
                     with self.subTest(expected_row=expected_row):
                         self.assertEqual(actual_row["action"], "upsert")
 
-                        # we only send the _sdc_deleted_at column for deleted rows
-                        self.assertEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
-                        for column_name, expected_value in expected_row["data"].items():
-                            self.assertEqual(expected_value, actual_row["data"][column_name],
-                                             msg="expected: {} != actual {}".format(
-                                                 expected_row, actual_row))
+                        # verify message data
+                        self.assertDictEqual(expected_row["data"], actual_row["data"])
 
                 print("records are correct for stream {}".format(stream))
