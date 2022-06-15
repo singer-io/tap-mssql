@@ -108,14 +108,118 @@ class LogicalTableReset(BaseTapTest):
 
         cls.expected_metadata = cls.discovery_expected_metadata
 
+    def verify_full_table_logical_sync_records(self, stream, records_by_stream, table_version):
+        """
+        Verify the expected records and activates versions for the two initial full table syncs,
+        once before the table reset and once after
+        """
+        stream_expected_data = self.expected_metadata()[stream]
+        table_version[stream] = records_by_stream[stream]['table_version']
+
+        # verify activate version message on the first sync before and after all data for
+        # full table and before the logical replication part
+        if records_by_stream[stream]['messages'][-1].get("data"):
+            last_row_data = True
+        else:
+            last_row_data = False
+
+        self.assertEqual(
+            records_by_stream[stream]['messages'][0]['action'],
+            'activate_version')
+        self.assertEqual(
+            records_by_stream[stream]['messages'][-2]['action'],
+            'activate_version')
+        if last_row_data:
+            self.assertEqual(
+                records_by_stream[stream]['messages'][-3]['action'],
+                'activate_version')
+        else:
+            self.assertEqual(
+                records_by_stream[stream]['messages'][-1]['action'],
+                'activate_version')
+        self.assertEqual(
+            len([m for m in records_by_stream[stream]['messages'][1:] if m["action"] == "activate_version"]),
+            2,
+            msg="Expect 2 more activate version messages for end of full table and beginning of log based")
+
+        column_names = [
+            list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
+        ]
+
+        expected_messages = [
+            {
+                "action": "upsert", "data":
+                {
+                    column: value for column, value
+                    in list(zip(column_names, stream_expected_data[self.VALUES][row]))
+                }
+            } for row in range(len(stream_expected_data[self.VALUES]))
+        ]
+
+        # verify all data is correct for the full table part
+        if last_row_data:
+            final_row = -3
+        else:
+            final_row = -2
+
+        for expected_row, actual_row in list(
+                zip(expected_messages, records_by_stream[stream]['messages'][1:final_row])):
+            with self.subTest(expected_row=expected_row):
+
+                self.assertEqual(actual_row["action"], "upsert")
+                self.assertEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
+                                 msg="there are not the same number of columns")
+                for column_name, expected_value in expected_row["data"].items():
+                    column_index = [list(key.keys())[0] for key in
+                                    self.expected_metadata()[stream][self.FIELDS]].index(column_name)
+                    if self.expected_metadata()[stream][self.FIELDS][column_index][column_name][self.DATATYPE] \
+                            in ("real", "float") \
+                            and actual_row["data"][column_name] is not None:
+                        self.assertEqual(type(actual_row["data"][column_name]), Decimal,
+                                         msg="float value is not represented as a number")
+                        self.assertEqual(float(str(float32(expected_value))),
+                                         float(str(float32(actual_row["data"][column_name]))),
+                                         msg="single value of {} doesn't match actual {}".format(
+                                             float(str(float32(expected_value))),
+                                             float(str(float32(actual_row["data"][column_name]))))
+                                         )
+                    else:
+                        self.assertEqual(expected_value, actual_row["data"][column_name],
+                                         msg="expected: {} != actual {}".format(
+                                             expected_row, actual_row))
+
+        # Verify all data is correct for the log replication part if sent
+        if records_by_stream[stream]['messages'][-1].get("data"):
+            for column_name, expected_value in expected_messages[-1]["data"].items():
+                if isinstance(expected_value, float):
+                    self.assertEqual(type(records_by_stream[stream]['messages'][-1]["data"][column_name]),
+                                     Decimal,
+                                     msg="float value is not represented as a number")
+                    self.assertEqual(float(str(float32(expected_value))),
+                                     float(str(float32(
+                                         records_by_stream[stream]['messages'][-1]["data"][column_name]))),
+                                     msg="single value of {} doesn't match actual {}".format(
+                                         float(str(float32(expected_value))),
+                                         float(str(float32(
+                                             records_by_stream[stream]['messages'][-1]["data"][column_name]))))
+                                     )
+                else:
+                    self.assertEqual(expected_value,
+                                     records_by_stream[stream]['messages'][-1]["data"][column_name],
+                                     msg="expected: {} != actual {}".format(
+                                         expected_row, actual_row))
+
+        print("records are correct for stream {}".format(stream))
+
+
     def test_run(self):
         """
         Verify that the table reset feature works as expected for logical replication.
-        Simulate table reset by manipulating state to set the TODO  between syncs
+        Simulate table reset by manipulating state to remove stream key between syncs
+          - This will cause an "initial full table + logical" sync to occur again
         Verify activate_version messages for both tables across both syncs
         Verify data values for sync'd messages for both tables across both syncs
         Verify record count for both tables across both syncs
-        Verify that the table version is NOT incremented between syncs
         """
 
         print("running test {}".format(self.name()))
@@ -147,118 +251,23 @@ class LogicalTableReset(BaseTapTest):
         table_version = dict()
         for stream in self.expected_streams():
             with self.subTest(stream=stream):
-                stream_expected_data = self.expected_metadata()[stream]
-                table_version[stream] = records_by_stream[stream]['table_version']
 
-                # verify activate version message on the first sync before and after all data for
-                # full table and before the logical replication part
-                if records_by_stream[stream]['messages'][-1].get("data"):
-                    last_row_data = True
-                else:
-                    last_row_data = False
-
-                self.assertEqual(
-                    records_by_stream[stream]['messages'][0]['action'],
-                    'activate_version')
-                self.assertEqual(
-                    records_by_stream[stream]['messages'][-2]['action'],
-                    'activate_version')
-                if last_row_data:
-                    self.assertEqual(
-                        records_by_stream[stream]['messages'][-3]['action'],
-                        'activate_version')
-                else:
-                    self.assertEqual(
-                        records_by_stream[stream]['messages'][-1]['action'],
-                        'activate_version')
-                self.assertEqual(
-                    len([m for m in records_by_stream[stream]['messages'][1:] if m["action"] == "activate_version"]),
-                    2,
-                    msg="Expect 2 more activate version messages for end of full table and beginning of log based")
-
-                column_names = [
-                    list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
-                ]
-
-                expected_messages = [
-                    {
-                        "action": "upsert", "data":
-                        {
-                            column: value for column, value
-                            in list(zip(column_names, stream_expected_data[self.VALUES][row]))
-                        }
-                    } for row in range(len(stream_expected_data[self.VALUES]))
-                ]
-
-                # verify all data is correct for the full table part
-                if last_row_data:
-                    final_row = -3
-                else:
-                    final_row = -2
-
-                for expected_row, actual_row in list(
-                        zip(expected_messages, records_by_stream[stream]['messages'][1:final_row])):
-                    with self.subTest(expected_row=expected_row):
-
-                        self.assertEqual(actual_row["action"], "upsert")
-                        self.assertEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
-                        for column_name, expected_value in expected_row["data"].items():
-                            column_index = [list(key.keys())[0] for key in
-                                            self.expected_metadata()[stream][self.FIELDS]].index(column_name)
-                            if self.expected_metadata()[stream][self.FIELDS][column_index][column_name][self.DATATYPE] \
-                                    in ("real", "float") \
-                                    and actual_row["data"][column_name] is not None:
-                                self.assertEqual(type(actual_row["data"][column_name]), Decimal,
-                                                 msg="float value is not represented as a number")
-                                self.assertEqual(float(str(float32(expected_value))),
-                                                 float(str(float32(actual_row["data"][column_name]))),
-                                                 msg="single value of {} doesn't match actual {}".format(
-                                                     float(str(float32(expected_value))),
-                                                     float(str(float32(actual_row["data"][column_name]))))
-                                                 )
-                            else:
-                                self.assertEqual(expected_value, actual_row["data"][column_name],
-                                                 msg="expected: {} != actual {}".format(
-                                                     expected_row, actual_row))
-
-                # Verify all data is correct for the log replication part if sent
-                if records_by_stream[stream]['messages'][-1].get("data"):
-                    for column_name, expected_value in expected_messages[-1]["data"].items():
-                        if isinstance(expected_value, float):
-                            self.assertEqual(type(records_by_stream[stream]['messages'][-1]["data"][column_name]),
-                                             Decimal,
-                                             msg="float value is not represented as a number")
-                            self.assertEqual(float(str(float32(expected_value))),
-                                             float(str(float32(
-                                                 records_by_stream[stream]['messages'][-1]["data"][column_name]))),
-                                             msg="single value of {} doesn't match actual {}".format(
-                                                 float(str(float32(expected_value))),
-                                                 float(str(float32(
-                                                     records_by_stream[stream]['messages'][-1]["data"][column_name]))))
-                                             )
-                        else:
-                            self.assertEqual(expected_value,
-                                             records_by_stream[stream]['messages'][-1]["data"][column_name],
-                                             msg="expected: {} != actual {}".format(
-                                                 expected_row, actual_row))
-
-                print("records are correct for stream {}".format(stream))
+                self.verify_full_table_logical_sync_records(stream, records_by_stream, table_version)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
+                initial_log_version = bookmark['current_log_version']
+                expected_schemas = self.expected_metadata()[stream]['schema']
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
                 self.assertIsNotNone(bookmark.get('current_log_version'),
                     msg="expected bookmark to have current_log_version because we are using log replication")
-                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
-                initial_log_version = bookmark['current_log_version']
 
+                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
                 self.assertEqual(bookmark['version'], table_version[stream],
                                  msg="expected bookmark for stream to match version")
 
-                expected_schemas = self.expected_metadata()[stream]['schema']
                 self.assertEqual(records_by_stream[stream]['schema'], expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
                                                                          records_by_stream[stream]['schema']))
@@ -267,108 +276,36 @@ class LogicalTableReset(BaseTapTest):
         # invoke the sync job AGAIN after resetting log version and verify expected records
         # ---------------------------------------------------------------------------------
 
-        bookmark['current_log_version'] = 0
+        state['bookmarks'].pop(stream)
         menagerie.set_state(conn_id, state)
 
         # run a sync and verify exit codes
         record_count_by_stream = self.run_sync(conn_id)
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
+        expected_count = {k: len(v['values']) + 1 for k, v in self.expected_metadata().items()}
         self.assertEqual(record_count_by_stream, expected_count)
         records_by_stream = runner.get_records_from_target_output()
 
         for stream in self.expected_streams():
             with self.subTest(stream=stream):
-                stream_expected_data = self.expected_metadata()[stream]
-                new_table_version = records_by_stream[stream]['table_version']
 
-                # verify on a subsequent sync you get activate version message only after all data
-                self.assertEqual(
-                    records_by_stream[stream]['messages'][0]['action'],
-                    'activate_version')
-                self.assertTrue(all(
-                    [message["action"] == "upsert" for message in records_by_stream[stream]['messages'][1:]]
-                ))
-
-                column_names = [
-                    list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
-                ]
-
-                expected_messages = [
-                    {
-                        "action": "upsert", "data":
-                        {
-                            column: value for column, value
-                            in list(zip(column_names, stream_expected_data[self.VALUES][row]))
-                        }
-                    } for row in range(len(stream_expected_data[self.VALUES]))
-                ]
-
-                # remove sequences from actual values for comparison
-                [message.pop("sequence") for message
-                 in records_by_stream[stream]['messages'][1:]]
-
-                # Verify all data is correct
-                for expected_row, actual_row in list(
-                        zip(expected_messages, records_by_stream[stream]['messages'][1:])):
-                    with self.subTest(expected_row=expected_row):
-                        self.assertEqual(actual_row["action"], "upsert")
-
-                        # we only send the _sdc_deleted_at column for deleted rows
-                        self.assertGreaterEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
-
-                        for column_name, expected_value in expected_row["data"].items():
-                            if column_name != "_sdc_deleted_at":
-                                column_index = [list(key.keys())[0] for key in
-                                                self.expected_metadata()[stream][self.FIELDS]].index(column_name)
-                                if self.expected_metadata()[stream][self.FIELDS][column_index][column_name][
-                                    self.DATATYPE] \
-                                        in ("real", "float") \
-                                        and actual_row["data"][column_name] is not None:
-                                    self.assertEqual(type(actual_row["data"][column_name]), Decimal,
-                                                     msg="float value is not represented as a number")
-                                    self.assertEqual(float(str(float32(expected_value))),
-                                                     float(str(float32(actual_row["data"][column_name]))),
-                                                     msg="single value of {} doesn't match actual {}".format(
-                                                         float(str(float32(expected_value))),
-                                                         float(str(float32(actual_row["data"][column_name]))))
-                                                     )
-                                else:
-                                    self.assertEqual(expected_value, actual_row["data"][column_name],
-                                                     msg="expected: {} != actual {}".format(
-                                                         expected_row, actual_row))
-                            elif expected_value:
-                                # we have an expected value for a deleted row
-                                try:
-                                    actual_value = datetime.strptime(actual_row["data"][column_name],
-                                                                     "%Y-%m-%dT%H:%M:%S.%fZ")
-                                except ValueError:
-                                    actual_value = datetime.strptime(actual_row["data"][column_name],
-                                                                     "%Y-%m-%dT%H:%M:%SZ")
-                                self.assertGreaterEqual(actual_value, expected_value - timedelta(seconds=15))
-                                self.assertLessEqual(actual_value, expected_value + timedelta(seconds=15))
-                            else:
-                                # the row wasn't deleted so we can either not pass the column or it can be None
-                                self.assertIsNone(actual_row["data"].get(column_name))
-
-                print("records are correct for stream {}".format(stream))
+                # verify records
+                self.verify_full_table_logical_sync_records(stream, records_by_stream, table_version)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
+                new_log_version = bookmark['current_log_version']
+                new_table_version = records_by_stream[stream]['table_version']
+                expected_schemas = self.expected_metadata()[stream]['schema']
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
                 self.assertIsNotNone(bookmark.get('current_log_version'),
                     msg="expected bookmark to have current_log_version because we are using log replication")
-                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
-                new_log_version = bookmark['current_log_version']
 
-                self.assertEqual(bookmark['version'], table_version[stream],
-                                 msg="expected bookmark for stream to match version")
+                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
                 self.assertEqual(bookmark['version'], new_table_version,
                                  msg="expected bookmark for stream to match version")
 
-                expected_schemas = self.expected_metadata()[stream]['schema']
                 self.assertEqual(records_by_stream[stream]['schema'],
                                  expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
@@ -475,8 +412,6 @@ class LogicalTableReset(BaseTapTest):
                 self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
                 new_log_version = bookmark['current_log_version']
 
-                self.assertEqual(bookmark['version'], table_version[stream],
-                                 msg="expected bookmark for stream to match version")
                 self.assertEqual(bookmark['version'], new_table_version,
                                  msg="expected bookmark for stream to match version")
 

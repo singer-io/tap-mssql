@@ -169,7 +169,7 @@ class IncrementalTableReset(BaseTapTest):
     def test_run(self):
         """
         Verify that the table reset feature works as expected for incremental replication.
-        Simulate table reset by manipulating state to set the replication key value to None between syncs
+        Simulate table reset by manipulating state to remove the stream between syncs
         Verify activate_version messages for both tables across both syncs
         Verify data values for sync'd messages for both tables across both syncs
         Verify record count for both tables across both syncs
@@ -252,19 +252,18 @@ class IncrementalTableReset(BaseTapTest):
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
+                expected_schemas = self.expected_metadata()[stream]['schema']
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
                 self.assertIsNone(bookmark.get('current_log_version'), msg="no log_version for incremental")
                 self.assertIsNone(bookmark.get('initial_full_table_complete'), msg="no full table for incremental")
+
                 # find the max value of the replication key
                 self.assertEqual(bookmark['replication_key_value'],
                                  max([row[1] for row in stream_expected_data[self.VALUES] if row[1] is not None]))
-                # self.assertEqual(bookmark['replication_key'], 'replication_key_value')
-
+                self.assertEqual(bookmark['replication_key_name'], 'replication_key_column')
                 self.assertEqual(bookmark['version'], table_version[stream],
                                  msg="expected bookmark for stream to match version")
-
-                expected_schemas = self.expected_metadata()[stream]['schema']
                 self.assertEqual(records_by_stream[stream]['schema'],
                                  expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
@@ -279,7 +278,7 @@ class IncrementalTableReset(BaseTapTest):
         set_of_streams.remove(reset_stream)
         non_reset_stream = " ".join(set_of_streams) # convert to string
 
-        bookmark['replication_key_value'] = None
+        state['bookmarks'].pop(stream)
         menagerie.set_state(conn_id, state)
 
         # run sync and verify exit codes
@@ -306,6 +305,7 @@ class IncrementalTableReset(BaseTapTest):
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
+                expected_schemas = self.expected_metadata()[stream]['schema']
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
                 self.assertIsNone(bookmark.get('current_log_version'), msg="no log_version for incremental")
@@ -316,16 +316,8 @@ class IncrementalTableReset(BaseTapTest):
                                  max([row[1] for row in stream_expected_data[self.VALUES]
                                       if row[1] != None ]))
                 self.assertEqual(bookmark['replication_key_name'], 'replication_key_column')
-
-                self.assertEqual(bookmark['version'], table_version[stream],
-                                 msg="expected bookmark for stream to match version")
                 self.assertEqual(bookmark['version'], new_table_version,
                                  msg="expected bookmark for stream to match version")
-
-                # TODO remove debug (confirms table version does not increment between syncs)
-                #print(f'Table version: {table_version[stream]}, new_table_version: {new_table_version}')
-
-                expected_schemas = self.expected_metadata()[stream]['schema']
                 self.assertEqual(records_by_stream[stream]['schema'],
                                  expected_schemas,
                                  msg="expected: {} != actual: {}".format(expected_schemas,
@@ -366,7 +358,7 @@ class IncrementalTableReset(BaseTapTest):
                     print("records are correct for stream {}".format(stream))
                     continue
 
-                # Verify all data is correct for stream that was reset
+                # verify all data is correct for stream that was reset
                 for expected_row, actual_row in list(
                         zip(expected_messages, records_by_stream[stream]['messages'][1:-1])):
                     with self.subTest(expected_row=expected_row):
