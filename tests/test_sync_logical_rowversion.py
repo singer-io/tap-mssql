@@ -14,9 +14,9 @@ from base import BaseTapTest
 
 database_name = "row_version_state"
 schema_name = "dbo"
-table_name = "row_version"  # sync completed
-table_name_1 = f"{table_name}_1"  # sync interrupted
-table_name_2 = f"{table_name}_2"  # sync not started
+table_name_1 = "row_version_1"  # sync completed
+table_name_2 = f"row_version_2"  # sync interrupted
+table_name_3 = f"row_version_3"  # sync not started
 
 class SyncIntLogical(BaseTapTest):
     """ Test the tap discovery """
@@ -50,14 +50,6 @@ class SyncIntLogical(BaseTapTest):
         column_def = [" ".join(x) for x in list(zip(column_names, column_type))]
         row_values = [(i, 'a') for i in range(1000)]
 
-        query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True))
-        query_list.extend(
-            insert(database_name, schema_name, table_name, row_values, column_names=column_names[:-1]
-            )
-        )
-
-        # create the 'sync interrupted' table 
         query_list.extend(create_table(database_name, schema_name, table_name_1, column_def,
                                        primary_key=primary_key, tracking=True))
         query_list.extend(
@@ -65,11 +57,19 @@ class SyncIntLogical(BaseTapTest):
             )
         )
 
-        # create the 'not yet synced' table 
+        # create the 'sync interrupted' table 
         query_list.extend(create_table(database_name, schema_name, table_name_2, column_def,
                                        primary_key=primary_key, tracking=True))
         query_list.extend(
             insert(database_name, schema_name, table_name_2, row_values, column_names=column_names[:-1]
+            )
+        )
+
+        # create the 'not yet synced' table 
+        query_list.extend(create_table(database_name, schema_name, table_name_3, column_def,
+                                       primary_key=primary_key, tracking=True))
+        query_list.extend(
+            insert(database_name, schema_name, table_name_3, row_values, column_names=column_names[:-1]
             )
         )
 
@@ -108,10 +108,10 @@ class SyncIntLogical(BaseTapTest):
         # get state
         initial_state = menagerie.get_state(conn_id)
         # get rowversion for the the midway point in the table
-        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_1} where pk_col = 500;"
+        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 500;"
         last_fetched_results = mssql_cursor_context_manager(select_query)
         # get rowversion for the max rowin the table
-        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_1} where pk_col = 999;"
+        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 999;"
         max_results = mssql_cursor_context_manager(select_query)
         max_pk_values = [int(byte) for byte in bytearray(max_results[0][0])]
         last_pk_fetched = [int(byte) for byte in bytearray(last_fetched_results[0][0])]
@@ -119,11 +119,11 @@ class SyncIntLogical(BaseTapTest):
         # set the new state
         # for the interrupted table
         state_to_inject = deepcopy(initial_state)
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_1}']['initial_full_table_complete'] = False
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_1}']['last_pk_fetched'] = {"RowVersion": last_pk_fetched}
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_1}']['max_pk_values'] = {"RowVersion": max_pk_values}
-        # for the not yet synced table
         state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['initial_full_table_complete'] = False
+        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['last_pk_fetched'] = {"RowVersion": last_pk_fetched}
+        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['max_pk_values'] = {"RowVersion": max_pk_values}
+        # for the not yet synced table
+        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_3}']['initial_full_table_complete'] = False
         menagerie.set_state(conn_id, state_to_inject)
 
         # run a sync and verify exit codes
