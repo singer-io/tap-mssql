@@ -128,7 +128,7 @@ class SyncLogicalRowVersion(BaseTapTest):
         state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['max_pk_values'] = {"RowVersion": max_pk_values}
 
         # for the not yet synced table
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_3}']['initial_full_table_complete'] = False
+        del state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_3}']
 
         menagerie.set_state(conn_id, state_to_inject)
 
