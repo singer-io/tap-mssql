@@ -110,22 +110,22 @@ class SyncLogicalRowVersion(BaseTapTest):
         # buid out an interrupted state to inject
 
         # get rowversion for the the midway point in the table
-        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 500;"
+        select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 499;"
         last_fetched_results = mssql_cursor_context_manager(select_query)
 
         # get rowversion for the max rowin the table
         select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 999;"
         max_results = mssql_cursor_context_manager(select_query)
-        max_pk_values = [int(byte) for byte in bytearray(max_results[0][0])]
-        last_pk_fetched = [int(byte) for byte in bytearray(last_fetched_results[0][0])]
+        max_pk_values = [int(byte) for byte in max_results[0][0]]
+        last_pk_fetched = [int(byte) for byte in last_fetched_results[0][0]]
 
         # set the new state
 
         # for the interrupted table
         state_to_inject = deepcopy(initial_state)
         state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['initial_full_table_complete'] = False
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['last_pk_fetched'] = {"RowVersion": last_pk_fetched}
-        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['max_pk_values'] = {"RowVersion": max_pk_values}
+        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['last_pk_fetched'] = {"rk_col": last_pk_fetched}
+        state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_2}']['max_pk_values'] = {"rk_col": max_pk_values}
 
         # for the not yet synced table
         del state_to_inject['bookmarks'][f'{database_name}_{schema_name}_{table_name_3}']
