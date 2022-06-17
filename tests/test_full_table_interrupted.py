@@ -1,5 +1,11 @@
 """
 Test the tap can recover from an interruped full table sync
+
+* Test Setup:
+  - Use tables int_data, int_before and varchar_data for interrupted_state scenario
+  - int_before table is the table which is replicated prior to the interruption
+  - Modify int_data and varchar_data to validate if the updates are being captured post the recovery from interrupted state
+  - int_after table is not part of the interrupted_state and is expected to get replicated as a new stream
 """
 import sys
 
@@ -271,8 +277,6 @@ class FullTableInterrupted(BaseTapTest):
                 }
                 versions[tap_stream_id] = version
 
-
-
             modify_cursor = client.cursor()
             int_min_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk').fetchall()
             int_max_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk desc').fetchall()
@@ -292,9 +296,7 @@ class FullTableInterrupted(BaseTapTest):
         exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
         menagerie.verify_sync_exit_status(self, exit_status, sync_job_name)
 
-
         ################### Assertions #####################
-
 
         records_by_stream  = runner.get_records_from_target_output()
         record_count_by_stream = runner.examine_target_output_file(
@@ -314,7 +316,6 @@ class FullTableInterrupted(BaseTapTest):
             self.assertNotIn('last_pk_fetched', value)
             self.assertIn('version', value)
             self.assertIsInstance(value['version'], int)
-
 
         # Verify the data in the modified streams after the interrupted sync recovery
 
@@ -337,9 +338,13 @@ class FullTableInterrupted(BaseTapTest):
                     if 'data' in records_by_stream[stream]['messages'][i].keys() and records_by_stream[stream]['messages'][i]['data']['pk'] == 5:
                         self.assertEqual(records_by_stream[stream]['messages'][i]['data']['varchar_5'], 'TEST')
 
+        # ActivateVersionMessage validation
 
-        # ActivateVersionMessage as the last message and not the first
-        # Possible bug - Seeing acivateversion message both at the start and the end for the excluded stream
-        for stream_name in self.expected_sync_streams()-{'full_interruptible_dbo_int_after'}:
+        for stream_name in self.expected_sync_streams():
+            # for the replication of the table after the interruption, validate if ActivateVersionMessage is present as the first and the last message
+            if stream_name == 'full_interruptible_dbo_int_after':
+                self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][-1]['action'])
+                self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][0]['action'])
+            # for the tables involved in interruption scenario, validate if ActivateVersionMessage is present as the last message and not the first
             self.assertNotEqual('activate_version', records_by_stream[stream_name]['messages'][0]['action'])
             self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][-1]['action'])
