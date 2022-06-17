@@ -252,12 +252,11 @@ class LogicalTableReset(BaseTapTest):
         for stream in self.expected_streams():
             with self.subTest(stream=stream):
 
-                self.verify_full_table_logical_sync_records(stream, records_by_stream, table_version)
-
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
                 initial_log_version = bookmark['current_log_version']
+                table_version[stream] = records_by_stream[stream]['table_version']
                 expected_schemas = self.expected_metadata()[stream]['schema']
 
                 self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")

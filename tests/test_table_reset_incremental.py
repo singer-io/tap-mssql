@@ -273,21 +273,18 @@ class IncrementalTableReset(BaseTapTest):
         # invoke the sync job AGAIN after resetting one table via state manipulation
         # --------------------------------------------------------------------------
 
-        reset_stream = stream # order is random
-        set_of_streams = self.expected_streams()
-        set_of_streams.remove(reset_stream)
-        non_reset_stream = " ".join(set_of_streams) # convert to string
-
-        state['bookmarks'].pop(stream)
+        reset_stream = 'data_types_database_dbo_integers'
+        non_reset_stream = 'data_types_database_dbo_tiny_integers_and_bools'
+        state['bookmarks'].pop(reset_stream)
         menagerie.set_state(conn_id, state)
 
         # run sync and verify exit codes
         record_count_by_stream = self.run_sync(conn_id)
         records_by_stream = runner.get_records_from_target_output()
 
-        reset_record_count = 1
+        non_reset_record_count = 1
         expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        expected_count[non_reset_stream] = reset_record_count
+        expected_count[non_reset_stream] = non_reset_record_count
         self.assertEqual(record_count_by_stream, expected_count)
 
         for stream in self.expected_streams():
@@ -342,16 +339,13 @@ class IncrementalTableReset(BaseTapTest):
                 [message.pop("sequence") for message in records_by_stream[stream]['messages'][1:-1]]
 
                 # verify record count and data values for the stream that was NOT reset
-                if stream != reset_stream:
+                if stream == non_reset_stream:
                     messages = records_by_stream[stream]['messages']
 
                     # only the highest rep key value should be replicated, re-define expectations
-                    if stream == 'data_types_database_dbo_integers':
-                        expected_messages = list(stream_expected_data[self.VALUES][2]).sort()
-                    else:
-                        expected_messages = list(stream_expected_data[self.VALUES][1]).sort()
+                    expected_messages = list(stream_expected_data[self.VALUES][1]).sort()
 
-                    self.assertEqual(record_count_by_stream[stream], reset_record_count)
+                    self.assertEqual(record_count_by_stream[stream], non_reset_record_count)
                     self.assertEqual(messages[1]['action'], 'upsert')
                     self.assertEqual(expected_messages, list(messages[1]['data'].values()).sort())
 
