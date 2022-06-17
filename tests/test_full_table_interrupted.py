@@ -259,34 +259,39 @@ class FullTableInterrupted(BaseTapTest):
 
         versions = {}
 
-        with get_test_connection() as client:
-            for stream_name in self.expected_streams()-{'int_before', 'int_after'}:
-                cursor = client.cursor()
-                cursor.execute('select * from '+database_name+'.'+schema_name+'.'+stream_name+' order by pk')
-                results = cursor.fetchall()
+        for stream_name in self.expected_streams()-{'int_before', 'int_after'}:
+            first_query = ['select * from '+database_name+'.'+schema_name+'.'+stream_name+' order by pk']
+            results = mssql_cursor_context_manager(*first_query)
 
-                last_pk_fetched = results[len(results)//2][0]
-                max_pk_value = results[-1][0]
+            last_pk_fetched = results[len(results)//2][0]
+            max_pk_value = results[-1][0]
 
-                tap_stream_id = database_name+'_'+schema_name+'_'+stream_name
-                version = int(time.time() * 1000)
-                interrupted_state['bookmarks'][tap_stream_id] = {
+            tap_stream_id = database_name+'_'+schema_name+'_'+stream_name
+            version = int(time.time() * 1000)
+            interrupted_state['bookmarks'][tap_stream_id] = {
                     'max_pk_values': {'pk': max_pk_value},
                     'last_pk_fetched': {'pk': last_pk_fetched},
                     'version': version
-                }
-                versions[tap_stream_id] = version
+            }
+            versions[tap_stream_id] = version
 
-            modify_cursor = client.cursor()
-            int_min_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk').fetchall()
-            int_max_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk desc').fetchall()
-            modify_cursor.execute('update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 111 where pk = '+str(int_min_id[0][0]))
-            modify_cursor.execute('update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 222 where pk = '+str(int_max_id[0][0]))
+        int_min_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk']
+        int_min_id = mssql_cursor_context_manager(*int_min_query)
+        int_max_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk desc']
+        int_max_id = mssql_cursor_context_manager(*int_max_query)
+        update_int_min_query = ['update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 111 where pk = '+str(int_min_id[0][0])]
+        mssql_cursor_context_manager(*update_int_min_query)
+        update_int_max_query = ['update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 222 where pk = '+str(int_max_id[0][0])]
+        mssql_cursor_context_manager(*update_int_max_query)
 
-            varchar_min_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk').fetchall()
-            varchar_max_id = modify_cursor.execute('select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk desc').fetchall()
-            modify_cursor.execute('update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_min_id[0][0]))
-            modify_cursor.execute('update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_max_id[0][0]))
+        varchar_min_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk']
+        varchar_min_id = mssql_cursor_context_manager(*varchar_min_query)
+        varchar_max_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk desc']
+        varchar_max_id = mssql_cursor_context_manager(*varchar_max_query)
+        update_varchar_min_query = ['update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_min_id[0][0])]
+        mssql_cursor_context_manager(*update_varchar_min_query)
+        update_varchar_max_query = ['update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_max_id[0][0])]
+        mssql_cursor_context_manager(*update_varchar_max_query)
 
         menagerie.set_state(conn_id, interrupted_state)
 
@@ -346,5 +351,6 @@ class FullTableInterrupted(BaseTapTest):
                 self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][-1]['action'])
                 self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][0]['action'])
             # for the tables involved in interruption scenario, validate if ActivateVersionMessage is present as the last message and not the first
-            self.assertNotEqual('activate_version', records_by_stream[stream_name]['messages'][0]['action'])
-            self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][-1]['action'])
+            else:
+                self.assertNotEqual('activate_version', records_by_stream[stream_name]['messages'][0]['action'])
+                self.assertEqual('activate_version', records_by_stream[stream_name]['messages'][-1]['action'])
