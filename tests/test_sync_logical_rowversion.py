@@ -31,6 +31,13 @@ class SyncLogicalRowVersion(BaseTapTest):
     def name(self):
         return "{}_log_rowversion".format(super().name())
 
+    def byte_array_to_int_array(self, byte_array: bytes):
+        int_array = []
+        for i in range(len(byte_array)):
+            int_array.append(int.from_bytes(byte_array[i:i+1], "big", signed=True))
+
+        return int_array
+
     @classmethod
     def setUpClass(cls) -> None:
         """Create the test database and tables"""
@@ -112,12 +119,12 @@ class SyncLogicalRowVersion(BaseTapTest):
         # get rowversion for the the midway point in the table
         select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 499;"
         last_fetched_results = mssql_cursor_context_manager(select_query)
+        last_pk_fetched = self.byte_array_to_int_array(last_fetched_results[0][0])
 
         # get rowversion for the max rowin the table
         select_query = f"select rk_col from {database_name}.{schema_name}.{table_name_2} where pk_col = 999;"
         max_results = mssql_cursor_context_manager(select_query)
-        max_pk_values = [int(byte) for byte in max_results[0][0]]
-        last_pk_fetched = [int(byte) for byte in last_fetched_results[0][0]]
+        max_pk_values = self.byte_array_to_int_array(max_results[0][0])
 
         # set the new state
 
@@ -142,14 +149,14 @@ class SyncLogicalRowVersion(BaseTapTest):
         final_state = menagerie.get_state(conn_id)
 
         # check the replicated messages
-        stream_name_1 = f"{database_name}_{schema_name}_{table_name_1}",
-        stream_name_2 = f"{database_name}_{schema_name}_{table_name_2}",
-        stream_name_3 = f"{database_name}_{schema_name}_{table_name_3}",
+        stream_name_1 = f"{database_name}_{schema_name}_{table_name_1}"
+        stream_name_2 = f"{database_name}_{schema_name}_{table_name_2}"
+        stream_name_3 = f"{database_name}_{schema_name}_{table_name_3}"
 
         # verify the already synced table sends only an activate version message
         self.assertIn(stream_name_1, messages_by_stream_2.keys())
         table_1_final_messages = messages_by_stream_2[stream_name_1]['messages']
-        self.assertEqual(1, len(table_1_final_messagesmessages_1))
+        self.assertEqual(1, len(table_1_final_messages))
         self.assertEqual('activate_version', table_1_final_messages[0]['action'])
 
         # verify the yet-to-be-synced table replicates all record messages
@@ -161,12 +168,12 @@ class SyncLogicalRowVersion(BaseTapTest):
         # verify the interrupted table replicates all record messages from the
         # bookmarked last_pk_fetched through the max_pk_values
         self.assertIn(stream_name_2, messages_by_stream_2.keys())
-        table_2_final_messages_pk_values = [message['pk_col']
+        table_2_final_messages_pk_values = [message['data']['pk_col']
                                             for message in messages_by_stream_2[stream_name_2]['messages']
                                             if message['action'] == 'upsert']
         self.assertEqual(table_2_final_messages_pk_values[0], sorted(table_2_final_messages_pk_values)[0])
         self.assertEqual(table_2_final_messages_pk_values[-1], sorted(table_2_final_messages_pk_values)[-1])
-        expected_primary_key_values = [i for i in range(500)]
+        expected_primary_key_values = [i for i in range(500, 1000)]  # not inclusive, but this is ok for FTI
         self.assertEqual(expected_primary_key_values, table_2_final_messages_pk_values)
 
         # check the saved state
@@ -176,13 +183,11 @@ class SyncLogicalRowVersion(BaseTapTest):
         self.assertTrue(final_state['bookmarks'][stream_name_2]['initial_full_table_complete'])
         self.assertTrue(final_state['bookmarks'][stream_name_3]['initial_full_table_complete'])
 
-        # verify all tables have the same table versions from the first sync
+        # verify the synced table and interrupted table do not change table versions
         self.assertEqual(initial_state['bookmarks'][stream_name_1]['version'],
                          final_state['bookmarks'][stream_name_1]['version'])
         self.assertEqual(initial_state['bookmarks'][stream_name_2]['version'],
                          final_state['bookmarks'][stream_name_2]['version'])
-        self.assertEqual(initial_state['bookmarks'][stream_name_3]['version'],
-                         final_state['bookmarks'][stream_name_3]['version'])
 
         # verify all tables have a current_log_version saved in state
         self.assertIsInstance(final_state['bookmarks'][stream_name_1]['current_log_version'], int)
