@@ -13,7 +13,6 @@
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; logging
-                 ;; Basic log4j dependency to declare bare minimum
                  [org.clojure/tools.logging "1.2.4"]
                  [org.slf4j/slf4j-log4j12 "1.7.36"]
                  [org.apache.logging.log4j/log4j-1.2-api "2.17.1"]
