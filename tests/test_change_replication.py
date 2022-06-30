@@ -4,7 +4,7 @@ from tap_tester import connections, menagerie, runner
 
 from base import BaseTapTest
 
-from database import get_test_connection, drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
+from database import drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
 
 
 class ChangeReplicationTest(BaseTapTest):
