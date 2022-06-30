@@ -7,7 +7,7 @@ from base import BaseTapTest
 from database import get_test_connection, drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
 
 
-class FullTableInterrupted(BaseTapTest):
+class ChangeReplicationTest(BaseTapTest):
 
     EXPECTED_METADATA = dict()
 
