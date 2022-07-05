@@ -140,7 +140,7 @@ class ChangeReplicationTest(BaseTapTest):
         self.assertTrue('replication_key' not in first_bookmark)
         self.assertEqual(record_count_by_stream_1, self.expected_count())
 
-        ############ insert few records and then change replication method to log based and sync again ##############
+        ############ insert few records and then change replication method to incremental and sync again ##############
 
         query_list = []
         table_name = 'int_data'
