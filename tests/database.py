@@ -1,9 +1,9 @@
 import os
 import socket
-from pprint import pprint
 from random import randint, sample
 
 import pyodbc
+from tap_tester.logger import LOGGER
 
 USERNAME = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_USER")
 PASSWORD = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
@@ -36,7 +36,7 @@ def mssql_cursor_context_manager(*args):
         ";SERVER={};DATABASE={};UID={};PWD={}".format(
             server, database, USERNAME, PASSWORD))
 
-    print(connection_string.replace(PASSWORD, "[REDACTED]"))
+    LOGGER.info(connection_string.replace(PASSWORD, "[REDACTED]"))
     try:
         connection = pyodbc.connect(connection_string, autocommit=True)
     except pyodbc.Error as err:
@@ -53,7 +53,7 @@ def mssql_cursor_context_manager(*args):
 
     with connection.cursor() as cursor:
         for q in args:
-            print(q)
+            LOGGER.info(q)
             if isinstance(q, tuple):
                 cursor.executemany(*q)
             else:
@@ -855,7 +855,7 @@ def do_setup():
     # )
 
     # the_ones_to_run = query_list[:8] + query_list[-2:]
-    pprint(query_list)
+    LOGGER.info(query_list)
     rows = mssql_cursor_context_manager(*query_list)
 
     # create_schema("test_database", "test_schema")
@@ -867,5 +867,5 @@ if __name__ == "__main__":
     rows = mssql_cursor_context_manager(*[
         "select * from data_types_database.dbo.char_data;"
         ])
-    print(rows)
+    LOGGER.info(rows)
     # do_setup()
