@@ -13,7 +13,7 @@ from database import drop_all_user_databases, create_database, \
 from base import BaseTapTest
 
 
-class SyncIntLogical(BaseTapTest):
+class LogBasedInterrupted(BaseTapTest):
     """ Test the tap discovery """
 
     EXPECTED_METADATA = dict()
