@@ -279,13 +279,7 @@ class SyncIntLogical(BaseTapTest):
                         zip(expected_messages, records_by_stream[stream]['messages'][1:final_row])):
                     with self.subTest(expected_row=expected_row):
 
-                        self.assertEqual(actual_row["action"], "upsert")
-                        self.assertEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
-                        for column_name, expected_value in expected_row["data"].items():
-                            self.assertEqual(expected_value, actual_row["data"][column_name],
-                                             msg="expected: {} != actual {}".format(
-                                                 expected_row, actual_row))
+                        self.assertDictEqual(expected_row, actual_row)
 
                 # Verify all data is correct for the log replication part if sent
                 if records_by_stream[stream]['messages'][-1].get("data"):
