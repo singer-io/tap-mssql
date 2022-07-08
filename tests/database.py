@@ -68,6 +68,25 @@ def mssql_cursor_context_manager(*args):
     return results
 
 
+def get_test_connection():
+    server = "{},1433".format(HOST)
+    database = "master"
+    connection_string = (
+        "DRIVER={{ODBC Driver 17 for SQL Server}}"
+        ";SERVER={};DATABASE={};UID={};PWD={}".format(
+            server, database, USERNAME, PASSWORD))
+
+    print(connection_string.replace(PASSWORD, "[REDACTED]"))
+    try:
+        connection = pyodbc.connect(connection_string, autocommit=True)
+    except pyodbc.Error as err:
+        conection_error_code = '01000'
+        conection_error_msg = 'ODBC Driver 17 for SQL Server'
+        if err.args[0] == conection_error_code and conection_error_msg in err.args[1]:
+            raise RuntimeError(f"Ensure you have the following dependencies installed! {DATABASE_DEPS}") from err
+    return connection
+
+
 def drop_all_user_databases():
     """
     Drop all user databases. Please run the PRINT first and make sure you're not dropping anything you may regret. You may want to take backups of all databases first just in case.
