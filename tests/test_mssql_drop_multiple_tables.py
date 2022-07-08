@@ -9,7 +9,6 @@ from database import drop_all_user_databases, create_database, create_table, mss
 
 class MssqlDropTables(BaseTapTest):
     """
-    Test dropping multiple tables from a single database with filter dbs enabled.
     The objective of this test is to ensure we maintain table/field selection in
     metadata to prevent losing connection to the source database, in the case where
     all tables in a database are suddenly dropped.

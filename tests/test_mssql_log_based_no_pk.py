@@ -89,9 +89,11 @@ class LogBasedNoPkTest(BaseTapTest):
         primary_key = {}
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True))
+                                       primary_key=primary_key))
         query_list.extend(insert(database_name, schema_name, table_name, int_values_no_pk))
 
+        mssql_cursor_context_manager(*query_list)
+        
         cls.expected_metadata = cls.discovery_expected_metadata
 
     def test_run(self):
@@ -103,7 +105,33 @@ class LogBasedNoPkTest(BaseTapTest):
         with no primary key, so we need to assert if this raises an exception
         """
 
-        with self.assertRaises(Exception) as context:
-            mssql_cursor_context_manager(*query_list)
+        # with self.assertRaises(Exception) as context:
+        #     mssql_cursor_context_manager(*query_list)
 
-        self.assertTrue('Change tracking requires a primary key on the table', context.exception)
+        # self.assertTrue('Change tracking requires a primary key on the table', context.exception)
+
+        conn_id = self.create_connection()
+        import ipdb; ipdb.set_trace()
+        1+1
+        # run in check mode
+        check_job_name = runner.run_check_mode(self, conn_id)
+
+        # verify check exit codes
+        exit_status = menagerie.get_exit_status(conn_id, check_job_name)
+        menagerie.verify_check_exit_status(self, exit_status, check_job_name)
+
+        # get the catalog information of discovery
+        found_catalogs = menagerie.get_catalogs(conn_id)
+        additional_md = [{"breadcrumb": [], "metadata": {'replication-method': 'LOG_BASED'}}]
+        BaseTapTest.select_all_streams_and_fields(
+            conn_id, found_catalogs, additional_md=additional_md, non_selected_properties=[])
+
+        # run a sync and verify exit codes
+        record_count_by_stream = self.run_sync(conn_id, clear_state=True)
+
+        # verify record counts of streams
+        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
+        # self.assertEqual(record_count_by_stream, expected_count)
+
+        # verify records match on the first sync
+        records_by_stream = runner.get_records_from_target_output()
