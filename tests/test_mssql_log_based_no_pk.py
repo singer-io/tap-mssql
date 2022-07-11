@@ -93,7 +93,7 @@ class LogBasedNoPkTest(BaseTapTest):
         query_list.extend(insert(database_name, schema_name, table_name, int_values_no_pk))
 
         mssql_cursor_context_manager(*query_list)
-        
+
         cls.expected_metadata = cls.discovery_expected_metadata
 
     def test_run(self):
@@ -104,15 +104,8 @@ class LogBasedNoPkTest(BaseTapTest):
         MSSQL does not allow change tracking to be enabled for a table
         with no primary key, so we need to assert if this raises an exception
         """
-
-        # with self.assertRaises(Exception) as context:
-        #     mssql_cursor_context_manager(*query_list)
-
-        # self.assertTrue('Change tracking requires a primary key on the table', context.exception)
-
         conn_id = self.create_connection()
-        import ipdb; ipdb.set_trace()
-        1+1
+
         # run in check mode
         check_job_name = runner.run_check_mode(self, conn_id)
 
@@ -126,12 +119,11 @@ class LogBasedNoPkTest(BaseTapTest):
         BaseTapTest.select_all_streams_and_fields(
             conn_id, found_catalogs, additional_md=additional_md, non_selected_properties=[])
 
-        # run a sync and verify exit codes
-        record_count_by_stream = self.run_sync(conn_id, clear_state=True)
+        # Run a sync and verify exit codes
+        sync_job_name = runner.run_sync_mode(self, conn_id)
 
-        # verify record counts of streams
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count)
+        # verify check exit codes
+        exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
 
-        # verify records match on the first sync
-        records_by_stream = runner.get_records_from_target_output()
+        # validate the exit status message on table which does not have pk
+        self.assertEqual(exit_status['tap_error_message'], 'Cannot sync stream: log_based_no_pk_dbo_int_data_no_pk using log-based replication. Change Tracking is not enabled for table: int_data_no_pk')
