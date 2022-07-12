@@ -162,10 +162,10 @@ class MssqlDropTables(BaseTapTest):
 
         # run in check mode again, there should not be any tables in the database
         #check_job_name = runner.run_check_mode(self, conn_id)
-        _ = runner.run_sync_mode(self, conn_id)
+        sync_job_name = runner.run_sync_mode(self, conn_id)
 
         # verify check exit codes
-        exit_status = menagerie.get_exit_status(conn_id, check_job_name)
+        exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
 
         # Assert that expected tables are still selected
         for stream in self.expected_sync_streams():
