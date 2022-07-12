@@ -19,7 +19,7 @@ from tap_tester import runner, menagerie
 
 from base import BaseTapTest
 
-from database import get_test_connection, drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
+from database import drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
 
 class FullTableInterrupted(BaseTapTest):
 
@@ -275,23 +275,23 @@ class FullTableInterrupted(BaseTapTest):
             }
             versions[tap_stream_id] = version
 
-        int_min_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk']
-        int_min_id = mssql_cursor_context_manager(*int_min_query)
-        int_max_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk desc']
-        int_max_id = mssql_cursor_context_manager(*int_max_query)
-        update_int_min_query = ['update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 111 where pk = '+str(int_min_id[0][0])]
-        mssql_cursor_context_manager(*update_int_min_query)
-        update_int_max_query = ['update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 222 where pk = '+str(int_max_id[0][0])]
-        mssql_cursor_context_manager(*update_int_max_query)
+        int_min_query = 'select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk'
+        int_min_id = mssql_cursor_context_manager(int_min_query)
+        int_max_query = 'select top 1 pk from '+database_name+'.'+schema_name+'.int_data order by pk desc'
+        int_max_id = mssql_cursor_context_manager(int_max_query)
+        update_int_min_query = 'update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 111 where pk = '+str(int_min_id[0][0])
+        mssql_cursor_context_manager(update_int_min_query)
+        update_int_max_query = 'update '+database_name+'.'+schema_name+'.int_data set MyTinyIntColumn = 222 where pk = '+str(int_max_id[0][0])
+        mssql_cursor_context_manager(update_int_max_query)
 
-        varchar_min_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk']
-        varchar_min_id = mssql_cursor_context_manager(*varchar_min_query)
-        varchar_max_query = ['select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk desc']
-        varchar_max_id = mssql_cursor_context_manager(*varchar_max_query)
-        update_varchar_min_query = ['update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_min_id[0][0])]
-        mssql_cursor_context_manager(*update_varchar_min_query)
-        update_varchar_max_query = ['update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_max_id[0][0])]
-        mssql_cursor_context_manager(*update_varchar_max_query)
+        varchar_min_query = 'select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk'
+        varchar_min_id = mssql_cursor_context_manager(varchar_min_query)
+        varchar_max_query = 'select top 1 pk from '+database_name+'.'+schema_name+'.varchar_data order by pk desc'
+        varchar_max_id = mssql_cursor_context_manager(varchar_max_query)
+        update_varchar_min_query = 'update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_min_id[0][0])
+        mssql_cursor_context_manager(update_varchar_min_query)
+        update_varchar_max_query = 'update '+database_name+'.'+schema_name+'.varchar_data set varchar_5 = \'TEST\' where pk = '+str(varchar_max_id[0][0])
+        mssql_cursor_context_manager(update_varchar_max_query)
 
         menagerie.set_state(conn_id, interrupted_state)
 
@@ -323,7 +323,6 @@ class FullTableInterrupted(BaseTapTest):
             self.assertIsInstance(value['version'], int)
 
         # Verify the data in the modified streams after the interrupted sync recovery
-
         for stream in self.expected_sync_streams()-{'full_interruptible_dbo_int_before', 'full_interruptible_dbo_int_after'}:
             if stream == 'full_interruptible_dbo_int_data':
                 for i in range(len(records_by_stream[stream]['messages'])):

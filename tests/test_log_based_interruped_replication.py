@@ -14,6 +14,7 @@ from base import BaseTapTest
 
 
 class LogBasedInterrupted(BaseTapTest):
+
     """ Test the tap discovery """
 
     EXPECTED_METADATA = dict()
