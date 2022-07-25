@@ -122,7 +122,7 @@ def drop_database(db_name):
     return ["DROP DATABASE IF EXISTS {};".format(db_name)]
 
 
-def create_database(db_name, collation: str = None):
+def create_database(db_name, collation: str = None, user_permissions: bool = True):
     """
     CREATE DATABASE database_name
     [ CONTAINMENT = { NONE | PARTIAL } ]
@@ -145,7 +145,7 @@ def create_database(db_name, collation: str = None):
 
     # add user to databaseprint(query)
     return_value.extend(use_db(db_name))
-    if USERNAME.upper() != "SA":
+    if USERNAME.upper() != "SA" and user_permissions:
         return_value.extend(create_user(USERNAME))
     return return_value
 
