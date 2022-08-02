@@ -12,8 +12,7 @@ create_table, insert, enable_database_tracking
 from base import BaseTapTest
 
 
-USERNAME = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_USER")
-TEST_USERNAME = "sloth"
+TEST_USERNAME = os.getenv("TAP_MSSQL_USERNAME_SECONDARY")
 PASSWORD = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
 
 database_name = "test_user_perms"
@@ -86,8 +85,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         :return: historical sync job id and exit status
         """
         # create connection with the new user and run initial check job
-        os.environ["STITCH_TAP_MSSQL_TEST_DATABASE_USER_2"] = TEST_USERNAME
-        self.CONFIGURATION_ENVIRONMENT['properties']['user'] = "STITCH_TAP_MSSQL_TEST_DATABASE_USER_2"
+        self.CONFIGURATION_ENVIRONMENT['properties']['user'] = "TAP_MSSQL_USERNAME_SECONDARY"
         conn_id = self.create_connection()
 
         # Verify number of actual streams discovered match expected
@@ -125,9 +123,9 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
         query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
 
-        # Explicitly give user permission prior to connection check and initial sync
+        # Explicitly give user permissions prior to connection check and initial sync
         query_list.extend([f'GRANT SELECT ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
-        # query_list.extend([f'GRANT VIEW CHANGE TRACKING ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
+        # but skip granting VIEW CHANGE TRACKING on table
         results = mssql_cursor_context_manager(*query_list)
 
         # Create a connection with the test user,
@@ -157,8 +155,8 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
         query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
 
-        # Explicitly give user permission prior to connection check and initial sync
-        # query_list.extend([f'GRANT SELECT ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
+        # Explicitly give user permissions prior to connection check and initial sync
+        # but skip granting SELECT on tables
         query_list.extend([f'GRANT VIEW CHANGE TRACKING ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
         results = mssql_cursor_context_manager(*query_list)
 
@@ -188,7 +186,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
         query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
 
-        # Explicitly give user permission prior to connection check and initial sync
+        # Explicitly give user permissions prior to connection check and initial sync
         query_list.extend([f'GRANT SELECT ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
         query_list.extend([f'GRANT VIEW CHANGE TRACKING ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
         results = mssql_cursor_context_manager(*query_list)
