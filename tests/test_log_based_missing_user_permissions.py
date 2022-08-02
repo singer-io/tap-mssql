@@ -48,6 +48,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
             query_list.append(f"DROP USER {TEST_USERNAME}")
             query_list.append(f"DROP LOGIN {TEST_USERNAME}")
             mssql_cursor_context_manager(*query_list)
+        self.CONFIGURATION_ENVIRONMENT['properties']['user'] = "STITCH_TAP_MSSQL_TEST_DATABASE_USER"
 
     def setUp(self) -> None:
         """Create the test database and table. Insert some data to the source."""
