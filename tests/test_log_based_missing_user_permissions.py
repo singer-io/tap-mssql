@@ -27,9 +27,9 @@ class DiscoveryTestUserPermissions(BaseTapTest):
     @staticmethod
     def expected_streams():
         return {f'{database_name}_{schema_name}_{table_name}'}
-        
+
     def name(self):
-        return "{}_disco_perms".format(super().name())
+        return "{}_bad_logical_perms".format(super().name())
 
     @classmethod
     def discovery_expected_metadata(cls):
@@ -119,7 +119,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
 
         print("running test {}".format(self.name()))
 
-        # Create the user and login 
+        # Create the user and login
         query_list = use_db(database_name)
         query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
         query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
@@ -138,39 +138,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         self.assertEqual(exit_status['tap_exit_status'], 1)
         self.assertIn("The VIEW CHANGE TRACKING permission was denied", error_message)
 
-        # Verfiy the database, schema and table are specified in the 
-        self.assertIn(table_name, error_message)
-        self.assertIn(database_name, error_message)
-        self.assertIn(schema_name, error_message)
-
-    def test_user_missing_select(self):
-        """
-        Verify the tap throws an error message for logical replication if
-        the user does not have SELECT permission on the stream.
-        """
-
-        print("running test {}".format(self.name()))
-
-        # Create the user and login 
-        query_list = use_db(database_name)
-        query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
-        query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
-
-        # Explicitly give user permissions prior to connection check and initial sync
-        # but skip granting SELECT on tables
-        query_list.extend([f'GRANT VIEW CHANGE TRACKING ON "{schema_name}"."{table_name}" TO {TEST_USERNAME};'])
-        results = mssql_cursor_context_manager(*query_list)
-
-        # Create a connection with the test user,
-        # set it for logical replication, and execute the historical sync.
-        conn_id, sync_job_name, exit_status = self.scenario_setup_steps()
-        error_message = exit_status['tap_error_message']
-
-        # Verify the sync fails and explicitly calls the missing permission
-        self.assertEqual(exit_status['tap_exit_status'], 1)
-        self.assertIn("The SELECT permission was denied", error_message)
-
-        # Verfiy the database, schema and table are specified in the 
+        # Verfiy the database, schema and table are specified in the
         self.assertIn(table_name, error_message)
         self.assertIn(database_name, error_message)
         self.assertIn(schema_name, error_message)
@@ -182,7 +150,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         """
         print("running test {}".format(self.name()))
 
-        # Create the user and login 
+        # Create the user and login
         query_list = use_db(database_name)
         query_list.extend([f"CREATE LOGIN {TEST_USERNAME} WITH PASSWORD='{PASSWORD}';"])
         query_list.extend([f'CREATE USER {TEST_USERNAME} FOR LOGIN {TEST_USERNAME};'])
@@ -207,7 +175,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
                             (11, 25, 45)]
         query_list.extend(insert(database_name, schema_name, table_name,
                                  int_after_values))
-        
+
         # remove the user with read permissions
         query_list = use_db(database_name)
         query_list.append(f"DROP USER {TEST_USERNAME}")
