@@ -65,10 +65,13 @@ jobs:
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
             pip install numpy==1.21.2
-            run-test --tap=/root/project/bin/tap-mssql \
-                     tests
+            mkdir /tmp/${CIRCLE_PROJECT_REPONAME}
+            export STITCH_CONFIG_DIR=/tmp/${CIRCLE_PROJECT_REPONAME}
+            run-test --tap=/root/project/bin/tap-mssql tests
       - slack/notify-on-failure:
           only_for_branches: master
+      - store_artifacts:
+          path: /tmp/tap-mssql
 
 workflows:
   version: 2

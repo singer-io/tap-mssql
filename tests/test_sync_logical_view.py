@@ -3,7 +3,7 @@ Test tap logical replication for views
 """
 from datetime import datetime, timedelta
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk, \
@@ -232,7 +232,8 @@ class SyncViewLogical(BaseTapTest):
         Verify that attempting to do logical replication on a view generates the expected
         tap exit status and error message
         """
-        print("running test {}".format(self.name()))
+
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

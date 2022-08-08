@@ -3,7 +3,7 @@ Test tap gets all records for streams with full replication
 """
 import json
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert
@@ -176,7 +176,7 @@ class FullReplicationTest(BaseTapTest):
         For EACH stream that is fully replicated there are multiple rows of data with
             different values for the replication key
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

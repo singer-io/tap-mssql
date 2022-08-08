@@ -3,7 +3,7 @@ Test tap discovery
 """
 import os
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import mssql_cursor_context_manager, \
     drop_all_user_databases, create_database, use_db, \
@@ -117,7 +117,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         the user does not have VIEW CHANGE TRACKING permission on the stream.
         """
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         # Create the user and login
         query_list = use_db(database_name)
@@ -148,7 +148,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         Verify the tap throws an error message for logical replication if
         a valid user with permissions to the stream is removed from the server between logical syncs.
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         # Create the user and login
         query_list = use_db(database_name)

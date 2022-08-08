@@ -1,6 +1,6 @@
 import unittest
 
-from tap_tester import connections, menagerie, runner
+from tap_tester import connections, menagerie, runner, LOGGER
 
 from base import BaseTapTest
 
@@ -136,7 +136,7 @@ class MssqlDropTables(BaseTapTest):
 
     def test_run(self):
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

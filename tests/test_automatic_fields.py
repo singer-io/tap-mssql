@@ -5,7 +5,7 @@ from json import dumps
 from random import randint, sample
 from decimal import Decimal
 
-from tap_tester import runner, menagerie
+from tap_tester import runner, menagerie, LOGGER
 
 from base import BaseTapTest
 
@@ -183,7 +183,7 @@ class MinimumSelectionTest(BaseTapTest):
         that 251 (or more) records have been posted for that stream.
         """
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

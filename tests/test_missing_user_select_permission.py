@@ -3,7 +3,7 @@ Test tap discovery
 """
 import os
 
-from tap_tester import menagerie, runner, connections
+from tap_tester import menagerie, runner, connections, LOGGER
 
 from database import mssql_cursor_context_manager, \
     drop_all_user_databases, create_database, use_db, \
@@ -93,7 +93,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         Verify the tap throws an error message if the user does not have SELECT
         permission on the table for each replication method
         """
-        print(f"running test {self.name()}")
+        LOGGER.info("running test %s" , self.name())
 
         # skip granting SELECT on tables
         # create connection with the new user
@@ -134,7 +134,7 @@ class DiscoveryTestUserPermissions(BaseTapTest):
         """
         replication_method = 'LOG_BASED'
 
-        print(f"running test {self.name()} against {replication_method}")
+        LOGGER.info("running test %s against %s", self.name(), replication_method)
 
         # skip granting SELECT on tables
         # but allow VIEW CHANGE TRACKING

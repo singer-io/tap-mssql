@@ -1,12 +1,3 @@
-"""
-Test the tap can recover from an interruped full table sync
-
-* Test Setup:
-  - Use tables int_data, int_before and varchar_data for interrupted_state scenario
-  - int_before table is the table which is replicated prior to the interruption
-  - Modify int_data and varchar_data to validate if the updates are being captured post the recovery from interrupted state
-  - int_after table is not part of the interrupted_state and is expected to get replicated as a new stream
-"""
 import sys
 
 import time
@@ -15,13 +6,23 @@ from random import randint
 
 from json import dumps
 
-from tap_tester import runner, menagerie
+from tap_tester import runner, menagerie, LOGGER
 
 from base import BaseTapTest
 
 from database import drop_all_user_databases, create_database, create_table, mssql_cursor_context_manager, insert
 
+
 class FullTableInterrupted(BaseTapTest):
+    """
+    Test the tap can recover from an interruped full table sync
+
+    * Test Setup:
+      - Use tables int_data, int_before and varchar_data for interrupted_state scenario
+      - int_before table is the table which is replicated prior to the interruption
+      - Modify int_data and varchar_data to validate if the updates are being captured post the recovery from interrupted state
+      - int_after table is not part of the interrupted_state and is expected to get replicated as a new stream
+    """
 
     EXPECTED_METADATA = dict()
 
@@ -233,7 +234,7 @@ class FullTableInterrupted(BaseTapTest):
 
     def test_run(self):
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

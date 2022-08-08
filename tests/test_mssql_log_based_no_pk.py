@@ -1,6 +1,6 @@
 import unittest
 
-from tap_tester import connections, menagerie, runner
+from tap_tester import connections, menagerie, runner, LOGGER
 
 from base import BaseTapTest
 
@@ -98,7 +98,7 @@ class LogBasedNoPkTest(BaseTapTest):
 
     def test_run(self):
 
-        print('running test {}'.format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         """
         MSSQL does not allow change tracking to be enabled for a table
