@@ -4,7 +4,7 @@ Test tap discovery
 
 from decimal import getcontext, Decimal
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert
@@ -306,7 +306,7 @@ class SyncDecimalFull(BaseTapTest):
         """
         Verify that a full sync can send capture all data and send it in the correct format
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
@@ -389,7 +389,7 @@ class SyncDecimalFull(BaseTapTest):
                                 self.assertEqual(expected_value, actual_row["data"][column_name],
                                                  msg="expected: {} != actual {}".format(
                                                      expected_row, actual_row))
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

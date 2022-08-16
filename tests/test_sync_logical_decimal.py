@@ -6,7 +6,7 @@ from decimal import getcontext, Decimal
 
 import simplejson
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, delete_by_pk, update_by_pk
@@ -237,7 +237,7 @@ class SyncDecimalLogical(BaseTapTest):
         Verify that the fist sync sends an activate immediately.
         Verify that the table version is incremented up TODO current_log_version asserted but not table_version add?
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection() # create connection and run check job
 
@@ -339,7 +339,7 @@ class SyncDecimalLogical(BaseTapTest):
                                          msg="expected: {} != actual {}".format(
                                              expected_row, actual_row))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
@@ -511,7 +511,7 @@ class SyncDecimalLogical(BaseTapTest):
                                 # the row wasn't deleted so we can either not pass the column or it can be None
                                 self.assertIsNone(actual_row["data"].get(column_name))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

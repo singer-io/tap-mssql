@@ -5,7 +5,7 @@ Test tap discovery
 from datetime import date, datetime, timezone, time, timedelta
 from dateutil.tz import tzoffset
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert
@@ -192,7 +192,7 @@ class SyncDateFull(BaseTapTest):
         """
         Verify that a full sync can send capture all data and send it in the correct format
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
@@ -290,7 +290,7 @@ class SyncDateFull(BaseTapTest):
                                                  msg="expected: {} != actual {}".format(
                                                      expected_value, actual_row["data"][column_name]))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

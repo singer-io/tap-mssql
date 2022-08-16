@@ -3,7 +3,7 @@ Test tap discovery
 """
 from datetime import datetime, timedelta
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
@@ -174,7 +174,7 @@ class SyncIntIncremental(BaseTapTest):
         Verify that the fist sync sends an activate immediately.
         Verify that the table version is incremented up
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
@@ -248,7 +248,7 @@ class SyncIntIncremental(BaseTapTest):
                             self.assertEqual(expected_value, actual_row["data"][column_name],
                                              msg="expected: {} != actual {}".format(
                                                  expected_row, actual_row))
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
@@ -358,7 +358,7 @@ class SyncIntIncremental(BaseTapTest):
                                              msg="expected: {} != actual {}".format(
                                                  expected_row, actual_row))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

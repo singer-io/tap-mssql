@@ -7,7 +7,7 @@ from numpy import float32
 
 from datetime import datetime, timedelta
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk
@@ -119,7 +119,7 @@ class SyncFloatLogical(BaseTapTest):
         Verify that the table version is incremented up
         """
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
@@ -246,7 +246,7 @@ class SyncFloatLogical(BaseTapTest):
                                              msg="expected: {} != actual {}".format(
                                                  expected_row, actual_row))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)
@@ -375,7 +375,7 @@ class SyncFloatLogical(BaseTapTest):
                                 # the row wasn't deleted so we can either not pass the column or it can be None
                                 self.assertIsNone(actual_row["data"].get(column_name))
 
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

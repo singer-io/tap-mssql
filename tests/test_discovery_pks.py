@@ -3,7 +3,7 @@ Test tap discovery
 """
 from json import dumps
 
-from tap_tester import menagerie
+from tap_tester import menagerie, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, create_view
@@ -156,7 +156,7 @@ class DiscoveryTestKeys(BaseTapTest):
         • verify that all other fields have inclusion of available (metadata and schema)
         """
 
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 

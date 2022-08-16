@@ -76,7 +76,7 @@ def get_test_connection():
         ";SERVER={};DATABASE={};UID={};PWD={}".format(
             server, database, USERNAME, PASSWORD))
 
-    print(connection_string.replace(PASSWORD, "[REDACTED]"))
+    LOGGER.info(connection_string.replace(PASSWORD, "[REDACTED]"))
     try:
         connection = pyodbc.connect(connection_string, autocommit=True)
     except pyodbc.Error as err:

@@ -6,7 +6,7 @@ from random import randint
 
 import sys
 
-from tap_tester import menagerie, runner
+from tap_tester import menagerie, runner, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager, insert
@@ -282,7 +282,7 @@ class SyncTestNameFull(BaseTapTest):
         """
         Verify that a full sync can send capture all data and send it in the correct format
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
 
         conn_id = self.create_connection()
 
@@ -363,15 +363,17 @@ class SyncTestNameFull(BaseTapTest):
                             if expected_value != actual_row["data"][column_name] \
                                     and isinstance(expected_value, str) \
                                     and isinstance(actual_row["data"][column_name], str):
-                                print("diff = {}".format(
-                                    set(expected_value).symmetric_difference(set(actual_row["data"][column_name]))))
+                                LOGGER.info(
+                                    "diff = %s",
+                                    set(expected_value).symmetric_difference(set(actual_row["data"][column_name]))
+                                )
 
                             self.assertEqual(expected_value, actual_row["data"][column_name],
                                              msg="for column {} expected: {} != actual {}".format(
                                                     column_name,
                                                     expected_value,
                                                     actual_row["data"][column_name]))
-                print("records are correct for stream {}".format(stream))
+                LOGGER.info("records are correct for stream %s", stream)
 
                 # verify state and bookmarks
                 state = menagerie.get_state(conn_id)

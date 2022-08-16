@@ -1,8 +1,8 @@
 """
-Test tap discovery
+Test tap discovery TODO this test appears to be incomplete
 """
 
-from tap_tester import menagerie
+from tap_tester import menagerie, LOGGER
 
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager
@@ -55,5 +55,5 @@ class DiscoveryTestUnsupportedKeys(BaseTapTest):
         Create a new connection (with the properties and credentials above)
         Run discovery and ensure it completes successfully
         """
-        print("running test {}".format(self.name()))
+        LOGGER.info("running test %s", self.name())
         self.create_connection()
