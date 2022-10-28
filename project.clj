@@ -1,5 +1,5 @@
 (defproject tap-mssql
-  "1.6.11"
+  "1.6.12"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
@@ -13,11 +13,10 @@
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; logging
-                 [org.clojure/tools.logging "0.3.1"]
-                 [log4j "1.2.17" :exclusions [javax.mail/mail
-                                              javax.jms/jms
-                                              com.sun.jdmk/jmxtools
-                                              com.sun.jmx/jmxri]]
+                 [org.clojure/tools.logging "1.2.4"]
+                 [org.slf4j/slf4j-log4j12 "1.7.36"]
+                 [org.apache.logging.log4j/log4j-1.2-api "2.17.1"]
+                 [org.apache.logging.log4j/log4j-core "2.17.1"]
 
                  ;; repl
                  [nrepl "0.6.0"] ;; For Lein 2.9.X
@@ -28,5 +27,6 @@
                  ]
   :plugins [[lein-pprint "1.2.0"]]
   :main tap-mssql.core
+  :manifest {"Multi-Release" "true"}
   :profiles {:uberjar {:aot [tap-mssql.core]}
              :system {:java-cmd "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"}})

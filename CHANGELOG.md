@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.12
+  * Upgrade to log4j2 [#77](https://github.com/stitchdata/tap-mssql/pull/77)
+
 ## 1.6.11
   * Fix RowVersion states for logical syncs [#76](https://github.com/stitchdata/tap-mssql/pull/76)
 
