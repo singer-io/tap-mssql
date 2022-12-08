@@ -13,10 +13,11 @@
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; logging
-                 [org.clojure/tools.logging "1.2.4"]
-
-                 ;; singer-clojure
-                 [singer-clojure "1.1.8"]
+                 [org.clojure/tools.logging "0.3.1"]
+                 [log4j "1.2.17" :exclusions [javax.mail/mail
+                                              javax.jms/jms
+                                              com.sun.jdmk/jmxtools
+                                              com.sun.jmx/jmxri]]
 
                  ;; repl
                  [nrepl "0.6.0"] ;; For Lein 2.9.X
