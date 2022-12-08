@@ -178,7 +178,7 @@
           (System/exit 0)))
 
       (catch Throwable ex
-        (singer-log/log-fatal))
+        (singer-log/log-fatal "Fatal Error Occured" ex))
       (finally
         ;; If we somehow skip the catch block, we need to always at least exit if not --repl
         (maybe-stop-nrepl-server args the-nrepl-server)
