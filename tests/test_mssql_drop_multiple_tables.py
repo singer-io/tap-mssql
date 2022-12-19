@@ -165,7 +165,7 @@ class MssqlDropTables(BaseTapTest):
 
         # verify check exit codes
         exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
-        self.assertEqual(exit_status['discovery_error_message'], 'Empty Catalog: did not discover any streams')
+        self.assertEqual(exit_status['discovery_error_message'], '[main] tap-mssql.core - Fatal Error Occured - Empty Catalog: did not discover any streams')
 
         # Assert that expected tables are still selected
         for stream in self.expected_sync_streams():

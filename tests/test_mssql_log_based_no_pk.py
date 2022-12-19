@@ -126,4 +126,4 @@ class LogBasedNoPkTest(BaseTapTest):
         exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
 
         # validate the exit status message on table which does not have pk
-        self.assertEqual(exit_status['tap_error_message'], 'Cannot sync stream: log_based_no_pk_dbo_int_data_no_pk using log-based replication. Change Tracking is not enabled for table: int_data_no_pk')
+        self.assertEqual(exit_status['tap_error_message'], '[main] tap-mssql.core - Fatal Error Occured - Cannot sync stream: log_based_no_pk_dbo_int_data_no_pk using log-based replication. Change Tracking is not enabled for table: int_data_no_pk')

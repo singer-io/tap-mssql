@@ -7,6 +7,7 @@
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.singer.messages :as singer-messages]
             [clojure.tools.logging :as log]
+            [singer-clojure.log :as singer-log]
             [nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.string :as string]
@@ -177,10 +178,7 @@
           (System/exit 0)))
 
       (catch Throwable ex
-        (def ex ex)
-        (.printStackTrace ex)
-        (dorun (map #(log/fatal %) (string/split (or (.getMessage ex)
-                                                     (str ex)) #"\n"))))
+        (singer-log/log-fatal "Fatal Error Occured" ex))
       (finally
         ;; If we somehow skip the catch block, we need to always at least exit if not --repl
         (maybe-stop-nrepl-server args the-nrepl-server)
