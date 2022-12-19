@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.12
+  * Update singer-clojure and logging dependencies [#84](https://github.com/stitchdata/tap-mssql/pull/84)
+
 ## 1.6.11
   * Fix RowVersion states for logical syncs [#76](https://github.com/stitchdata/tap-mssql/pull/76)
 
