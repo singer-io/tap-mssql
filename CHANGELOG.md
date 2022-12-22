@@ -1,13 +1,13 @@
 # Changelog
 
 ## 1.6.12
-  * Update singer-clojure and logging dependencies [#84](https://github.com/stitchdata/tap-mssql/pull/84)
+  * Update singer-clojure and logging dependencies [#84](https://github.com/singer-io/tap-mssql/pull/84)
 
 ## 1.6.11
-  * Fix RowVersion states for logical syncs [#76](https://github.com/stitchdata/tap-mssql/pull/76)
+  * Fix RowVersion states for logical syncs [#76](https://github.com/singer-io/tap-mssql/pull/76)
 
 ## 1.6.10
-  * Update `nrepl` server binding from `0.0.0.0` to `127.0.0.1` [#62](https://github.com/stitchdata/tap-mssql/pull/62)
+  * Update `nrepl` server binding from `0.0.0.0` to `127.0.0.1` [#62](https://github.com/singer-io/tap-mssql/pull/62)
 
 ## 1.6.9
   * Quote the `ORDER BY` columns in incremental queries [#59](https://github.com/singer-io/tap-mssql/pull/59)
