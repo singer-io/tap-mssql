@@ -1,6 +1,6 @@
 (ns tap-mssql.singer.bookmarks)
 
-;; TODO Rename this to only be incremental
+;; TODO Review this function's use and, if needed, rename this to only be incremental
 (defn get-bookmark-keys
   "Gets the possible bookmark keys to use for sorting, falling back to
   `nil`.
@@ -39,7 +39,7 @@
         (when (not (empty? table-key-properties))
           table-key-properties)))))
 
-;; TODO Rename this to include full table
+;; TODO Pending review from line 3, rename this to include full table
 (defn get-logical-bookmark-keys
   "Ensures the use of a stream's primary key as an intermediary bookmark for
   interrupted logical syncs."
