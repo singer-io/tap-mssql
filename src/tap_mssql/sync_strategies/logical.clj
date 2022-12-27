@@ -202,6 +202,7 @@
                                  vals))
         [query-string]))))
 
+
 (defn maybe-update-current-log-version [state stream-name db-log-version]
   "Updates the state's bookmark when current-log-version lags behind db-log-version and a sync has been executed"
   (let [current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
@@ -218,7 +219,7 @@
   {:pre  [(= true (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))]
    :post [(map? %)]}
   (let [record-keys    (singer-fields/get-selected-fields catalog stream-name)
-        bookmark-keys  (singer-bookmarks/get-bookmark-keys catalog stream-name)
+        bookmark-keys  (singer-bookmarks/get-logical-bookmark-keys catalog stream-name)
         dbname         (get-in catalog ["streams" stream-name "metadata" "database-name"])
         db-log-version (get-current-log-version config catalog stream-name)
         sql-params     (build-log-based-sql-query catalog stream-name state)]

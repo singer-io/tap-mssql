@@ -1,5 +1,6 @@
 (ns tap-mssql.singer.bookmarks)
 
+;; TODO Rename this to only be incremental
 (defn get-bookmark-keys
   "Gets the possible bookmark keys to use for sorting, falling back to
   `nil`.
@@ -20,6 +21,8 @@
                                                     "metadata"
                                                     "properties"]))))
         is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
+
+        ;; TODO Remove this?
         table-key-properties (if is-view?
                                (get-in catalog ["streams"
                                                 stream-name
@@ -36,12 +39,24 @@
         (when (not (empty? table-key-properties))
           table-key-properties)))))
 
+;; TODO Rename this to include full table
+(defn get-logical-bookmark-keys
+  "Ensures the use of a stream's primary key as an intermediary bookmark for
+  interrupted logical syncs."
+  [catalog stream-name]
+  (let [table-key-properties (get-in catalog ["streams"
+                                              stream-name
+                                              "metadata"
+                                              "table-key-properties"])]
+    (when (seq table-key-properties)
+      table-key-properties)))
+
 (defn update-state [stream-name replication-key record state]
   (-> state
-   (assoc-in ["bookmarks" stream-name "replication_key_value"]
-             (get record replication-key))
-   (assoc-in ["bookmarks" stream-name "replication_key_name"]
-             replication-key)))
+      (assoc-in ["bookmarks" stream-name "replication_key_value"]
+                (get record replication-key))
+      (assoc-in ["bookmarks" stream-name "replication_key_name"]
+                replication-key)))
 
 (defn update-last-pk-fetched [stream-name bookmark-keys state record]
   ;; bookmark-keys can be nil under certain conditions:
