@@ -1,28 +1,10 @@
 (ns tap-mssql.singer.bookmarks)
 
-;; TODO Review this function's use and, if needed, rename this to only be incremental
-(defn get-bookmark-keys
-  "Gets the possible bookmark keys to use for sorting, falling back to
-  `nil`.
-
-  Priority is in this order:
-  `replicationkey` > `timestamp` field > `table-key-properties`"
+(defn get-full-bookmark-keys
+  "Ensures the use of a stream's `table-key-properties` > `rowversion` as an intermediary bookmark for
+  interrupted full syncs."
   [catalog stream-name]
-  (let [replication-key (get-in catalog ["streams"
-                                         stream-name
-                                         "metadata"
-                                         "replication-key"])
-        timestamp-column (first
-                          (first
-                           (filter (fn [[k v]] (= "timestamp"
-                                                  (v "sql-datatype")))
-                                   (get-in catalog ["streams"
-                                                    stream-name
-                                                    "metadata"
-                                                    "properties"]))))
-        is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
-
-        ;; TODO Remove this?
+  (let [is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
         table-key-properties (if is-view?
                                (get-in catalog ["streams"
                                                 stream-name
@@ -31,25 +13,29 @@
                                (get-in catalog ["streams"
                                                 stream-name
                                                 "metadata"
-                                                "table-key-properties"]))]
-    (if (not (nil? replication-key))
-      [replication-key]
-      (if (not (nil? timestamp-column))
-        [timestamp-column]
-        (when (not (empty? table-key-properties))
-          table-key-properties)))))
+                                                "table-key-properties"]))
+        timestamp-column (first
+                          (first
+                           (filter (fn [[k v]] (= "timestamp"
+                                                  (v "sql-datatype")))
+                                   (get-in catalog ["streams"
+                                                    stream-name
+                                                    "metadata"
+                                                    "properties"]))))]
 
-;; TODO Pending review from line 3, rename this to include full table
+    (if (seq table-key-properties)
+      table-key-properties
+      (if (some? timestamp-column)
+        [timestamp-column]))))
+
 (defn get-logical-bookmark-keys
-  "Ensures the use of a stream's primary key as an intermediary bookmark for
+  "Ensures the use of a stream's `table-key-properties` as an intermediary bookmark for
   interrupted logical syncs."
   [catalog stream-name]
-  (let [table-key-properties (get-in catalog ["streams"
-                                              stream-name
-                                              "metadata"
-                                              "table-key-properties"])]
-    (when (seq table-key-properties)
-      table-key-properties)))
+  (get-in catalog ["streams"
+                   stream-name
+                   "metadata"
+                   "table-key-properties"]))
 
 (defn update-state [stream-name replication-key record state]
   (-> state

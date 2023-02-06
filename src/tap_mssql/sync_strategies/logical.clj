@@ -138,6 +138,18 @@
   (if (or (= false (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))
           (min-valid-version-out-of-date? config catalog stream-name state))
       (-> state
+          ;; TODO Review this LET and the assert to see if it's functional / necessary.
+          ;; We DO want to blow up before beginning the full/sync! if there's no PK, but maybe there's a better way
+          (let [schema-name  (->  (get-in catalog ["streams" stream-name "metadata" "schema-name"])
+                                           (common/sanitize-names))
+                table-name   (-> (get-in catalog ["streams" stream-name "table_name"])
+                                          (common/sanitize-names))
+                primary-keys (map common/sanitize-names (set (get-in catalog ["streams"
+                                                                                       stream-name
+                                                                                       "metadata"
+                                                                                       "table-key-properties"])))])
+          (assert (seq primary-keys)
+            "No primary key(s) found, must have a primary key to replicate")
           ((partial full/sync! config catalog stream-name))
           (assoc-in ["bookmarks" stream-name "initial_full_table_complete"] true)
           ((partial singer-messages/write-state! stream-name)))
@@ -158,13 +170,10 @@
         record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
                                                                                  primary-keys))]
     ;; Assert state of the world
-    (assert (or (not-empty primary-keys)
-                (not-empty record-keys))
-            "No selected keys found, you must have a primary key and/or select columns to replicate.")
-    (assert (not (nil? current-log-version))
-            "Invalid log-based state, need a value for `current-log-version`.")
-    (assert (not (empty? primary-keys))
+    (assert (seq primary-keys)
             "No primary key(s) found, must have a primary key to replicate")
+    (assert (some? current-log-version)
+            "Invalid log-based state, need a value for `current-log-version`.")
     (let [select-clause (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
                              (when (not-empty primary-keys)
                                (str ", " (string/join ", "

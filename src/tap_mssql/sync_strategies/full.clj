@@ -14,7 +14,7 @@
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
         schema-name   (-> (get-in catalog ["streams" stream-name "metadata" "schema-name"])
                           (common/sanitize-names))
-        bookmark-keys (map common/sanitize-names (singer-bookmarks/get-bookmark-keys catalog stream-name))
+        bookmark-keys (map common/sanitize-names (singer-bookmarks/get-full-bookmark-keys catalog stream-name))
         table-name    (-> (get-in catalog ["streams" stream-name "table_name"])
                           (common/sanitize-names))
         sql-query     [(format "SELECT %s FROM %s.%s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) schema-name table-name)]]
@@ -115,7 +115,7 @@
   [config catalog stream-name state]
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys   (singer-fields/get-selected-fields catalog stream-name)
-        bookmark-keys (singer-bookmarks/get-bookmark-keys catalog stream-name)
+        bookmark-keys (singer-bookmarks/get-full-bookmark-keys catalog stream-name)
         table-name    (get-in catalog ["streams" stream-name "table_name"])
         schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
