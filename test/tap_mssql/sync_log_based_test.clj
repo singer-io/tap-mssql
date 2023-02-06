@@ -49,7 +49,7 @@
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]])])
     ;; Same table as below, created first to check for unexpected failures with ignoring schema
-Database connection failed when ending copy    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE TABLE schema_with_conflict.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE TABLE schema_with_table.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])))
@@ -191,8 +191,9 @@ Database connection failed when ending copy    (jdbc/db-do-commands (assoc db-sp
   (with-matrix-assertions test-db-configs null-fixture
       (do (maybe-destroy-test-db test-db-config)
           (create-test-db test-db-config)
-          (setup-change-tracking-for-database test-db-config))
-      (is (thrown? UnsupportedOperationException
+          (setup-change-tracking-for-database test-db-config)
+          (setup-change-tracking-for-table test-db-config))
+    (is (thrown? UnsupportedOperationException
                    (-> (catalog/discover test-db-config)
                        (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
                        (assoc-in  ["streams"
@@ -201,107 +202,6 @@ Database connection failed when ending copy    (jdbc/db-do-commands (assoc db-sp
                                    "table-key-properties"]
                                   #{})
                        (get-messages-from-output test-db-config nil))))))
-
-;; TODO: Write failing test that performs log-based-replicaiton-initial and asserts
-;;       that we throw before beginning if no key properties
-(deftest ^:integration verify-log-based-initial-full-table-throws-if-no-key-properties
-  (with-matrix-assertions test-db-configs test-db-fixture
-    ;; Check that third state has all keys - log position and full table complete
-    (is (nil?
-         (let [third-state (as-> (catalog/discover test-db-config)
-                               x
-                               (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                               (get-messages-from-output x test-db-config nil)
-                               (filter #(= "STATE" (% "type")) x)
-                               (nth x 2))]
-           (second ;; In diff, second is the things in second param but not first
-            (clojure.data/diff
-             (set (keys (get-in third-state ["value"
-                                             "bookmarks"
-                                             "log_based_sync_test_dbo_data_table"])))
-             #{"max_pk_values" "version" "initial_full_table_complete" "current_log_version" "last_pk_fetched"})))))
-    ;; Check that second state has false for fulltable complete
-    (is (= false
-           (let [second-state (as-> (catalog/discover test-db-config)
-                                  x
-                                  (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                                  (get-messages-from-output x test-db-config nil)
-                                  (filter #(= "STATE" (% "type")) x)
-                                  (second x))]
-             (get-in second-state ["value" "bookmarks" "log_based_sync_test_dbo_data_table" "initial_full_table_complete"]))))
-    ;; Check that final state does not have full-table keys
-    (is (let [last-state (as-> (catalog/discover test-db-config)
-                             x
-                             (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                             (get-messages-from-output x test-db-config nil)
-                             (filter #(= "STATE" (% "type")) x)
-                             (last x))]
-          (= {} (select-keys (last-state "value") ["max_pk_values" "last_pk_fetched"]))))
-    ;; Check that final state has full table complete
-    (is (= true
-           (let [last-state (as-> (catalog/discover test-db-config)
-                                x
-                                (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                                (get-messages-from-output x test-db-config nil)
-                                (filter #(= "STATE" (% "type")) x)
-                                (last x))]
-             (get-in last-state ["value" "bookmarks" "log_based_sync_test_dbo_data_table" "initial_full_table_complete"]))))
-    ;; Verify qualities of an initial full table sync
-    ;; Copied from sync_full_table_test.clj
-    (is (= "log_based_sync_test_dbo_data_table"
-           ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
-                first)
-            "stream")))
-    (is (= ["id"]
-           ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
-                first)
-            "key_properties")))
-    (is (= {"type" ["string"]
-            "pattern" "[A-F0-9]{8}-([A-F0-9]{4}-){3}[A-F0-9]{12}"}
-           (get-in (-> (catalog/discover test-db-config)
-                       (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                       (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
-                       first)
-                   ["schema" "properties" "id"])))
-    (is (not (contains? ((-> (catalog/discover test-db-config)
-                             (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                             (get-messages-from-output test-db-config "log_based_sync_test_dbo_data_table")
-                             first)
-                         "schema")
-                        "metadata")))
-    ;; Emits the records expected
-    (is (= 100
-           (-> (catalog/discover test-db-config)
-               (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-               (get-messages-from-output test-db-config nil)
-               ((partial filter #(= "RECORD" (% "type"))))
-               count)))
-    (is (every? (fn [rec]
-                  (= "log_based_sync_test_dbo_data_table" (rec "stream")))
-                (-> (catalog/discover test-db-config)
-                    (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                    (get-messages-from-output test-db-config nil))))
-    ;; At the moment we're not ordering by anything so checking the actual
-    ;; value here would be brittle, I think.
-    (is (every? #(get-in % ["record" "value"])
-                (as-> (catalog/discover test-db-config)
-                    x
-                    (select-stream x "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                    (get-messages-from-output x test-db-config nil)
-                    (filter #(= "RECORD" (% "type")) x))))
-    (is (= "STATE"
-           ((-> (catalog/discover test-db-config)
-                (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                (get-messages-from-output test-db-config nil)
-                last)
-            "type"))
-        "Last message in a complete sync must be state")
-    ))
-
 
 (deftest ^:integration verify-log-based-replication-performs-initial-full-table
   ;; TODO: Fixture might need to have another function appended to set up change tracking
