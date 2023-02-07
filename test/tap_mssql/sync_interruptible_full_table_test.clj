@@ -70,7 +70,18 @@
                             [:number "int NOT NULL"]
                             [:timestamp "timestamp NOT NULL"]
                             [:value "varchar(5000)"]])])
-   (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "no_pk_no_rowversion_table"
+                           [[:id "int"]
+                            [:value "int"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "rowversion_no_pk_table"
+                           [[:id "int"]
+                            [:value "int"]
+                            [:rv "rowversion"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          ["CREATE VIEW view_with_table_ids
                            AS
                            SELECT id FROM data_table"])))

@@ -2,7 +2,7 @@
 
 (defn get-full-bookmark-keys
   "Ensures the use of a stream's `table-key-properties` > `rowversion` as an intermediary bookmark for
-  interrupted full syncs, else returns nil."
+  interrupted full syncs, else returns nil"
   [catalog stream-name]
   (let [is-view? (get-in catalog ["streams" stream-name "metadata" "is-view"])
         table-key-properties (if is-view?
@@ -23,10 +23,11 @@
                                                     "metadata"
                                                     "properties"]))))]
 
-    (if (seq table-key-properties)
-      table-key-properties
-      (when (some? timestamp-column)
-        [timestamp-column]))))
+    ;; TODO test this with key-properties returned first
+    (if (some? timestamp-column)
+      [timestamp-column]
+      (when (seq table-key-properties)
+        table-key-properties))))
 
 (defn get-logical-bookmark-keys
   "Ensures the use of a stream's `table-key-properties` as an intermediary bookmark for
