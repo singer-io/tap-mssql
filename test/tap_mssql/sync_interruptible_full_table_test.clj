@@ -395,8 +395,9 @@
                                 last)
                            "value")]
       ;; Make sure the interrupted state is valid
+      (is (= true (sync/valid-full-table-state? first-state table-name)))
       (is (= nil (get-in first-state ["bookmarks" table-name "last_pk_fetched"])))
-      (is (= true (sync/valid-full-table-state? first-state table-name))))))
+      (is (= nil (get-in first-state ["bookmarks" table-name "max_pk_values"]))))))
 
 
 (deftest ^:integration verify-full-table-interruptible-bookmark-clause

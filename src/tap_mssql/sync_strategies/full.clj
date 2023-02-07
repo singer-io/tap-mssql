@@ -31,7 +31,7 @@
       state)))
 
 (defn valid-full-table-state? [state table-name]
-  ;; The state MUST contain max_pk_values if there is a last_pk_fetched
+  ;; If the state contains last_pk_fetched, it MUST contain max_pk_values as well
   (if (contains? (get-in state ["bookmarks" table-name]) "last_pk_fetched")
     (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
     true))
