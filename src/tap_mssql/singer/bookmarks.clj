@@ -23,11 +23,11 @@
                                                     "metadata"
                                                     "properties"]))))]
 
-    ;; TODO test this with key-properties returned first
-    (if (some? timestamp-column)
-      [timestamp-column]
-      (when (seq table-key-properties)
-        table-key-properties))))
+    (if (seq table-key-properties)
+      table-key-properties
+      (when (some? timestamp-column)
+        [timestamp-column]
+       ))))
 
 (defn get-logical-bookmark-keys
   "Ensures the use of a stream's `table-key-properties` as an intermediary bookmark for

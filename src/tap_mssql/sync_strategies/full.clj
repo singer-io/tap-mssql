@@ -31,7 +31,7 @@
       state)))
 
 (defn valid-full-table-state? [state table-name]
-  ;; The state MUST contain max_pk_values if there is a bookmark
+  ;; The state MUST contain max_pk_values if there is a last_pk_fetched
   (if (contains? (get-in state ["bookmarks" table-name]) "last_pk_fetched")
     (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
     true))
@@ -121,19 +121,19 @@
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (try-read-only [conn-map (assoc (config/->conn-map config)
-                                         :dbname dbname)]
-          (reduce (fn [acc result]
-                    (let [record (select-keys result record-keys)]
-                      (singer-messages/write-record! stream-name
-                                                     state
-                                                     record
-                                                     catalog)
-                      (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
-                           (singer-messages/write-state-buffered! stream-name))))
-                  state
-                  (jdbc/reducible-query conn-map
-                                        sql-params
-                                        common/result-set-opts)))
+                                        :dbname dbname)]
+                       (reduce (fn [acc result]
+                                 (let [record (select-keys result record-keys)]
+                                   (singer-messages/write-record! stream-name
+                                                                  state
+                                                                  record
+                                                                  catalog)
+                                   (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
+                                        (singer-messages/write-state-buffered! stream-name))))
+                               state
+                               (jdbc/reducible-query conn-map
+                                                     sql-params
+                                                     common/result-set-opts)))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!
