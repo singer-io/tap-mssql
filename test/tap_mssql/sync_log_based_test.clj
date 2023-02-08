@@ -189,18 +189,19 @@
 
 (deftest ^:integration verify-log-based-replication-throws-if-no-key-properties
   (with-matrix-assertions test-db-configs null-fixture
-    (do (maybe-destroy-test-db test-db-config)
-        (create-test-db test-db-config)
-        (setup-change-tracking-for-database test-db-config))
+      (do (maybe-destroy-test-db test-db-config)
+          (create-test-db test-db-config)
+          (setup-change-tracking-for-database test-db-config)
+          (setup-change-tracking-for-table test-db-config))
     (is (thrown? UnsupportedOperationException
-                 (-> (catalog/discover test-db-config)
-                     (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                     (assoc-in  ["streams"
-                                 "log_based_sync_test_dbo_data_table"
-                                 "metadata"
-                                 "table-key-properties"]
-                               #{})
-                     (get-messages-from-output test-db-config nil))))))
+                   (-> (catalog/discover test-db-config)
+                       (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                       (assoc-in  ["streams"
+                                   "log_based_sync_test_dbo_data_table"
+                                   "metadata"
+                                   "table-key-properties"]
+                                  #{})
+                       (get-messages-from-output test-db-config nil))))))
 
 (deftest ^:integration verify-log-based-replication-performs-initial-full-table
   ;; TODO: Fixture might need to have another function appended to set up change tracking

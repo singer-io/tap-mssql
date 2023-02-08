@@ -14,7 +14,7 @@
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
         schema-name   (-> (get-in catalog ["streams" stream-name "metadata" "schema-name"])
                           (common/sanitize-names))
-        bookmark-keys (map common/sanitize-names (singer-bookmarks/get-bookmark-keys catalog stream-name))
+        bookmark-keys (map common/sanitize-names (singer-bookmarks/get-full-bookmark-keys catalog stream-name))
         table-name    (-> (get-in catalog ["streams" stream-name "table_name"])
                           (common/sanitize-names))
         sql-query     [(format "SELECT %s FROM %s.%s" (string/join " ," (map (fn [bookmark-key] (format "MAX(%1$s) AS %1$s" bookmark-key)) bookmark-keys)) schema-name table-name)]]
@@ -31,7 +31,7 @@
       state)))
 
 (defn valid-full-table-state? [state table-name]
-  ;; The state MUST contain max_pk_values if there is a bookmark
+  ;; If the state contains last_pk_fetched, it MUST contain max_pk_values as well
   (if (contains? (get-in state ["bookmarks" table-name]) "last_pk_fetched")
     (contains? (get-in state ["bookmarks" table-name]) "max_pk_values")
     true))
@@ -115,25 +115,25 @@
   [config catalog stream-name state]
   (let [dbname        (get-in catalog ["streams" stream-name "metadata" "database-name"])
         record-keys   (singer-fields/get-selected-fields catalog stream-name)
-        bookmark-keys (singer-bookmarks/get-bookmark-keys catalog stream-name)
+        bookmark-keys (singer-bookmarks/get-full-bookmark-keys catalog stream-name)
         table-name    (get-in catalog ["streams" stream-name "table_name"])
         schema-name   (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         sql-params    (build-sync-query stream-name schema-name table-name record-keys state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
     (-> (try-read-only [conn-map (assoc (config/->conn-map config)
-                                         :dbname dbname)]
-          (reduce (fn [acc result]
-                    (let [record (select-keys result record-keys)]
-                      (singer-messages/write-record! stream-name
-                                                     state
-                                                     record
-                                                     catalog)
-                      (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
-                           (singer-messages/write-state-buffered! stream-name))))
-                  state
-                  (jdbc/reducible-query conn-map
-                                        sql-params
-                                        common/result-set-opts)))
+                                        :dbname dbname)]
+                       (reduce (fn [acc result]
+                                 (let [record (select-keys result record-keys)]
+                                   (singer-messages/write-record! stream-name
+                                                                  state
+                                                                  record
+                                                                  catalog)
+                                   (->> (singer-bookmarks/update-last-pk-fetched stream-name bookmark-keys acc record)
+                                        (singer-messages/write-state-buffered! stream-name))))
+                               state
+                               (jdbc/reducible-query conn-map
+                                                     sql-params
+                                                     common/result-set-opts)))
         (update-in ["bookmarks" stream-name] dissoc "last_pk_fetched" "max_pk_values"))))
 
 (defn sync!

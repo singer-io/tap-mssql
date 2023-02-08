@@ -54,11 +54,12 @@
         first
         :min_valid_version)))
 
-(defn assert-log-based-is-enabled [config catalog stream-name state]
+(defn assert-log-based-setup-complete [config catalog stream-name state]
   (let [table-name        (get-in catalog ["streams" stream-name "table_name"])
         schema-name       (get-in catalog ["streams" stream-name "metadata" "schema-name"])
         dbname            (get-in catalog ["streams" stream-name "metadata" "database-name"])
-        min-valid-version (get-min-valid-version config dbname schema-name table-name)]
+        min-valid-version (get-min-valid-version config dbname schema-name table-name)
+        primary-keys (get-in catalog ["streams" stream-name "metadata" "table-key-properties"])]
     (when (not (contains? (get-change-tracking-databases config) dbname))
       (throw (UnsupportedOperationException.
               (format (str "Cannot sync stream: %s using log-based replication. "
@@ -75,6 +76,12 @@
     (when (nil? min-valid-version)
       (throw (IllegalArgumentException.
               (format "The min_valid_version for table name %s was NULL."
+                      table-name))))
+    (when (empty? primary-keys)
+      (throw (UnsupportedOperationException.
+              (format (str "Cannot sync stream: %s using log-based replication. "
+                           "No primary key(s) found for table: %s")
+                      stream-name
                       table-name))))
     state))
 
@@ -158,13 +165,8 @@
         record-keys           (map common/sanitize-names (clojure.set/difference (set (singer-fields/get-selected-fields catalog stream-name))
                                                                                  primary-keys))]
     ;; Assert state of the world
-    (assert (or (not-empty primary-keys)
-                (not-empty record-keys))
-            "No selected keys found, you must have a primary key and/or select columns to replicate.")
-    (assert (not (nil? current-log-version))
+    (assert (some? current-log-version)
             "Invalid log-based state, need a value for `current-log-version`.")
-    (assert (not (empty? primary-keys))
-            "No primary key(s) found, must have a primary key to replicate")
     (let [select-clause (str "SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time"
                              (when (not-empty primary-keys)
                                (str ", " (string/join ", "
@@ -202,6 +204,7 @@
                                  vals))
         [query-string]))))
 
+
 (defn maybe-update-current-log-version [state stream-name db-log-version]
   "Updates the state's bookmark when current-log-version lags behind db-log-version and a sync has been executed"
   (let [current-log-version (get-in state ["bookmarks" stream-name "current_log_version"])]
@@ -218,7 +221,7 @@
   {:pre  [(= true (get-in state ["bookmarks" stream-name "initial_full_table_complete"]))]
    :post [(map? %)]}
   (let [record-keys    (singer-fields/get-selected-fields catalog stream-name)
-        bookmark-keys  (singer-bookmarks/get-bookmark-keys catalog stream-name)
+        bookmark-keys  (singer-bookmarks/get-logical-bookmark-keys catalog stream-name)
         dbname         (get-in catalog ["streams" stream-name "metadata" "database-name"])
         db-log-version (get-current-log-version config catalog stream-name)
         sql-params     (build-log-based-sql-query catalog stream-name state)]
@@ -251,7 +254,7 @@
 (defn sync!
   [config catalog stream-name state]
   (->> state
-       (assert-log-based-is-enabled config catalog stream-name)
+       (assert-log-based-setup-complete config catalog stream-name)
        (log-based-init-state config catalog stream-name)
        (log-based-initial-full-table config catalog stream-name)
        (singer-messages/write-state! stream-name)

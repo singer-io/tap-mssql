@@ -371,7 +371,7 @@ class SyncCurrentLogVersionNull(BaseTapTest):
 
         self.assertEqual(exit_status['tap_exit_status'], 1)
         self.assertIn('Invalid log-based state', exit_status['tap_error_message'])
-        self.assertIn('not (nil? current-log-version', exit_status['tap_error_message'])
+        self.assertIn('some? current-log-version', exit_status['tap_error_message'])
 
         bookmark['current_log_version'] = saved_current_log_version
         menagerie.set_state(conn_id, state)

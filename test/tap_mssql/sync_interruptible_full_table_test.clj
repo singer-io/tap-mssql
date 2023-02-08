@@ -35,16 +35,16 @@
     (jdbc/db-do-commands db-spec ["CREATE DATABASE full_table_interruptible_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
-                           "data_table"
-                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
-                            [:value "int"]
-                            [:deselected_value "int"]])])
-    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
-                         [(jdbc/create-table-ddl
-                           "data_table_rowversion"
-                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                           "table_with_pk_and_rowversion"
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID()"]
                             [:value "int"]
                             [:rowversion "rowversion"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "table_with_pk_no_rowversion"
+                           [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID()"]
+                            [:value "int"]
+                            [:deselected_value "int"]])])
     (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          [(jdbc/create-table-ddl
                            "table_with_unsupported_pk"
@@ -70,20 +70,41 @@
                             [:number "int NOT NULL"]
                             [:timestamp "timestamp NOT NULL"]
                             [:value "varchar(5000)"]])])
-   (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "no_pk_no_rowversion_table"
+                           [[:id "int"]
+                            [:value "int"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
+                         [(jdbc/create-table-ddl
+                           "rowversion_no_pk_table"
+                           [[:id "int"]
+                            [:value "int"]
+                            [:rowversion "rowversion"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "full_table_interruptible_sync_test")
                          ["CREATE VIEW view_with_table_ids
                            AS
-                           SELECT id FROM data_table"])))
+                           SELECT id FROM table_with_pk_no_rowversion"])))
 
 (defn populate-data
   [config]
+  ;; rowversion_no_pk_table insert is first because tests are seemingly unstable
+  ;; with the conversion of some rowversions to binary
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
-                      "data_table"
+                      "rowversion_no_pk_table"
+                      (take 200 (map (partial hash-map :value) (range))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "full_table_interruptible_sync_test"))
+                      "table_with_pk_and_rowversion"
+                      (take 200 (map (partial hash-map :value) (range))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "full_table_interruptible_sync_test"))
+                      "table_with_pk_no_rowversion"
                       (take 200 (map (partial hash-map :deselected_value nil :value) (range))))
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
-                      "data_table_rowversion"
+                      "no_pk_no_rowversion_table"
                       (take 200 (map (partial hash-map :value) (range))))
   (jdbc/insert-multi! (-> (config/->conn-map config)
                           (assoc :dbname "full_table_interruptible_sync_test"))
@@ -197,10 +218,11 @@
                                        (select-stream "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")
                                        (get-messages-from-output test-db-config "full_table_interruptible_sync_test_dbo_table_with_unsupported_pk")))))))
 
-(deftest ^:integration verify-full-table-sync-with-rowversion-resumes-on-interruption
+(deftest ^:integration verify-full-table-sync-with-pk-rowversion-resumes-on-interruption
   (with-matrix-assertions test-db-configs test-db-fixture
     ;; Steps:
-    ;; Sync partially, a table with row version, interrupted at some point
+    ;; Sync partially, a table with both a Primary Key and rowversion, interrupted at some point.
+    ;; Sync should resume and use Primary Key as a last_pk_fetched bookmark key
     ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
     (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
           _ (set-include-db-and-schema-names-in-messages! test-db-config)
@@ -213,9 +235,107 @@
                                                         (throw (ex-info "Interrupting!" {:ignore true})))
                                                       (old-write-record stream-name state record catalog)))]
         (let [first-messages (->> (catalog/discover test-db-config)
-                                  (select-stream "full_table_interruptible_sync_test_dbo_data_table_rowversion")
+                                  (select-stream "full_table_interruptible_sync_test_dbo_table_with_pk_and_rowversion")
                                   (get-messages-from-output test-db-config
-                                                            "full_table_interruptible_sync_test_dbo_data_table_rowversion"))
+                                                            "full_table_interruptible_sync_test_dbo_table_with_pk_and_rowversion"))
+              first-state (last first-messages)]
+          (is (valid-state? first-state))
+          (is (= "SCHEMA"
+                 ((-> first-messages
+                      first)
+                  "type")))
+          (is (every? (comp (partial > 0)
+                            (partial apply compare))
+                      (->> first-messages
+                           (filter #(= "RECORD" (% "type")))
+                           (map #(get-in % ["record" "value"]))
+                           (partition 2 1))))
+          ;; Next state emitted has the id of the last record emitted before that state
+          (let [[last-record last-state] (->> first-messages
+                                              (drop 5) ;; Ignore first state
+                                              (partition 2 1)
+                                              (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                              first)]
+            (is (= (get-in last-record ["record" "id"])
+                   (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_pk_and_rowversion" "last_pk_fetched" "id"])))
+            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_pk_and_rowversion" "version"]))))
+          ;; Activate Version on first sync
+          (is (= "ACTIVATE_VERSION"
+                 ((->> first-messages
+                       (second)) "type")))
+          ;;   - Record count (Equal to the counter of the atom before exception)
+          (is (= 120
+                 (count (filter #(= "RECORD" (% "type")) first-messages)))))))))
+
+(deftest ^:integration verify-full-table-sync-with-pk-no-rowversion-resumes-on-interruption
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; Sync partially, a table with a Primary Key but no rowversion, interrupted at some point.
+    ;; Sync should resume and use Primary Key as a last_pk_fetched bookmark key
+    ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          old-write-record singer-messages/write-record!]
+      (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                    (swap! record-count inc)
+                                                    (if (> @record-count 120)
+                                                      (do
+                                                        (reset! record-count 0)
+                                                        (throw (ex-info "Interrupting!" {:ignore true})))
+                                                      (old-write-record stream-name state record catalog)))]
+        (let [first-messages (->> (catalog/discover test-db-config)
+                                  (select-stream "full_table_interruptible_sync_test_dbo_table_with_pk_no_rowversion")
+                                  (get-messages-from-output test-db-config
+                                                            "full_table_interruptible_sync_test_dbo_table_with_pk_no_rowversion"))
+              first-state (last first-messages)]
+          (is (valid-state? first-state))
+          (is (= "SCHEMA"
+                 ((-> first-messages
+                      first)
+                  "type")))
+          (is (every? (comp (partial > 0)
+                            (partial apply compare))
+                      (->> first-messages
+                           (filter #(= "RECORD" (% "type")))
+                           (map #(get-in % ["record" "value"]))
+                           (partition 2 1))))
+          ;; Next state emitted has the id of the last record emitted before that state
+          (let [[last-record last-state] (->> first-messages
+                                              (drop 5) ;; Ignore first state
+                                              (partition 2 1)
+                                              (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
+                                              first)]
+            (is (= (get-in last-record ["record" "id"])
+                   (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_pk_no_rowversion" "last_pk_fetched" "id"])))
+            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_table_with_pk_no_rowversion" "version"]))))
+          ;; Activate Version on first sync
+          (is (= "ACTIVATE_VERSION"
+                 ((->> first-messages
+                       (second)) "type")))
+          ;;   - Record count (Equal to the counter of the atom before exception)
+          (is (= 120
+                 (count (filter #(= "RECORD" (% "type")) first-messages)))))))))
+
+(deftest ^:integration verify-full-table-sync-with-rowversion-no-pk-resumes-on-interruption
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; Sync partially, a table with rowversion and no primary key, interrupted at some point
+    ;; Sync should resume and use rowversion as a last_pk_fetched bookmark key
+    ;;     -- e.g., (with-redefs [valid-message? (fn [msg] (if (some-atom-thing-changes-after x calls) (throw...) (valid-message? msg)))] ... )
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          old-write-record singer-messages/write-record!]
+      (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                    (swap! record-count inc)
+                                                    (if (> @record-count 120)
+                                                      (do
+                                                        (reset! record-count 0)
+                                                        (throw (ex-info "Interrupting!" {:ignore true})))
+                                                      (old-write-record stream-name state record catalog)))]
+        (let [first-messages (->> (catalog/discover test-db-config)
+                                  (select-stream "full_table_interruptible_sync_test_dbo_rowversion_no_pk_table")
+                                  (get-messages-from-output test-db-config
+                                                            "full_table_interruptible_sync_test_dbo_rowversion_no_pk_table"))
               first-state (last first-messages)]
           (is (valid-state? first-state))
           (is (= "SCHEMA"
@@ -234,24 +354,51 @@
                       (->> first-messages
                            (filter #(= "RECORD" (% "type")))
                            (map #(get-in % ["record" "rowversion"])))))
-          ;; Next state emitted has the pk and version of the last record emitted before that state
+          ;; Next state emitted has the rowversion of the last record emitted before that state
           (let [[last-record last-state] (->> first-messages
                                               (drop 5) ;; Ignore first state
                                               (partition 2 1)
                                               (drop-while (fn [[a b]] (not= "STATE" (b "type"))))
                                               first)]
             (is (= (get-in last-record ["record" "rowversion"])
-                   (transform/transform-binary (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "last_pk_fetched" "rowversion"]))))
-            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_data_table_rowversion" "version"]))))
+                   (transform/transform-binary (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_rowversion_no_pk_table" "last_pk_fetched" "rowversion"]))))
+            (is (= (last-record "version") (get-in last-state ["value" "bookmarks" "full_table_interruptible_sync_test_dbo_rowversion_no_pk_table" "version"]))))
           ;; Activate Version on first sync
           (is (= "ACTIVATE_VERSION"
                  ((->> first-messages
                        (second)) "type")))
           ;;   - Record count (Equal to the counter of the atom before exception)
           (is (= 120
-                 (count (filter #(= "RECORD" (% "type")) first-messages)))))
-        ))
-    ))
+                 (count (filter #(= "RECORD" (% "type")) first-messages)))))))))
+
+(deftest ^:integration verify-full-table-sync-with-no-pk-no-rowversion-leaves-valid-state
+  (with-matrix-assertions test-db-configs test-db-fixture
+    ;; Steps:
+    ;; 1. Sync 150 rows, capture state, and sync the remaining
+    (let [test-db-config (assoc test-db-config "include_schemas_in_destination_stream_name" "true")
+          _ (set-include-db-and-schema-names-in-messages! test-db-config)
+          table-name "full_table_interruptible_sync_test_dbo_no_pk_no_rowversion_table"
+          old-write-record singer-messages/write-record!
+          first-messages (with-redefs [singer-messages/write-record! (fn [stream-name state record catalog]
+                                                                       (swap! record-count inc)
+                                                                       (if (> @record-count 150)
+                                                                         (do
+                                                                           (reset! record-count 0)
+                                                                           (throw (ex-info "Interrupting!" {:ignore true})))
+                                                                         (old-write-record stream-name state record catalog)))]
+                           (->> (catalog/discover test-db-config)
+                                (select-stream table-name)
+                                (get-messages-from-output test-db-config
+                                                          table-name)))
+          first-state (get (->> first-messages
+                                (filter #(= "STATE" (% "type")))
+                                last)
+                           "value")]
+      ;; Make sure the interrupted state is valid
+      (is (= true (sync/valid-full-table-state? first-state table-name)))
+      (is (= nil (get-in first-state ["bookmarks" table-name "last_pk_fetched"])))
+      (is (= nil (get-in first-state ["bookmarks" table-name "max_pk_values"]))))))
+
 
 (deftest ^:integration verify-full-table-interruptible-bookmark-clause
   (with-matrix-assertions test-db-configs test-db-fixture
