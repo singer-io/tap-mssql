@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.13
+  * Removes rowversion and replication keys as valid interruptible bookmarks for logical replication, ensuring the use of a Primary Key
+  * Adds additional check for valid Primary Key before beginning logical replication rather than after completing initial historical replication
+  * Updates full table interruptible bookmark key priority to optimize index efficiency by using PK if available before falling back to rowversion if available
+  * Adds additional tests for full-table interruptible
+  * [#86](https://github.com/singer-io/tap-mssql/pull/86)
+
 ## 1.6.12
   * Update singer-clojure and logging dependencies [#84](https://github.com/singer-io/tap-mssql/pull/84)
 
