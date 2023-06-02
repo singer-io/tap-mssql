@@ -78,19 +78,16 @@ class FullTableInterrupted(BaseTapTest):
                     'minimum': -2147483648},
                 'varchar_8000': {
                     'type': ['string', 'null'],
-                    'maxLength': 8000,
                     'inclusion': 'available',
                     'selected': True},
                     # 'minLength': 0},
                 'varchar_5': {
                     'type': ['string', 'null'],
-                    'maxLength': 5,
                     'inclusion': 'available',
                     'selected': True},
                     # 'minLength': 0},
                 'varchar_max': {
                     'type': ['string', 'null'],
-                    'maxLength': 2147483647,
                     'inclusion': 'available',
                     'selected': True}}}
                     # 'minLength': 0}}}

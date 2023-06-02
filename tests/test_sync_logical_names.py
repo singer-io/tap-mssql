@@ -67,7 +67,6 @@ class SyncNameLogical(BaseTapTest):
             'properties': {
                 CHAR_NAME: {
                     'type': ['string', 'null'],
-                    'maxLength': 2,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 2},
@@ -98,18 +97,15 @@ class SyncNameLogical(BaseTapTest):
                     'minimum': -2147483648},
                 'varchar_8000': {
                     'type': ['string', 'null'],
-                    'maxLength': 8000,
                     'inclusion': 'available',
                     'selected': True},  # 'minLength': 0},
                 VARCHAR_NAME: {
                     'type': ['string', 'null'],
-                    'maxLength': 5,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
                 'varchar_max': {
                     'type': ['string', 'null'],
-                    'maxLength': 2147483647,
                     'inclusion': 'available',
                     'selected': True},
                 "_sdc_deleted_at": {'format': 'date-time', 'type': ['string', 'null']}}}
@@ -128,7 +124,6 @@ class SyncNameLogical(BaseTapTest):
             'properties': {
                 NCHAR_NAME: {
                     'type': ['string', 'null'],
-                    'maxLength': 8,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 8},  # length is based on bytes, not characters
@@ -154,7 +149,6 @@ class SyncNameLogical(BaseTapTest):
             'properties': {
                 'nvarchar_max': {
                     'type': ['string', 'null'],
-                    'maxLength': 2147483647,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
@@ -166,13 +160,11 @@ class SyncNameLogical(BaseTapTest):
                     'minimum': -2147483648},
                 'nvarchar_4000': {
                     'type': ['string', 'null'],
-                    'maxLength': 4000,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
                 NVARCHAR_NAME: {
                     'type': ['string', 'null'],
-                    'maxLength': 5,
                     'inclusion': 'available',
                     'selected': True},
                 "_sdc_deleted_at": {'format': 'date-time', 'type': ['string', 'null']}}}

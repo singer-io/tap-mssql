@@ -49,9 +49,9 @@ class TapSpec:
                     "type": ["number", "null"],
                     'maximum': 10 ** 18, 'exclusiveMinimum': True,
                     'minimum': -10 ** 18, 'exclusiveMaximum': True},
-        "char": {"type": ["string", "null"], "maxLength": 2, "minLength": 2},  # TODO this is just for char(2)
-        "varchar": {"type": ["string", "null"], "maxLength": 8000, "minLength": 0},  # TODO this is just for varchar(800)
-        "nvarchar": {"type": ["string", "null"], "maxLength": 8000, "minLength": 0},  # TODO this is just for nvarchar(800)
+        "char": {"type": ["string", "null"], "minLength": 2},  # TODO this is just for char(2)
+        "varchar": {"type": ["string", "null"], "minLength": 0},  # TODO this is just for varchar(800)
+        "nvarchar": {"type": ["string", "null"], "minLength": 0},  # TODO this is just for nvarchar(800)
         "date": {"type": ["string", "null"], 'format': 'date-time'},
         "datetime": {"type": ["string", "null"], 'format': 'date-time'},
         "time": {"type": ["string", "null"]},
