@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.0
+  * Remove `maxLength` from the catalog [#88](https://github.com/singer-io/tap-mssql/pull/88)
+
 ## 1.6.13
   * Removes rowversion and replication keys as valid interruptible bookmarks for logical replication, ensuring the use of a Primary Key
   * Adds additional check for valid Primary Key before beginning logical replication rather than after completing initial historical replication
