@@ -63,7 +63,6 @@ class SyncTestNameFull(BaseTapTest):
             'properties': {
                 char_name: {
                     'type': ['string', 'null'],
-                    'maxLength': 2,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 2},
@@ -94,18 +93,15 @@ class SyncTestNameFull(BaseTapTest):
                     'minimum': -2147483648},
                 'varchar_8000': {
                     'type': ['string', 'null'],
-                    'maxLength': 8000,
                     'inclusion': 'available',
                     'selected': True},  # 'minLength': 0},
                 varchar_name: {
                     'type': ['string', 'null'],
-                    'maxLength': 5,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
                 'varchar_max': {
                     'type': ['string', 'null'],
-                    'maxLength': 2147483647,
                     'inclusion': 'available',
                     'selected': True}}}
                 # 'minLength': 0}}}
@@ -124,7 +120,6 @@ class SyncTestNameFull(BaseTapTest):
             'properties': {
                 nchar_name: {
                     'type': ['string', 'null'],
-                    'maxLength': 8,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 8},  # length is based on bytes, not characters
@@ -150,7 +145,6 @@ class SyncTestNameFull(BaseTapTest):
             'properties': {
                 'nvarchar_max': {
                     'type': ['string', 'null'],
-                    'maxLength': 2147483647,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
@@ -162,13 +156,11 @@ class SyncTestNameFull(BaseTapTest):
                     'minimum': -2147483648},
                 'nvarchar_4000': {
                     'type': ['string', 'null'],
-                    'maxLength': 4000,
                     'inclusion': 'available',
                     'selected': True},
                 # 'minLength': 0},
                 nvarchar_name: {
                     'type': ['string', 'null'],
-                    'maxLength': 5,
                     'inclusion': 'available',
                     'selected': True}}}
                 # 'minLength': 0}}}

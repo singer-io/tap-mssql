@@ -104,12 +104,10 @@ class SyncPkIncremental(BaseTapTest):
                         'minimum': -2147483648},
                     'first_name': {
                         'type': ['string'],
-                        'maxLength': 256,
                         'inclusion': 'automatic',
                         'selected': True},  # 'minLength': 0},
                     'last_name': {
                         'type': ['string'],
-                        'maxLength': 256,
                         'inclusion': 'automatic',
                         'selected': True}  # 'minLength': 0},(1, 4, 2, 5)
                     }}

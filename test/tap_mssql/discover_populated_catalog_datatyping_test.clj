@@ -199,32 +199,25 @@
                  ["streams" "datatyping_dbo_approximate_numerics" "schema" "properties" "real"]))))
 
 (deftest ^:integration verify-unicode-strings
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nchar"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nchar_1"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 4000}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nchar_4000"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nvarchar"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nvarchar_1"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 4000}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nvarchar_4000"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 2147483647}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_unicode_character_strings" "schema" "properties" "nvarchar_max"]))))
 
@@ -314,32 +307,25 @@
                  ["streams" "datatyping_dbo_exact_numerics" "schema" "properties" "numeric_38_22"]))))
 
 (deftest ^:integration verify-character-strings
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "char"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "char_one"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 8000}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "char_8000"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "varchar"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 1}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "varchar_one"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 8000}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "varchar_8000"])))
-  (is (= {"type" ["string" "null"]
-          "maxLength" 2147483647}
+  (is (= {"type" ["string" "null"]}
          (get-in (catalog/discover test-db-config)
                  ["streams" "datatyping_dbo_character_strings" "schema" "properties" "varchar_max"]))))
 

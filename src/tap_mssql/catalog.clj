@@ -164,14 +164,10 @@
                                                "format" "date-time"}
                            "datetime2"        {"type"   ["string"]
                                                "format" "date-time"}
-                           "char"             {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "nchar"            {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "varchar"          {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "nvarchar"         {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
+                           "char"             {"type"      ["string"]}
+                           "nchar"            {"type"      ["string"]}
+                           "varchar"          {"type"      ["string"]}
+                           "nvarchar"         {"type"      ["string"]}
                            "binary"           {"type"      ["string"]}
                            "varbinary"        {"type"      ["string"]}
                            "uniqueidentifier" {"type"    ["string"]
