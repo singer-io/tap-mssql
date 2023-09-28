@@ -210,6 +210,18 @@ class BaseTapTest(TapSpec, unittest.TestCase):
             connections.select_catalog_and_fields_via_metadata(
                 conn_id, catalog, schema, additional_md, non_selected_properties)
 
+    def unique_pk_count_by_stream(self, recs_by_stream):
+        """
+        Switch from upsert record count verification to unique pk count verification due to
+        tap-mssql inconsistency with log based inclusivity TDL-24162 (that will not be fixed)
+        """
+        pk_count_by_stream = {}
+        for strm in recs_by_stream:
+            stream_pks = [m.get('data').get('pk') for m in recs_by_stream[strm]['messages']
+                          if m['action'] == 'upsert']
+            pk_count_by_stream[strm] = len(set(stream_pks))
+        return pk_count_by_stream
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.start_date = self.get_properties().get("start_date")
