@@ -217,9 +217,9 @@ class BaseTapTest(TapSpec, unittest.TestCase):
         """
         pk_count_by_stream = {}
         for strm in recs_by_stream:
-            stream_pks = [m.get('data').get('pk') for m in recs_by_stream[strm]['messages']
-                          if m['action'] == 'upsert']
-            pk_count_by_stream[strm] = len(set(stream_pks))
+            stream_pks = {m.get('data', {}).get('pk') for m in recs_by_stream[strm]['messages']
+                          if m['action'] == 'upsert'}
+            pk_count_by_stream[strm] = len(stream_pks)
         return pk_count_by_stream
 
     def __init__(self, *args, **kwargs):

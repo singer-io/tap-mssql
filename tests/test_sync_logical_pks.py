@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 
 from tap_tester import menagerie, runner, LOGGER
 
-from database import drop_all_user_databases, create_database, \
-    create_table, mssql_cursor_context_manager, insert, enable_database_tracking, update_by_pk, delete_by_pk, \
-    create_view
+from database import create_database, create_table, create_view, delete_by_pk, \
+    drop_all_user_databases, enable_database_tracking, insert, mssql_cursor_context_manager, \
+    update_by_pk
 
 from base import BaseTapTest
 
@@ -91,9 +91,16 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                    {'first_name': {'sql-datatype': 'varchar', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                    {'last_name': {'sql-datatype': 'varchar', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                    {'info': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'first_name': {
+                    'sql-datatype': 'varchar',
+                    'selected-by-default': True,
+                    'inclusion': 'automatic'}},
+                {'last_name': {
+                    'sql-datatype': 'varchar',
+                    'selected-by-default': True,
+                    'inclusion': 'automatic'}},
+                {'info': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -118,7 +125,7 @@ class SyncPkLogical(BaseTapTest):
         column_type = ["varchar(256)", "varchar(256)", "int"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True) )
+                                       primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"]))
@@ -138,8 +145,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'data': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'data': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -162,7 +171,7 @@ class SyncPkLogical(BaseTapTest):
         column_type = ["int", "int"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True) )
+                                       primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"]))
@@ -182,8 +191,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'data': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'data': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -206,7 +217,7 @@ class SyncPkLogical(BaseTapTest):
         column_type = ["int", "int NOT NULL UNIQUE"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
         query_list.extend(create_table(database_name, schema_name, table_name, column_def,
-                                       primary_key=primary_key, tracking=True) )
+                                       primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"]))
@@ -228,8 +239,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'fk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'fk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -371,8 +384,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'default_column': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'default_column': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -394,13 +409,14 @@ class SyncPkLogical(BaseTapTest):
         column_name = ["pk", "default_column"]
         column_type = ["int", "int DEFAULT -1"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
-        query_list.extend(create_table(
-            database_name, schema_name, table_name, column_def, primary_key=primary_key, tracking=True) )
+        query_list.extend(create_table(database_name, schema_name, table_name,
+                                       column_def, primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"],
                                  column_names=["pk"]))
-        cls.EXPECTED_METADATA['{}_{}_{}'.format(database_name, schema_name, table_name)]["values"] = [
+        cls.EXPECTED_METADATA['{}_{}_{}'.format(
+            database_name, schema_name, table_name)]["values"] = [
                 (0, -1),
                 (1, -1)]
 
@@ -418,8 +434,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'age': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'age': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -441,8 +459,8 @@ class SyncPkLogical(BaseTapTest):
         column_name = ["pk", "age"]
         column_type = ["int", "int CHECK (age <= 120)"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
-        query_list.extend(create_table(
-            database_name, schema_name, table_name, column_def, primary_key=primary_key, tracking=True) )
+        query_list.extend(create_table(database_name, schema_name, table_name,
+                                       column_def, primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"]))
@@ -461,8 +479,10 @@ class SyncPkLogical(BaseTapTest):
             'database-name': database_name,
             'stream_name': table_name,
             'fields': [
-                {'pk': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
-                {'even_id': {'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
+                {'pk': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'automatic'}},
+                {'even_id': {
+                    'sql-datatype': 'int', 'selected-by-default': True, 'inclusion': 'available'}}],
             'schema': {
                 'type': 'object',
                 'selected': True,
@@ -484,15 +504,16 @@ class SyncPkLogical(BaseTapTest):
         column_name = ["pk", "even_id"]
         column_type = ["int", "int IDENTITY(2,2)"]
         column_def = [" ".join(x) for x in list(zip(column_name, column_type))]
-        query_list.extend(create_table(
-            database_name, schema_name, table_name, column_def, primary_key=primary_key, tracking=True) )
+        query_list.extend(create_table(database_name, schema_name, table_name,
+                                       column_def, primary_key=primary_key, tracking=True))
         query_list.extend(insert(database_name, schema_name, table_name,
                                  cls.EXPECTED_METADATA['{}_{}_{}'.format(
                                      database_name, schema_name, table_name)]["values"],
                                  column_names=["pk"]))
-        cls.EXPECTED_METADATA['{}_{}_{}'.format(database_name, schema_name, table_name)]["values"] = [
-            (1, 2),
-            (2, 4)]
+        cls.EXPECTED_METADATA['{}_{}_{}'.format(
+            database_name, schema_name, table_name)]["values"] = [
+                (1, 2),
+                (2, 4)]
         mssql_cursor_context_manager(*query_list)
 
         cls.expected_metadata = cls.discovery_expected_metadata
@@ -517,7 +538,7 @@ class SyncPkLogical(BaseTapTest):
 
             if strm == 'constraints_database_dbo_multiple_column_pk':
                 pk1, pk2 = [pk for pk in primary_key]
-                stream_pks = [{m.get('data').get(pk1), m.get('data').get(pk2)}
+                stream_pks = [{m.get('data', {}).get(pk1), m.get('data', {}).get(pk2)}
                               for m in recs_by_stream[strm]['messages']
                               if m['action'] == 'upsert']
 
@@ -529,17 +550,16 @@ class SyncPkLogical(BaseTapTest):
                     for matching_key in stream_pks:
                         if key == matching_key:
                             key_count += 1
-                    if key_count > 1:
-                        dupe_count += (key_count - 1)
+                    dupe_count += (key_count - 1)
 
                 pk_count_by_stream[strm] = len(stream_pks) - dupe_count
 
             else:
                 pk = primary_key[0]
-                stream_pks = [m.get('data').get(pk) for m in recs_by_stream[strm]['messages']
-                              if m['action'] == 'upsert']
+                stream_pks = {m.get('data', {}).get(pk) for m in recs_by_stream[strm]['messages']
+                              if m['action'] == 'upsert'}
 
-                pk_count_by_stream[strm] = len(set(stream_pks))
+                pk_count_by_stream[strm] = len(stream_pks)
 
         return pk_count_by_stream
 
@@ -607,10 +627,10 @@ class SyncPkLogical(BaseTapTest):
                     self.assertEqual(
                         records_by_stream[stream]['messages'][-1]['action'],
                         'activate_version')
-                self.assertEqual(
-                    len([m for m in records_by_stream[stream]['messages'][1:] if m["action"] == "activate_version"]),
-                    2,
-                    msg="Expect 2 more activate version messages for end of full table and beginning of log based")
+                self.assertEqual(2, len([m for m in records_by_stream[stream]['messages'][1:]
+                                         if m["action"] == "activate_version"]),
+                                 msg=("Expect 2 more activate version messages for end of full "
+                                      "table and beginning of log based"))
 
                 column_names = [
                     list(field_data.keys())[0] for field_data in stream_expected_data[self.FIELDS]
@@ -637,7 +657,8 @@ class SyncPkLogical(BaseTapTest):
                     with self.subTest(expected_row=expected_row):
 
                         self.assertEqual(actual_row["action"], "upsert")
-                        self.assertEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
+                        self.assertEqual(len(expected_row["data"].keys()),
+                                         len(actual_row["data"].keys()),
                                          msg="there are not the same number of columns")
                         for column_name, expected_value in expected_row["data"].items():
                             self.assertEqual(expected_value, actual_row["data"][column_name],
@@ -647,10 +668,10 @@ class SyncPkLogical(BaseTapTest):
                 # Verify all data is correct for the log replication part if sent
                 if records_by_stream[stream]['messages'][-1].get("data"):
                     for column_name, expected_value in expected_messages[-1]["data"].items():
-                        self.assertEqual(expected_value,
-                                         records_by_stream[stream]['messages'][-1]["data"][column_name],
-                                         msg="expected: {} != actual {}".format(
-                                             expected_row, actual_row))
+                        self.assertEqual(
+                            expected_value,
+                            records_by_stream[stream]['messages'][-1]["data"][column_name],
+                            msg="expected: {} != actual {}".format(expected_row, actual_row))
 
                 LOGGER.info("records are correct for stream %s", stream)
 
@@ -658,21 +679,21 @@ class SyncPkLogical(BaseTapTest):
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
 
-                self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
-                self.assertIsNotNone(
-                    bookmark.get('current_log_version'),
-                    msg="expected bookmark to have current_log_version because we are using log replication")
-                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
+                self.assertIsNone(state.get('currently_syncing'),
+                                  msg="expected state's currently_syncing to be None")
+                self.assertIsNotNone(bookmark.get('current_log_version'),
+                    msg="expected bookmark to have current_log_version due to log replication")
+                self.assertTrue(bookmark['initial_full_table_complete'],
+                                msg="expected full table to be complete")
                 inital_log_version = bookmark['current_log_version']
 
                 self.assertEqual(bookmark['version'], table_version[stream],
                                  msg="expected bookmark for stream to match version")
 
                 expected_schemas = self.expected_metadata()[stream]['schema']
-                self.assertEqual(records_by_stream[stream]['schema'],
-                                 expected_schemas,
-                                 msg="expected: {} != actual: {}".format(expected_schemas,
-                                                                         records_by_stream[stream]['schema']))
+                self.assertEqual(records_by_stream[stream]['schema'], expected_schemas,
+                                 msg=("expected: {} != actual: {}".format(
+                                     expected_schemas, records_by_stream[stream]['schema'])))
 
         # ----------------------------------------------------------------------
         # invoke the sync job AGAIN and after insert, update, delete or rows
@@ -686,8 +707,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [("Tim", "Berners-Lee", 65)]
         delete_value = [("Larry", "Page")]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:2]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:2]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -705,8 +728,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [(1, 65)]
         delete_value = [(0, )]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -724,8 +749,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [(0, 2)]
         delete_value = [(1, ), (2, )]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -745,8 +772,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [(1, 65)]
         delete_value = [(0, )]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -764,8 +793,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [(1, 65)]
         delete_value = [(0,)]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -783,8 +814,10 @@ class SyncPkLogical(BaseTapTest):
         update_value = [(1, 65)]
         delete_value = [(0,)]
         query_list = (insert(database_name, schema_name, table_name, insert_value))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (None,)]
         update_value = [update_value[0] + (None,)]
@@ -802,9 +835,12 @@ class SyncPkLogical(BaseTapTest):
         insert_value = [(3,)]
         update_value = [(1, )]
         delete_value = [(2,)]
-        query_list = (insert(database_name, schema_name, table_name, insert_value, column_names=column_name[:1]))
-        query_list.extend(delete_by_pk(database_name, schema_name, table_name, delete_value, column_name[:1]))
-        query_list.extend(update_by_pk(database_name, schema_name, table_name, update_value, column_name))
+        query_list = (insert(
+            database_name, schema_name, table_name, insert_value, column_names=column_name[:1]))
+        query_list.extend(delete_by_pk(
+            database_name, schema_name, table_name, delete_value, column_name[:1]))
+        query_list.extend(update_by_pk(
+            database_name, schema_name, table_name, update_value, column_name))
         mssql_cursor_context_manager(*query_list)
         insert_value = [insert_value[0] + (6, None)]
         update_value = [update_value[0] + (2, None)]
@@ -831,8 +867,8 @@ class SyncPkLogical(BaseTapTest):
                 self.assertEqual(
                     records_by_stream[stream]['messages'][0]['action'],
                     'activate_version')
-                self.assertTrue(all(
-                    [message["action"] == "upsert" for message in records_by_stream[stream]['messages'][1:]]
+                self.assertTrue(all([message["action"] == "upsert"
+                                     for message in records_by_stream[stream]['messages'][1:]]
                 ))
 
                 column_names = [
@@ -860,8 +896,9 @@ class SyncPkLogical(BaseTapTest):
                         self.assertEqual(actual_row["action"], "upsert")
 
                         # we only send the _sdc_deleted_at column for deleted rows
-                        self.assertGreaterEqual(len(expected_row["data"].keys()), len(actual_row["data"].keys()),
-                                         msg="there are not the same number of columns")
+                        self.assertGreaterEqual(len(expected_row["data"].keys()),
+                                                len(actual_row["data"].keys()),
+                                                msg="there are not the same number of columns")
 
                         for column_name, expected_value in expected_row["data"].items():
                             if column_name != "_sdc_deleted_at":
@@ -876,10 +913,12 @@ class SyncPkLogical(BaseTapTest):
                                 except ValueError:
                                     actual_value = datetime.strptime(actual_row["data"][column_name],
                                                                      "%Y-%m-%dT%H:%M:%SZ")
-                                self.assertGreaterEqual(actual_value, expected_value - timedelta(seconds=15))
-                                self.assertLessEqual(actual_value, expected_value + timedelta(seconds=15))
+                                self.assertGreaterEqual(actual_value, expected_value - timedelta(
+                                    seconds=15))
+                                self.assertLessEqual(actual_value, expected_value + timedelta(
+                                    seconds=15))
                             else:
-                                # the row wasn't deleted so we can either not pass the column or it can be None
+                                # row wasn't deleted so dont pass the column or let it be None
                                 self.assertIsNone(actual_row["data"].get(column_name))
 
                 LOGGER.info("records are correct for stream %s", stream)
@@ -888,11 +927,12 @@ class SyncPkLogical(BaseTapTest):
                 state = menagerie.get_state(conn_id)
                 bookmark = state['bookmarks'][stream]
 
-                self.assertIsNone(state.get('currently_syncing'), msg="expected state's currently_syncing to be None")
-                self.assertIsNotNone(
-                    bookmark.get('current_log_version'),
-                    msg="expected bookmark to have current_log_version because we are using log replication")
-                self.assertTrue(bookmark['initial_full_table_complete'], msg="expected full table to be complete")
+                self.assertIsNone(state.get('currently_syncing'),
+                                  msg="expected state's currently_syncing to be None")
+                self.assertIsNotNone(bookmark.get('current_log_version'),
+                    msg="expected bookmark to have current_log_version due to log replication")
+                self.assertTrue(bookmark['initial_full_table_complete'],
+                                msg="expected full table to be complete")
                 new_log_version = bookmark['current_log_version']
                 self.assertGreater(new_log_version, inital_log_version,
                                    msg='expected log version to increase')
@@ -903,7 +943,6 @@ class SyncPkLogical(BaseTapTest):
                                  msg="expected bookmark for stream to match version")
 
                 expected_schemas = self.expected_metadata()[stream]['schema']
-                self.assertEqual(records_by_stream[stream]['schema'],
-                                 expected_schemas,
-                                 msg="expected: {} != actual: {}".format(expected_schemas,
-                                                                         records_by_stream[stream]['schema']))
+                self.assertEqual(records_by_stream[stream]['schema'], expected_schemas,
+                                 msg="expected: {} != actual: {}".format(
+                                     expected_schemas, records_by_stream[stream]['schema']))

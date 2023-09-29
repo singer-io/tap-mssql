@@ -229,8 +229,7 @@ class LogBasedInterrupted(BaseTapTest):
                 # gather all actions then verify 3 activate versions, 1 at start, 2 in the last 3
                 actions = [rec['action'] for rec in records_by_stream[stream]['messages']]
                 self.assertEqual(actions[0], 'activate_version')
-                self.assertEqual(
-                    len([a for a in actions[-3:] if a == "activate_version"]), 2,
+                self.assertEqual(len([a for a in actions[-3:] if a == "activate_version"]), 2,
                     msg=("Expected 2 of the last 3 messages to be activate version messages. 1 for "
                          "end of full table and 1 for beginning of log based. Position can vary "
                          "due to TDL-24162")
@@ -242,8 +241,7 @@ class LogBasedInterrupted(BaseTapTest):
 
                 self.assertIsNone(initial_state.get('currently_syncing'),
                                   msg="expected state's currently_syncing to be None")
-                self.assertIsNotNone(
-                    bookmark.get('current_log_version'),
+                self.assertIsNotNone(bookmark.get('current_log_version'),
                     msg="expected bookmark to have current_log_version due to log replication")
                 self.assertTrue(bookmark['initial_full_table_complete'],
                                 msg="expected full table to be complete")
