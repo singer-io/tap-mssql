@@ -302,6 +302,10 @@ class LogBasedInterrupted(BaseTapTest):
 
         mssql_cursor_context_manager(*query_list)
 
+        # add new table's pk to expected_metadata
+        self.EXPECTED_METADATA['log_based_interruptible_dbo_int_data_after'] = {
+            self.PRIMARY_KEYS: {'pk'}}
+
         # invoke the sync job AGAIN following various manipulations to the data
 
         # add the newly created stream in the expectations
