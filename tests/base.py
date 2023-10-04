@@ -216,10 +216,19 @@ class BaseTapTest(TapSpec, unittest.TestCase):
         tap-mssql inconsistency with log based inclusivity TDL-24162 (that will not be fixed)
         """
         pk_count_by_stream = {}
-        for strm in recs_by_stream:
-            stream_pks = {m.get('data', {}).get('pk') for m in recs_by_stream[strm]['messages']
+        for strm, recs in recs_by_stream.items():
+            primary_keys = self.expected_primary_keys_by_stream_id()[strm]
+
+            # use tuple generator to handle arbitrary number of pks during set comprehension
+            stream_pks = {tuple(m.get('data', {}).get(pk) for pk in primary_keys)
+                          for m in recs['messages']
                           if m['action'] == 'upsert'}
+
+            # remove any failed get() entries from the set to correct pk count
+            stream_pks.difference(set(tuple(None for pk in primary_keys)))
+
             pk_count_by_stream[strm] = len(stream_pks)
+
         return pk_count_by_stream
 
     def __init__(self, *args, **kwargs):

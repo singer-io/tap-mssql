@@ -518,52 +518,6 @@ class SyncPkLogical(BaseTapTest):
 
         cls.expected_metadata = cls.discovery_expected_metadata
 
-    def expected_primary_keys_by_sync_stream_id(self):
-        return {'constraints_database_dbo_check_constraint': {'pk'},
-                'constraints_database_dbo_default_column': {'pk'},
-                'constraints_database_dbo_even_identity': {'pk'},
-                'constraints_database_dbo_multiple_column_pk': {'first_name', 'last_name'},
-                'constraints_database_dbo_pk_with_fk': {'pk'},
-                'constraints_database_dbo_pk_with_unique_not_null': {'pk'},
-                'constraints_database_dbo_single_column_pk': {'pk'}}
-
-    def unique_pk_count_by_stream(self, recs_by_stream):
-        """
-        Switch from upsert record count verification to unique pk count verification due to
-        tap-mssql inconsistency with log based inclusivity TDL-24162 (that will not be fixed)
-        """
-        pk_count_by_stream = {}
-        for strm in recs_by_stream:
-            primary_key = self.expected_primary_keys_by_stream_id()[strm]
-
-            if strm == 'constraints_database_dbo_multiple_column_pk':
-                pk1, pk2 = [pk for pk in primary_key]
-                stream_pks = [{m.get('data', {}).get(pk1), m.get('data', {}).get(pk2)}
-                              for m in recs_by_stream[strm]['messages']
-                              if m['action'] == 'upsert']
-
-                # find and ignore any duplicate pk sets in pk list. cannot simply convert the list
-                #   to a set as a type error will occur (list of sets is unhashable)
-                dupe_count = 0
-                for key in stream_pks:
-                    key_count = 0
-                    for matching_key in stream_pks:
-                        if key == matching_key:
-                            key_count += 1
-                    dupe_count += (key_count - 1)
-
-                pk_count_by_stream[strm] = len(stream_pks) - dupe_count
-
-            else:
-                pk = primary_key[0]
-                stream_pks = {m.get('data', {}).get(pk) for m in recs_by_stream[strm]['messages']
-                              if m['action'] == 'upsert'}
-
-                pk_count_by_stream[strm] = len(stream_pks)
-
-        return pk_count_by_stream
-
-
     def test_run(self):
         """
         Verify that a full sync can send capture all data and send it in the correct format
