@@ -226,7 +226,7 @@ class BaseTapTest(TapSpec, unittest.TestCase):
 
             # fail the test if any upserts fail to return 'data' or a pk value
             for pk in stream_pks:
-                for i in range(len(stream_pks)):
+                for i in range(len(pk)):
                     self.assertIsNotNone(pk[i])
 
             pk_count_by_stream[strm] = len(stream_pks)
