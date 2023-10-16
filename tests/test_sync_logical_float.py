@@ -139,12 +139,13 @@ class SyncFloatLogical(BaseTapTest):
         # run a sync and verify exit codes
         record_count_by_stream = self.run_sync(conn_id, clear_state=True)
 
-        # verify record counts of streams
-        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
-        # self.assertEqual(record_count_by_stream, expected_count)
-
         # verify records match on the first sync
         records_by_stream = runner.get_records_from_target_output()
+
+        # verify record counts of streams
+        expected_count = {k: len(v['values']) for k, v in self.expected_metadata().items()}
+        pk_count_by_stream = self.unique_pk_count_by_stream(records_by_stream)
+        self.assertEqual(pk_count_by_stream, expected_count)
 
         table_version = dict()
         for stream in self.expected_streams():
