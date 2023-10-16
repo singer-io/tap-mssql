@@ -872,7 +872,7 @@ class SyncPkLogical(BaseTapTest):
                                 self.assertLessEqual(actual_value, expected_value + timedelta(
                                     seconds=15))
                             else:
-                                # row wasn't deleted so dont pass the column or let it be None
+                                # row wasn't deleted so don't pass the column or let it be None
                                 self.assertIsNone(actual_row["data"].get(column_name))
 
                 LOGGER.info("records are correct for stream %s", stream)
