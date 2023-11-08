@@ -177,7 +177,7 @@
                                                       (map #(format "%s.%s.%s" schema-name table-name %)
                                                            record-keys)))))
           from-clause (format " FROM CHANGETABLE (CHANGES %s.%s, %s) as c " schema-name table-name (if (> current-log-version 0)
-                                                                                                     (dec current-log-version)
+                                                                                                     current-log-version
                                                                                                      0))
           join-clause (format "LEFT JOIN %s.%s ON %s LEFT JOIN %s on %s"
                               schema-name
