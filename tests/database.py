@@ -3,7 +3,7 @@ import socket
 from random import randint, sample
 
 import pyodbc
-from tap_tester.logger import LOGGER
+from tap_tester import LOGGER
 
 USERNAME = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_USER")
 PASSWORD = os.getenv("STITCH_TAP_MSSQL_TEST_DATABASE_PASSWORD")
