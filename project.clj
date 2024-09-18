@@ -9,7 +9,7 @@
                  [org.clojure/data.json "0.2.6"]
 
                  ;; jdbc
-                 [org.clojure/java.jdbc "0.7.9"]
+                 [org.clojure/java.jdbc "0.7.12"]
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; singer-clojure
