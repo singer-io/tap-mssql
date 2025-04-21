@@ -103,7 +103,7 @@
         scale (:decimal_digits column)]
     (if (contains? #{"numeric" "decimal"} sql-type)
       (-> column-schema
-          (assoc "multipleOf" (* 1 (Math/pow 10 (- scale))))
+          (assoc "multipleOf" (* 1 (Double/parseDouble (format (str "%." scale "f") (Math/pow 10 (- scale))))))
           (assoc "minimum" (* -1 (Math/pow 10 (- precision scale))))
           (assoc "maximum" (Math/pow 10 (- precision scale)))
           (assoc "exclusiveMinimum" true)
