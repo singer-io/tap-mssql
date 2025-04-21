@@ -36,14 +36,23 @@
   ;;   :table_catalog (database name)
   ;;   :table_schem   (schema name)
   [config database]
-  (conj (filter #(not (nil? (:table_catalog %)))
-                (jdbc/with-db-metadata [md (assoc (config/->conn-map config)
-                                                  :dbname
-                                                  (:table_cat database))]
-                  (jdbc/metadata-result (.getSchemas md))))
-        ;; Calling getSchemas does not return dbo so that's added
-        ;; for each database
-        {:table_catalog (:table_cat database) :table_schem "dbo"}))
+  (try
+    (conj (filter #(not (nil? (:table_catalog %)))
+                  (jdbc/with-db-metadata [md (assoc (config/->conn-map config)
+                                                    :dbname
+                                                    (:table_cat database))]
+                    (jdbc/metadata-result (.getSchemas md))))
+          ;; Calling getSchemas does not return dbo so that's added
+          ;; for each database
+          {:table_catalog (:table_cat database) :table_schem "dbo"})
+    (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
+      ;; NB: 4060 is indicative of a lack of permissions or failed login
+      ;; https://docs.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors?view=sql-server-ver15#errors-4000-to-4999
+      (when-not (= 4060 (.getErrorCode ex))
+        (throw ex))
+
+      (log/warnf "%s - Skipping due to error discovering tables: %s" (:table_cat database) (.getMessage ex))
+      [])))
 
 (defn get-databases
   [config]
@@ -94,9 +103,7 @@
         scale (:decimal_digits column)]
     (if (contains? #{"numeric" "decimal"} sql-type)
       (-> column-schema
-          ;; We observed that behavior differs for 10E-5 on ARM platform
-          ;; vs amd64. This will behave the same on both architectures.
-          (assoc "multipleOf" (* 1 (Double/parseDouble (format (str "%." scale "f") (Math/pow 10 (- scale))))))
+          (assoc "multipleOf" (* 1 (Math/pow 10 (- scale))))
           (assoc "minimum" (* -1 (Math/pow 10 (- precision scale))))
           (assoc "maximum" (Math/pow 10 (- precision scale)))
           (assoc "exclusiveMinimum" true)
@@ -137,6 +144,14 @@
                            "real"             {"type" ["number"]}
                            "bit"              {"type" ["boolean"]}
                            "decimal"          {"type" ["number"]}
+                           "money"            {"type" ["number"]
+                                               "minimum" -922337203685477.5808
+                                               "maximum" 922337203685477.5807
+                                               "multipleOf" 0.0001}
+                           "smallmoney"       {"type" ["number"]
+                                               "minimum" -214748.3648
+                                               "maximum" 214748.3647
+                                               "multipleOf" 0.0001}
                            "numeric"          {"type" ["number"]}
                            "date"             {"type"   ["string"]
                                                "format" "date-time"}
@@ -149,18 +164,12 @@
                                                "format" "date-time"}
                            "datetime2"        {"type"   ["string"]
                                                "format" "date-time"}
-                           "char"             {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "nchar"            {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "varchar"          {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "nvarchar"         {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "binary"           {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
-                           "varbinary"        {"type"      ["string"]
-                                               "maxLength" (:column_size column)}
+                           "char"             {"type"      ["string"]}
+                           "nchar"            {"type"      ["string"]}
+                           "varchar"          {"type"      ["string"]}
+                           "nvarchar"         {"type"      ["string"]}
+                           "binary"           {"type"      ["string"]}
+                           "varbinary"        {"type"      ["string"]}
                            "uniqueidentifier" {"type"    ["string"]
                                                ;; a string constant in the form
                                                ;; xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx, in which
@@ -278,7 +287,7 @@
 
 (defn get-approximate-row-count
   [conn-map]
-  (let [sql-query (str  "SELECT tbl.name as table_name, SCHEMA_NAME(tbl.schema_id) as schema_name, CAST(p.rows AS int) as row_count "
+  (let [sql-query (str  "SELECT tbl.name as table_name, SCHEMA_NAME(tbl.schema_id) as schema_name, CAST(p.rows AS bigint) as row_count "
                     "FROM sys.tables AS tbl "
                     "INNER JOIN sys.indexes AS idx ON idx.object_id = tbl.object_id and idx.index_id < 2 "
                     "INNER JOIN sys.partitions AS p ON p.object_id=CAST(tbl.object_id AS int) "

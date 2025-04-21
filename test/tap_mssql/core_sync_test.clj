@@ -58,10 +58,10 @@
   (is (thrown? AssertionError
                (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" [] {})))
   ;; No bookmark, no pk = Full Table sync query
-  (is (= ["SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany]"]
+  (is (= ["SELECT [legs], [tabletop], [leaf] FROM [dbo].[mahogany]"]
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"] {})))
   ;; No bookmark, yes pk = First FT Interruptible query
-  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] WHERE [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM [dbo].[mahogany] WHERE [legs] <= ? AND [leaf] <= ? ORDER BY [legs], [leaf]"
            4
            "birch")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
@@ -72,7 +72,7 @@
                                       {"bookmarks" {"craftsmanship_dbo_mahogany" {"last_pk_fetched" {"legs" 2 "leaf" "balsa"}}}})))
 
   ;; Max-pk-value is _actually_ null (e.g., empty table)
-  (is (= '("SELECT [legs], [tabletop], [leaf] FROM dbo.[mahogany] ORDER BY [legs]")
+  (is (= '("SELECT [legs], [tabletop], [leaf] FROM [dbo].[mahogany] ORDER BY [legs]")
          (full/build-sync-query "craftsmanship_dbo_mahogany" "dbo" "mahogany" ["legs", "tabletop", "leaf"]
                                 {"bookmarks"
                                  {"craftsmanship_dbo_mahogany"
@@ -92,7 +92,7 @@
                                  {} )))
     ;; Has primary key, no record Keys, no primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], [dbo].[basic_table].[id] FROM CHANGETABLE (CHANGES [dbo].[basic_table], 0) as c LEFT JOIN [dbo].[basic_table] ON c.[id]=[dbo].[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
                      ["streams" "full_table_sync_test_dbo_basic_table" "metadata" "properties" "value"]
@@ -102,7 +102,7 @@
           {"bookmarks" {"full_table_sync_test_dbo_basic_table" {"current_log_version" 0}}})))
     ;; Has PK, No Selected Fields, Has Bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], [dbo].[basic_table].[id] FROM CHANGETABLE (CHANGES [dbo].[basic_table], 0) as c LEFT JOIN [dbo].[basic_table] ON c.[id]=[dbo].[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (update-in (catalog/discover test-db-config)
                      ["streams" "full_table_sync_test_dbo_basic_table" "metadata" "properties" "value"]
@@ -115,7 +115,7 @@
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has primary key, selected fields, no primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], [dbo].[basic_table].[id], [dbo].[basic_table].[value] FROM CHANGETABLE (CHANGES [dbo].[basic_table], 0) as c LEFT JOIN [dbo].[basic_table] ON c.[id]=[dbo].[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts ORDER BY c.SYS_CHANGE_VERSION, c.[id]"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test_dbo_basic_table"
@@ -125,7 +125,7 @@
 
     ;; Has primary key, selected fields, primary key bookmark
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], dbo.[basic_table].[id], dbo.[basic_table].[value] FROM CHANGETABLE (CHANGES dbo.[basic_table], 0) as c LEFT JOIN dbo.[basic_table] ON c.[id]=dbo.[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], [dbo].[basic_table].[id], [dbo].[basic_table].[value] FROM CHANGETABLE (CHANGES [dbo].[basic_table], 0) as c LEFT JOIN [dbo].[basic_table] ON c.[id]=[dbo].[basic_table].[id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id]" "foo"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test_dbo_basic_table"
@@ -135,7 +135,7 @@
              "last_pk_fetched"     {"id" "foo"}}}})))
     ;; Has composite primary keys, selected fields, bookmarks for both pks
     (is (=
-         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], c.[second_id], dbo.[composite_key_table].[id], dbo.[composite_key_table].[second_id], dbo.[composite_key_table].[value] FROM CHANGETABLE (CHANGES dbo.[composite_key_table], 0) as c LEFT JOIN dbo.[composite_key_table] ON c.[id]=dbo.[composite_key_table].[id] AND c.[second_id]=dbo.[composite_key_table].[second_id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id], c.[second_id]" "foo" "bar"]
+         ["SELECT c.SYS_CHANGE_VERSION, c.SYS_CHANGE_OPERATION, tc.commit_time, c.[id], c.[second_id], [dbo].[composite_key_table].[id], [dbo].[composite_key_table].[second_id], [dbo].[composite_key_table].[value] FROM CHANGETABLE (CHANGES [dbo].[composite_key_table], 0) as c LEFT JOIN [dbo].[composite_key_table] ON c.[id]=[dbo].[composite_key_table].[id] AND c.[second_id]=[dbo].[composite_key_table].[second_id] LEFT JOIN sys.dm_tran_commit_table tc on c.SYS_CHANGE_VERSION = tc.commit_ts WHERE c.SYS_CHANGE_VERSION = 0 AND c.id >= ? AND c.second_id >= ? ORDER BY c.SYS_CHANGE_VERSION, c.[id], c.[second_id]" "foo" "bar"]
          (logical/build-log-based-sql-query
           (catalog/discover test-db-config)
           "full_table_sync_test_dbo_composite_key_table"
@@ -153,15 +153,18 @@
            {"cuyahoga" {"metadata" {"properties" {"test1" {"sql-datatype" "varbinary"}
                                                   "test2" {"sql-datatype" "timestamp"}
                                                   "test3" {"sql-datatype" "date"}
+                                                  "test4" {"sql-datatype" "binary"}
                                                   "regular" {"sql-datatype" "fish"}}}}}}
           "cuyahoga"
           {"test1" (byte-array [0 0 0 0 0 0 0 10])
            "test2" (byte-array [0 0 0 0 0 0 0 10])
            "test3" (Date. 1565222400000)
+           "test4" (byte-array [0 0 0 0 0 0 0 10])
            "regular" {"should be" "unchanged"}})
          {"test1" "0x000000000000000A"
           "test2" "0x000000000000000A"
           "test3" "2019-08-08T00:00:00+00:00"
+          "test4" "0x000000000000000A"
           "regular" {"should be" "unchanged"}})))
 
 (deftest transform-binary-test
@@ -213,7 +216,7 @@
         schema-name "schema_name"
         table-name "table_name"
         record-keys ["id" "number" "datetime" "value"]]
-    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?) OR ([id] = ? AND [number] = ? AND [datetime] > ?)) AND [id] <= ? AND [number] <= ? AND [datetime] <= ? ORDER BY [id], [number], [datetime]"
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?) OR ([id] = ? AND [number] = ? AND [datetime] > ?)) AND [id] <= ? AND [number] <= ? AND [datetime] <= ? ORDER BY [id], [number], [datetime]"
              1 1
              1 1 1 "2000-01-01T00:00:00.000Z"
              999999
@@ -229,7 +232,7 @@
                                                         "number" 1
                                                         "datetime" "2000-01-01T00:00:00.000Z"}
                                      }}})))
-    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?)) AND [id] <= ? AND [number] <= ? ORDER BY [id], [number]"
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?) OR ([id] = ? AND [number] > ?)) AND [id] <= ? AND [number] <= ? ORDER BY [id], [number]"
              1 1 1  999999 999999)
            (full/build-sync-query stream-name
                                   schema-name
@@ -242,7 +245,7 @@
                                                       "number" 999999}
                                      "last_pk_fetched" {"id" 1 "number" 1}
                                      }}})))
-    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name] WHERE (([id] > ?)) AND [id] <= ? ORDER BY [id]"
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name] WHERE (([id] > ?)) AND [id] <= ? ORDER BY [id]"
              1 999999)
            (full/build-sync-query stream-name
                                   schema-name
@@ -254,7 +257,7 @@
                                      "max_pk_values" {"id" 999999}
                                      "last_pk_fetched" {"id" 1}
                                      }}})))
-    (is (= '("SELECT [id], [number], [datetime], [value] FROM schema_name.[table_name]")
+    (is (= '("SELECT [id], [number], [datetime], [value] FROM [schema_name].[table_name]")
            (full/build-sync-query stream-name
                                   schema-name
                                   table-name

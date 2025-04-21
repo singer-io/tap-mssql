@@ -7,7 +7,8 @@
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.singer.messages :as singer-messages]
             [clojure.tools.logging :as log]
-            [clojure.tools.nrepl.server :as nrepl-server]
+            [singer-clojure.log :as singer-log]
+            [nrepl.server :as nrepl-server]
             [clojure.tools.cli :as cli]
             [clojure.string :as string]
             [clojure.data.json :as json])
@@ -41,7 +42,7 @@
   [args]
   (require 'cider.nrepl)
   (let [the-nrepl-server
-        (nrepl-server/start-server :bind "0.0.0.0"
+        (nrepl-server/start-server :bind "127.0.0.1"
                                    :handler (ns-resolve 'cider.nrepl 'cider-nrepl-handler))]
     (spit ".nrepl-port" (:port the-nrepl-server))
     (log/infof "Started nrepl server at %s"
@@ -177,10 +178,7 @@
           (System/exit 0)))
 
       (catch Throwable ex
-        (def ex ex)
-        (.printStackTrace ex)
-        (dorun (map #(log/fatal %) (string/split (or (.getMessage ex)
-                                                     (str ex)) #"\n"))))
+        (singer-log/log-fatal "Fatal Error Occured" ex))
       (finally
         ;; If we somehow skip the catch block, we need to always at least exit if not --repl
         (maybe-stop-nrepl-server args the-nrepl-server)

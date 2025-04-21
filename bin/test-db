@@ -18,7 +18,7 @@ def start_container(name):
     proc = subprocess.run(START_COMMAND, shell=True)
     if proc.returncode != 0:
         sys.exit("Exited with code: {}, the docker process failed to start.".format(proc.returncode))
-    print("Process started successfully, connect on localhost port 1433")
+    print("Process started successfully, connect on localhost port {}".format(os.getenv('STITCH_TAP_MSSQL_TEST_DATABASE_PORT', 1433)))
 
 def stop_container(name):
     STOP_COMMAND = "sudo docker stop {0} && sudo docker rm {0}"
@@ -37,7 +37,7 @@ def connect_to_db():
     # NB: Using call instead of run here because it is blocking
     #     This returns only an exit code.
     returncode = subprocess.call(CONNECT_COMMAND,
-                           shell=True)
+                                 shell=True)
     if returncode != 0:
         sys.exit("Exited with code: {}, could not connect.".format(returncode))
 
@@ -53,6 +53,14 @@ parser.add_argument('action', choices=['start','stop', 'connect'], help='action 
 parser.add_argument('--name', help="name assigned to running docker process", default='sql1')
 
 def main():
+    """
+    Easiest way to setup to run locally:
+     1. create python virtualenv and 'pip install mssql-cli'
+     2. source tap-tester envrionment variables
+     3. 'bin/test-db start' to standup container
+     4. 'bin/test-db connect' to verify container is running
+    """
+
     parsed_args = parser.parse_args()
     # Potential arguments to add: pull, changing docker cointainer, changing password
     if parsed_args.action == 'start':

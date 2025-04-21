@@ -1,9 +1,9 @@
 (ns tap-mssql.sync-strategies.incremental
   (:require [tap-mssql.config :as config]
+            [tap-mssql.utils :refer [try-read-only]]
             [tap-mssql.singer.fields :as singer-fields]
             [tap-mssql.singer.bookmarks :as singer-bookmarks]
             [tap-mssql.singer.messages :as singer-messages]
-            [tap-mssql.singer.transform :as singer-transform]
             [tap-mssql.sync-strategies.common :as common]
             [clojure.tools.logging :as log]
             [clojure.string :as string]
@@ -14,15 +14,15 @@
   {:pre [(not (empty? record-keys))]} ;; Is there more incoming state that we think is worth asserting?
   (let [replication-key-name (get-in state ["bookmarks" stream-name "replication_key_name"])
         replication-key-value (get-in state ["bookmarks" stream-name "replication_key_value"])
-        bookmarking-clause    (format "%s >= ?" replication-key)
+        bookmarking-clause    (format "%s >= ?" (common/sanitize-names replication-key))
         add-where-clause?     (and (some? replication-key-value)
                                    (= replication-key replication-key-name)) ;; if the replication-key in metadata changes, we negate our bookmark
         where-clause          (when add-where-clause?
                                 (str " WHERE " bookmarking-clause))
-        order-by              (str " ORDER BY " replication-key)
+        order-by              (str " ORDER BY " (common/sanitize-names replication-key))
         sql-params            [(str (format "SELECT %s FROM %s.%s"
                                             (string/join ", " (map common/sanitize-names record-keys))
-                                            schema-name
+                                            (common/sanitize-names schema-name)
                                             (common/sanitize-names table-name))
                                     where-clause
                                     order-by)]]
@@ -48,17 +48,17 @@
                                                       replication-key
                                                       state)]
     (log/infof "Executing query: %s" (pr-str sql-params))
-    (reduce (fn [acc result]
-              (let [record (->> (select-keys result record-keys)
-                                (singer-transform/transform catalog stream-name))]
-                (singer-messages/write-record! stream-name acc record catalog)
-                (->> (singer-bookmarks/update-state stream-name replication-key record acc)
-                     (singer-messages/write-state-buffered! stream-name))))
-            state
-            (jdbc/reducible-query (assoc (config/->conn-map config)
-                                         :dbname dbname)
-                                  sql-params
-                                  {:raw? true}))))
+    (try-read-only [conn-map (assoc (config/->conn-map config true)
+                                    :dbname dbname)]
+                   (reduce (fn [acc result]
+                             (let [record (select-keys result record-keys)]
+                               (singer-messages/write-record! stream-name acc record catalog)
+                               (->> (singer-bookmarks/update-state stream-name replication-key record acc)
+                                    (singer-messages/write-state-buffered! stream-name))))
+                           state
+                           (jdbc/reducible-query conn-map
+                                                 sql-params
+                                                 common/result-set-opts)))))
 
 (defn sync!
   [config catalog stream-name state]

@@ -1,6 +1,6 @@
 # tap-mssql
 
-[![CircleCI Build Status](https://circleci.com/gh/stitchdata/tap-mssql.png)](https://circleci.com/gh/stitchdata/tap-mssql)
+[![CircleCI](https://circleci.com/gh/singer-io/tap-mssql.svg?style=svg)](https://circleci.com/gh/singer-io/tap-mssql)
 
 [Singer](https://www.singer.io/) tap that extracts data from a [Microsoft SQL Server (MSSQL)](https://www.microsoft.com/en-us/sql-server/default.aspx) database and produces JSON-formatted data following the [Singer spec](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md).
 
@@ -55,6 +55,13 @@ $ bin/test
 **bin/test-db** - This script uses docker to run a SQL Server container locally that can be used to run the unit tests against. See the usage text for more information.
 
 Note: It also depends on the `mssql-cli` tool being installed in order to use the `connect` option.
+
+To install `mssql-cli`:
+- create a virtualenv
+- source your new virtualenv
+- `pip install mssql-cli`
+
+Before running `bin/test-db connect`, just make sure your virtualenv is sourced.
 
 ```
 Example:
@@ -127,3 +134,7 @@ ClientConnectionId:4c47c255-a330-4bc9-94bd-039c592a8a31
 Cannot open database "foo" requested by the login. The login
 failed. ClientConnectionId:f6e2df79-1d72-4df3-8c38-2a9e7a349003
 ```
+
+---
+
+Copyright &copy; 2019 Stitch

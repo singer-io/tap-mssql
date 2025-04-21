@@ -1,9 +1,12 @@
-version: 2
+version: 2.1
+orbs:
+  slack: circleci/slack@3.4.2
+
 jobs:
   build:
     docker:
       - image: clojure:lein-2.5.3
-      - image: mcr.microsoft.com/mssql/server:2017-latest
+      - image: mcr.microsoft.com/mssql/server:2017-CU25-ubuntu-16.04
         environment:
           ACCEPT_EULA: Y
           SA_PASSWORD: Password1!
@@ -12,6 +15,16 @@ jobs:
       - restore_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
       - run:
+          name: 'Install Dockerize'
+          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.3.0
+      - run:
+          name: 'Wait for MSSQL Docker'
+          command: |
+            dockerize -wait tcp://127.0.0.1:1433 -timeout 1m
+            sleep 5
+      - run:
           name: Test
           command: |
             bin/test
@@ -19,47 +32,67 @@ jobs:
           key: dependency-cache-{{ checksum "project.clj" }}
           paths:
             - /root/.m2
+      - slack/notify-on-failure:
+          only_for_branches: master
+
   tap_tester:
     docker:
-      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:tap-tester-clj
-      - image: mcr.microsoft.com/mssql/server:2017-latest
+      - image: 218546966473.dkr.ecr.us-east-1.amazonaws.com/circle-ci:stitch-tap-tester-clj
+      - image: mcr.microsoft.com/mssql/server:2017-CU25-ubuntu-16.04
         environment:
           ACCEPT_EULA: Y
           SA_PASSWORD: Password1!
     steps:
       - checkout
       - run:
+          name: 'Install Dockerize'
+          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          environment:
+            DOCKERIZE_VERSION: v0.3.0
+      - run:
+          name: 'Wait for MSSQL Docker'
+          command: |
+            dockerize -wait tcp://127.0.0.1:1433 -timeout 1m
+            sleep 5
+      - run:
           name: 'Tap Tester'
           command: |
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/sandbox tap-tester.env
-            source tap-tester.env
-            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/sandbox tap-mssql.env
+            cd /root/project
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-tester/tap_tester_sandbox dev_env.sh
+            source dev_env.sh
+            aws s3 cp s3://com-stitchdata-dev-deployment-assets/environments/tap-mssql/tap_tester_sandbox tap-mssql.env
             source tap-mssql.env
-            source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            cd /root/project/
             lein deps
-            run-a-test --tap=/root/project/bin/tap-mssql \
-                       --target=target-stitch \
-                       --orchestrator=stitch-orchestrator \
-                       --email=harrison+sandboxtest@stitchdata.com \
-                       --password=$SANDBOX_PASSWORD \
-                       --client-id=50 \
-                       tap_tester.suites.mssql
+            source /usr/local/share/virtualenvs/tap-tester/bin/activate
+            pip install numpy==1.21.2
+            mkdir /tmp/${CIRCLE_PROJECT_REPONAME}
+            export STITCH_CONFIG_DIR=/tmp/${CIRCLE_PROJECT_REPONAME}
+            run-test --tap=/root/project/bin/tap-mssql tests
+      - slack/notify-on-failure:
+          only_for_branches: master
+      - store_artifacts:
+          path: /tmp/tap-mssql
+
 workflows:
   version: 2
-  build_and_test:
+  build_and_test: &commit_jobs
     jobs:
-      - build
+      - build:
+          context:
+            - circleci-user
+            - tier-1-tap-user
       - tap_tester:
+          context:
+            - circleci-user
+            - tier-1-tap-user
           requires:
             - build
   build_daily:
+    <<: *commit_jobs
     triggers:
       - schedule:
-          cron: "0 0 * * *"
+          cron: "0 1 * * *"
           filters:
             branches:
               only:
                 - master
-    jobs:
-      - build

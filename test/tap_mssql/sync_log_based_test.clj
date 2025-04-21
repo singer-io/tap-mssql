@@ -1,20 +1,21 @@
 (ns tap-mssql.sync-log-based-test
   (:require
-            [tap-mssql.catalog :as catalog]
-            [tap-mssql.config :as config]
-            [clojure.test :refer [is deftest]]
-            [clojure.java.io :as io]
-            [clojure.java.jdbc :as jdbc]
-            [clojure.data]
-            [clojure.data.json :as json]
-            [clojure.set :as set]
-            [clojure.string :as string]
-            [tap-mssql.core :refer :all]
-            [tap-mssql.sync-strategies.logical :as logical]
-            [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
-                                          test-db-config
-                                          test-db-configs
-                                          with-matrix-assertions]]))
+   [tap-mssql.catalog :as catalog]
+   [tap-mssql.config :as config]
+   [clojure.test :refer [is deftest]]
+   [clojure.java.io :as io]
+   [clojure.java.jdbc :as jdbc]
+   [clojure.data]
+   [clojure.data.json :as json]
+   [clojure.set :as set]
+   [clojure.string :as string]
+   [tap-mssql.core :refer :all]
+   [tap-mssql.sync-strategies.logical :as logical]
+   [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
+                                 test-db-config
+                                 test-db-configs
+                                 with-matrix-assertions
+                                 sql-server-exception]]))
 
 (defn get-destroy-database-command
   [database]
@@ -33,6 +34,8 @@
   (let [db-spec (config/->conn-map config)]
     (jdbc/db-do-commands db-spec ["CREATE DATABASE log_based_sync_test"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE SCHEMA schema_with_conflict"])
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE SCHEMA schema_with_table"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          [(jdbc/create-table-ddl
@@ -45,6 +48,9 @@
                            "data_table_2"
                            [[:id "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
                             [:value "int"]])])
+    ;; Same table as below, created first to check for unexpected failures with ignoring schema
+    (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
+                         ["CREATE TABLE schema_with_conflict.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])
     (jdbc/db-do-commands (assoc db-spec :dbname "log_based_sync_test")
                          ["CREATE TABLE schema_with_table.data_table (id uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID(), value int)"])))
 
@@ -183,18 +189,19 @@
 
 (deftest ^:integration verify-log-based-replication-throws-if-no-key-properties
   (with-matrix-assertions test-db-configs null-fixture
-    (do (maybe-destroy-test-db test-db-config)
-        (create-test-db test-db-config)
-        (setup-change-tracking-for-database test-db-config))
+      (do (maybe-destroy-test-db test-db-config)
+          (create-test-db test-db-config)
+          (setup-change-tracking-for-database test-db-config)
+          (setup-change-tracking-for-table test-db-config))
     (is (thrown? UnsupportedOperationException
-                 (-> (catalog/discover test-db-config)
-                     (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
-                     (assoc-in  ["streams"
-                                 "log_based_sync_test_dbo_data_table"
-                                 "metadata"
-                                 "table-key-properties"]
-                               #{})
-                     (get-messages-from-output test-db-config nil))))))
+                   (-> (catalog/discover test-db-config)
+                       (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                       (assoc-in  ["streams"
+                                   "log_based_sync_test_dbo_data_table"
+                                   "metadata"
+                                   "table-key-properties"]
+                                  #{})
+                       (get-messages-from-output test-db-config nil))))))
 
 (deftest ^:integration verify-log-based-replication-performs-initial-full-table
   ;; TODO: Fixture might need to have another function appended to set up change tracking
@@ -471,3 +478,40 @@
              (get (->> messages
                        (filter #(= "STATE" (% "type")))
                        last) "value"))))))
+
+(deftest ^:integration test-null-commit_time
+  "instant1.compareTo(instant2) returns
+     - a negative number if instant1 < instant2
+     - a zero if instant1 = instant2
+     - a positive number if instant1 > instant2"
+  (let [our-time (java.time.Instant/parse "2000-01-30T15:37:20.895Z")
+        our-str-time (.toString our-time)]
+    (is (neg? (.compareTo our-time
+                          (java.time.Instant/parse (logical/get-commit-time {"commit_time" nil})))))
+    (is (neg? (.compareTo our-time
+                          (java.time.Instant/parse (logical/get-commit-time {})))))
+    (is (= 0
+           (.compareTo our-time
+                       (java.time.Instant/parse (logical/get-commit-time {"commit_time" our-str-time})))))))
+
+(deftest ^:integration verify-log-based-replication-application-intent-read-only-does-not-fail
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (insert-data test-db-config "dbo")
+    (let [reducible-query-passthrough jdbc/reducible-query]
+      (with-redefs [config/->conn-map    config/->conn-map*
+                    jdbc/reducible-query (fn [conn-map & test-args]
+                                           (when (= "ReadOnly" (:ApplicationIntent conn-map))
+                                             (throw (sql-server-exception)))
+                                           (apply reducible-query-passthrough (concat [conn-map] test-args)))]
+        ;; Assert records get synced and nothing throws
+        (is (= 100
+               (let [test-state {"bookmarks"
+                                 {"log_based_sync_test_dbo_data_table"
+                                  {"version"                     1560965962084
+                                   "initial_full_table_complete" true
+                                   "current_log_version"         0}}}]
+                 (-> (catalog/discover test-db-config)
+                     (select-stream "log_based_sync_test_dbo_data_table" "LOG_BASED")
+                     (get-messages-from-output test-db-config nil test-state)
+                     ((partial filter #(= "RECORD" (% "type"))))
+                     count))))))))

@@ -7,6 +7,7 @@
             [clojure.data.json :as json]
             [clojure.string :as string]
             [tap-mssql.core :refer :all]
+            [tap-mssql.sync-strategies.incremental :as incremental]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
@@ -41,7 +42,12 @@
                             [:value "int"]
                             [:date1 "datetimeoffset"]
                             [:date2 "datetime2"]
-                            [:date3 "smalldatetime"]])])))
+                            [:date3 "smalldatetime"]])])
+    (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
+                         [(jdbc/create-table-ddl
+                           "[table with spaces]"
+                           [["[id with spaces]" "uniqueidentifier NOT NULL PRIMARY KEY DEFAULT NEWID()"]
+                            ["[column with spaces]" "int"]])])))
 
 (defn populate-data
   [config]
@@ -57,7 +63,11 @@
                                             :date1 (str (+ % 1900) "0618 10:34:09") ; Make the year increment
                                             :date2 (str (+ % 1900) "0618 10:34:09")
                                             :date3 (str (+ % 1900) "0618 10:34:09"))
-                                 (range)))))
+                                 (range))))
+  (jdbc/insert-multi! (-> (config/->conn-map config)
+                          (assoc :dbname "incremental_sync_test"))
+                      "[table with spaces]"
+                      (take 200 (map #(hash-map "[column with spaces]" %) (range)))))
 
 (defn test-db-fixture [f config]
   (with-out-and-err-to-dev-null
@@ -188,3 +198,57 @@
                       (filter #(= "RECORD" (% "type")))
                       count)))
         (is (= "2019-08-29T11:00:00Z" (get-in end-state ["value" "bookmarks" "incremental_sync_test_dbo_datetime_table" "replication_key_value"])))))))
+
+(deftest ^:integration verify-incremental-quotes-names
+  (with-matrix-assertions test-db-configs test-db-fixture
+    (let [selected-catalog (->> (catalog/discover test-db-config)
+                                (select-stream "incremental_sync_test_dbo_table with spaces")
+                                (set-replication-key "incremental_sync_test_dbo_table with spaces" "column with spaces"))
+          first-messages (->> selected-catalog
+                              (get-messages-from-output test-db-config nil))
+          end-state (->> first-messages
+                         (filter #(= "STATE" (% "type")))
+                         last)]
+      (is (= 200
+             (->> first-messages
+                 (filter #(= "RECORD" (% "type")))
+                 count)))
+
+      ;; Insert and update some rows
+      (let [db-spec (config/->conn-map test-db-config)]
+        (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
+                             ["INSERT INTO dbo.[table with spaces] ([column with spaces]) VALUES (404)"])
+        (jdbc/db-do-commands (assoc db-spec :dbname "incremental_sync_test")
+                             ["UPDATE dbo.[table with spaces] SET [column with spaces]=205 WHERE [column with spaces]=199"]))
+
+      ;; Sync again and inspect the results
+      (let [second-messages (->> selected-catalog
+                                 (get-messages-from-output test-db-config nil (get end-state "value")))
+            end-state (->> second-messages
+                           (filter #(= "STATE" (% "type")))
+                           last)]
+        (is (= 2 (->> second-messages
+                      (filter #(= "RECORD" (% "type")))
+                      count)))
+        (is (= 404 (get-in end-state ["value" "bookmarks" "incremental_sync_test_dbo_table with spaces" "replication_key_value"])))))))
+
+(deftest test-build-incremental-sync-query
+  (let [stream-name "incremental_sync_test_dbo_table with spaces"
+        schema-name "dbo"
+        table-name "table with spaces"
+        record-keys '("id with spaces" "column with spaces")
+        replication-key "column with spaces"
+        state {"bookmarks"
+               {"incremental_sync_test_dbo_table with spaces"
+                {"version" 1,
+                 "replication_key_value" 199,
+                 "replication_key_name" "column with spaces"}}}]
+    (is (= '("SELECT [id with spaces], [column with spaces] FROM [dbo].[table with spaces] WHERE [column with spaces] >= ? ORDER BY [column with spaces]"
+             199)
+           (incremental/build-incremental-sync-query stream-name
+                                                     schema-name
+                                                     table-name
+                                                     record-keys
+                                                     replication-key
+                                                     state))))
+  )

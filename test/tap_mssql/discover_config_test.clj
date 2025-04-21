@@ -9,7 +9,8 @@
             [tap-mssql.config :as config]
             [tap-mssql.singer.parse :as singer-parse]
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
-                                          test-db-config]]))
+                                          test-db-config
+                                          sql-server-exception]]))
 
 (defn get-destroy-database-command
   [database]
@@ -124,6 +125,11 @@
                        (get-in catalog-entry ["metadata" "database-name"])))
                 distinct)))))
 
+(deftest ^:integration verify-nil-database-succeeds
+  (let [nil-db-config (assoc test-db-config "database" nil)]
+    ;; This used to throw a java.lang.IllegalArgumentException
+    (is (map? (catalog/discover nil-db-config)))))
+
 (deftest ^:integration verify-full-catalog
   (let [expected-stream-names #{"another_database_with_a_table_dbo_another_empty_table"
                                 "database_with_a_table_dbo_empty_table"
@@ -214,3 +220,30 @@
 ;;     (dorun
 ;;      (for [expected-stream-name expected-stream-names]
 ;;        (is (contains? discovered-streams expected-stream-name))))))
+
+
+(deftest ^:integration verify-application-intent-only-set-if-check-succeeds-and-read-only?-is-true
+  (is (= "ReadOnly"
+         (:ApplicationIntent (config/->conn-map* test-db-config true)))))
+
+(deftest ^:integration verify-application-intent-not-set-if-check-succeeds-but-read-only?-is-false
+  (is (= nil
+         (:ApplicationIntent (config/->conn-map* test-db-config)))))
+
+(deftest ^:integration verify-application-intent-only-unset-if-check-fails-first-time
+  (let [times (atom 0)]
+    (with-redefs [config/check-connection (fn [conn-map]
+                                            (when (= 0 @times)
+                                              (swap! times inc)
+                                              (throw (sql-server-exception)))
+                                            conn-map)]
+     (is (= nil
+            (:ApplicationIntent (config/->conn-map* test-db-config true)))))))
+
+(deftest ^:integration verify-application-intent-only-unset-if-check-fails-continuously
+  (with-redefs [config/check-connection (fn [conn-map]
+                                          (throw (sql-server-exception)))]
+    (is (thrown-with-msg?
+         com.microsoft.sqlserver.jdbc.SQLServerException
+         #"__TEST_BOOM__"
+         (config/->conn-map* test-db-config true)))))

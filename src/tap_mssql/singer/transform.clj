@@ -13,7 +13,7 @@
 
 (defn transform-field [catalog stream-name [k v]]
   (condp contains? (get-in catalog ["streams" stream-name "metadata" "properties" k "sql-datatype"])
-    #{"timestamp" "varbinary"}
+    #{"timestamp" "varbinary" "binary"}
     [k (transform-binary v)]
 
     #{"date"}
