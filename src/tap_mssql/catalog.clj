@@ -237,8 +237,8 @@
   [conn-map database]
   (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
 
-  (let [max-retries 3
-        retry-delay 60000
+  (let [max-retries 5
+        retry-delay 120000
         try-fetch-columns
         (fn retry [attempt]
           (try
