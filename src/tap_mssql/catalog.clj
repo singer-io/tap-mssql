@@ -250,9 +250,8 @@
                       columns))
             (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
               (let [error-message (.getMessage ex)]
-                (if (or (= 1205 (.getErrorCode ex))
-                        (some #(.contains error-message %)
-                              ["deadlocked on lock resources" "deadlock victim" "Rerun the transaction"]))
+                (if (some #(.contains error-message %)
+                          ["deadlocked on lock resources" "deadlock victim" "Rerun the transaction"])
                   (if (< attempt max-retries)
                     (do
                       (log/warnf "Deadlock detected, retrying... Attempt %d of %d" attempt max-retries)
