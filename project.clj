@@ -1,5 +1,5 @@
 (defproject tap-mssql
-  "1.7.1"
+  "1.8.0"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
@@ -25,5 +25,5 @@
   :plugins [[lein-pprint "1.2.0"]]
   :main tap-mssql.core
   :profiles {:uberjar {:aot [tap-mssql.core]}
-             :system  {:java-cmd "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"}}
+             :system {:java-cmd "/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin/java"}}
   :manifest {"Multi-Release" "true"})

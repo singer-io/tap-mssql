@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.0
+  * Retry logic for the Deadlock error [#91](https://github.com/singer-io/tap-mssql/pull/91)
+
 ## 1.7.0
   * Remove `maxLength` from the catalog [#88](https://github.com/singer-io/tap-mssql/pull/88)
 
