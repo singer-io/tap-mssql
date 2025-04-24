@@ -25,5 +25,5 @@
   :plugins [[lein-pprint "1.2.0"]]
   :main tap-mssql.core
   :profiles {:uberjar {:aot [tap-mssql.core]}
-             :system {:java-cmd "/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin/java"}}
+             :system  {:java-cmd "/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java"}}
   :manifest {"Multi-Release" "true"})
