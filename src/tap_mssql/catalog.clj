@@ -236,12 +236,34 @@
 (defn get-database-raw-columns
   [conn-map database]
   (log/infof "Discovering columns and tables for database: %s" (:table_cat database))
-  (let [columns (jdbc/with-db-metadata [md conn-map]
-                  (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil)))
-        table-names (set (get-table-names conn-map))]
-    (filter (comp (partial contains? table-names)
-                  :table_name)
-            columns)))
+
+  (let [max-retries 5
+        retry-delay 120000
+        try-fetch-columns
+        (fn retry [attempt]
+          (try
+            (let [columns (jdbc/with-db-metadata [md conn-map]
+                            (jdbc/metadata-result (.getColumns md (:table_cat database) (:table_schem database) nil nil)))
+                  table-names (set (get-table-names conn-map))]
+              (filter (comp (partial contains? table-names)
+                            :table_name)
+                      columns))
+            (catch com.microsoft.sqlserver.jdbc.SQLServerException ex
+              (let [error-message (.getMessage ex)]
+                (if (some #(.contains error-message %)
+                          ["deadlocked on lock resources" "deadlock victim" "Rerun the transaction"])
+                  (if (< attempt max-retries)
+                    (do
+                      (log/warnf "Deadlock detected, retrying... Attempt %d of %d" attempt max-retries)
+                      (Thread/sleep retry-delay)
+                      (retry (inc attempt)))
+                    (do
+                      (log/errorf "Max retries reached. Deadlock still persists after %d attempts" max-retries)
+                      (throw ex)))
+                  (do
+                    (log/errorf "Unexpected SQL error occurred: %s" error-message)
+                    (throw ex)))))))]
+    (try-fetch-columns 1)))
 
 (defn get-primary-keys
   [conn-map]
