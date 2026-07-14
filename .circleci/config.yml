@@ -71,7 +71,7 @@ jobs:
             source tap-mssql.env
             lein deps
             source /usr/local/share/virtualenvs/tap-tester/bin/activate
-            pip install numpy==1.21.2
+            pip install numpy
             mkdir /tmp/${CIRCLE_PROJECT_REPONAME}
             export STITCH_CONFIG_DIR=/tmp/${CIRCLE_PROJECT_REPONAME}
             run-test --tap=/root/project/bin/tap-mssql tests
