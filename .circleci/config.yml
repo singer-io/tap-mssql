@@ -74,6 +74,7 @@ jobs:
             pip install numpy
             mkdir /tmp/${CIRCLE_PROJECT_REPONAME}
             export STITCH_CONFIG_DIR=/tmp/${CIRCLE_PROJECT_REPONAME}
+            unset USE_STITCH_BACKEND
             run-test --tap=/root/project/bin/tap-mssql tests
       - slack/notify-on-failure:
           only_for_branches: master
