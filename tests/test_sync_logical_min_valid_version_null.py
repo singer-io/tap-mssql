@@ -1,6 +1,7 @@
 """
 Test tap log sync with min valid version null
 """
+import conftest  # noqa: F401 - patches run_sync_mode to not raise on failure
 from datetime import datetime, timedelta
 from decimal import getcontext, Decimal
 

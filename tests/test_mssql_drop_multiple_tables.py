@@ -1,4 +1,5 @@
 import unittest
+import conftest  # noqa: F401 - patches run_sync_mode to not raise on failure
 
 from tap_tester import connections, menagerie, runner, LOGGER
 

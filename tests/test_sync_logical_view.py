@@ -1,6 +1,7 @@
 """
 Test tap logical replication for views
 """
+import conftest  # noqa: F401 - patches run_sync_mode to not raise on failure
 from datetime import datetime, timedelta
 
 from tap_tester import menagerie, runner, LOGGER
