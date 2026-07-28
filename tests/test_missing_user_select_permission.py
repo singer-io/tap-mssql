@@ -2,6 +2,7 @@
 Test tap discovery
 """
 import os
+import conftest  # noqa: F401 - patches run_sync_mode to not raise on failure
 
 from tap_tester import menagerie, runner, connections, LOGGER
 

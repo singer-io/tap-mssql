@@ -12,6 +12,14 @@ from tap_tester import connections, menagerie, runner
 
 from spec import TapSpec
 
+def get_top_level_metadata(catalog):
+    """Extract top-level metadata (breadcrumb=[]) from a catalog entry's metadata list."""
+    metadata = catalog.get("metadata", [])
+    for entry in metadata:
+        if entry.get("breadcrumb") == []:
+            return entry.get("metadata", {})
+    return {}
+
 def backoff_wait_times():
     """Create a generator of wait times as [30, 60, 120, 240, 480, ...]"""
     return backoff.expo(factor=30)

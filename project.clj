@@ -1,5 +1,5 @@
 (defproject tap-mssql
-  "1.8.0"
+  "1.8.1"
   :description "Singer.io tap for extracting data from a Microsft SQL Server "
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
@@ -13,7 +13,7 @@
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; singer-clojure
-                 [singer-clojure "1.1.8"]
+                 [singer-clojure "1.2.1"]
 
                  ;; repl
                  [nrepl "0.6.0"]              ;; For Lein 2.9.X

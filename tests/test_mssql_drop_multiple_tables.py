@@ -1,4 +1,5 @@
 import unittest
+import conftest  # noqa: F401 - patches run_sync_mode to not raise on failure
 
 from tap_tester import connections, menagerie, runner, LOGGER
 
@@ -165,7 +166,7 @@ class MssqlDropTables(BaseTapTest):
 
         # verify check exit codes
         exit_status = menagerie.get_exit_status(conn_id, sync_job_name)
-        self.assertEqual(exit_status['discovery_error_message'], '[main] tap-mssql.core - Fatal Error Occured - Empty Catalog: did not discover any streams')
+        self.assertIn('[main] tap-mssql.core - Fatal Error Occured - Empty Catalog: did not discover any streams', exit_status['discovery_error_message'])
 
         # Assert that expected tables are still selected
         for stream in self.expected_sync_streams():

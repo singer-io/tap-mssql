@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.1
+  * Update singer-clojure to 1.2.1 (log4j CVE fixes) [#94](https://github.com/singer-io/tap-mssql/pull/94)
+
 ## 1.8.0
   * Retry logic for the Deadlock error [#91](https://github.com/singer-io/tap-mssql/pull/91)
 

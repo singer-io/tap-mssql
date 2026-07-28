@@ -8,7 +8,7 @@ from tap_tester import menagerie, LOGGER
 from database import drop_all_user_databases, create_database, \
     create_table, mssql_cursor_context_manager
 
-from base import BaseTapTest
+from base import BaseTapTest, get_top_level_metadata
 
 
 LOWER_ALPHAS, UPPER_ALPHAS, DIGITS, OTHERS = [], [], [], []
@@ -173,24 +173,25 @@ class DiscoveryTestNames(BaseTapTest):
                 assert catalog, "there is no catalog for {}".forrmat(stream)
 
                 # verify the database and schema in the catalog
-                self.assertEqual(catalog["metadata"][self.DATABASE_NAME],
+                md = get_top_level_metadata(catalog)
+                self.assertEqual(md[self.DATABASE_NAME],
                                  self.expected_metadata()[stream][self.DATABASE_NAME],
                                  msg="database-name incorrect")
 
-                self.assertEqual(catalog["metadata"][self.SCHEMA],
+                self.assertEqual(md[self.SCHEMA],
                                  self.expected_metadata()[stream][self.SCHEMA],
                                  msg="schema-name incorrect")
                 self.assertEqual(catalog[self.STREAM],
                                  self.expected_metadata()[stream][self.STREAM],
                                  msg="stream_name incorrect")
                 # verify the primary keys
-                self.assertEqual(set(catalog["metadata"][self.PRIMARY_KEYS]),
+                self.assertEqual(set(md[self.PRIMARY_KEYS]),
                                  set(self.expected_metadata()[stream][self.PRIMARY_KEYS]),
                                  msg="primary keys incorrect")
 
                 # verify that nothing is selected since this is the first discovery
-                self.assertTrue(all([catalog[self.SELECTED] is None,
-                                     catalog["metadata"][self.SELECTED] is None]))
+                self.assertTrue(all([catalog.get(self.SELECTED) is None,
+                                     md.get(self.SELECTED) is None]))
 
                 schema_and_metadata = menagerie.get_annotated_schema(conn_id, catalog['stream_id'])
                 metadata = schema_and_metadata["metadata"]
