@@ -16,6 +16,9 @@ jobs:
       - restore_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
       - run:
+          name: 'Install wget'
+          command: apt-get update && apt-get install -y wget
+      - run:
           name: 'Install Dockerize'
           command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
           environment:
@@ -45,6 +48,9 @@ jobs:
           SA_PASSWORD: Password1!
     steps:
       - checkout
+      - run:
+          name: 'Install wget'
+          command: apt-get update && apt-get install -y wget
       - run:
           name: 'Install Dockerize'
           command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
