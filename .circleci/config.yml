@@ -6,7 +6,7 @@ orbs:
 jobs:
   build:
     docker:
-      - image: clojure:temurin-17-lein-2.11.2
+      - image: clojure:lein-2.5.3
       - image: mcr.microsoft.com/mssql/server:2022-CU18-ubuntu-22.04
         environment:
           ACCEPT_EULA: Y
@@ -16,11 +16,8 @@ jobs:
       - restore_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
       - run:
-          name: 'Install wget'
-          command: apt-get update && apt-get install -y wget
-      - run:
           name: 'Install Dockerize'
-          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          command: wget --no-check-certificate https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
           environment:
             DOCKERIZE_VERSION: v0.3.0
       - run:
@@ -31,7 +28,7 @@ jobs:
       - run:
           name: Test
           command: |
-            LEIN_JAVA_CMD=$(which java) bin/test
+            bin/test
       - save_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
           paths:
@@ -49,11 +46,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: 'Install wget'
-          command: apt-get update && apt-get install -y wget
-      - run:
           name: 'Install Dockerize'
-          command: wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          command: wget --no-check-certificate https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
           environment:
             DOCKERIZE_VERSION: v0.3.0
       - run:

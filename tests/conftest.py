@@ -96,7 +96,7 @@ def _run_sync_mode(self, scenario, conn_id):
         job["tap_error_message"] = "\n".join(tap_err)
         LOGGER.info('sync mode failed with tap exit status %s', sync.returncode)
     else:
-        LOGGER.info('sync mode exitted succesfully')
+        LOGGER.info('sync mode exited succesfully')
     LOGGER.info('**************************************************************************************************************')
     self.jobs[job_name] = job
     return job_name
