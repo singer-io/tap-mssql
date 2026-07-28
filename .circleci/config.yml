@@ -31,7 +31,7 @@ jobs:
       - run:
           name: Test
           command: |
-            bin/test
+            LEIN_JAVA_CMD=$(which java) bin/test
       - save_cache:
           key: dependency-cache-{{ checksum "project.clj" }}
           paths:
