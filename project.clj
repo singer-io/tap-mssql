@@ -4,7 +4,7 @@
   :url "https://github.com/stitchdata/tap-mssql"
   :license {:name "GNU Affero General Public License Version 3; Other commercial licenses available."
             :url  "https://www.gnu.org/licenses/agpl-3.0.en.html"}
-  :dependencies [[org.clojure/clojure "1.9.0"]
+  :dependencies [[org.clojure/clojure "1.11.2"]
                  [org.clojure/tools.cli "0.4.1"]
                  [org.clojure/data.json "0.2.6"]
 
