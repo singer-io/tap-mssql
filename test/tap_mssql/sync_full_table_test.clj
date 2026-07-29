@@ -12,7 +12,7 @@
                                           test-db-config
                                           test-db-configs
                                           with-matrix-assertions]])
-  (:import [microsoft.sql.DateTimeOffset]))
+  (:import [microsoft.sql DateTimeOffset]))
 
 (defn get-destroy-database-command
   [database]
