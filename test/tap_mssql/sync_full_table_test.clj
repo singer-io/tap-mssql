@@ -1,5 +1,4 @@
 (ns tap-mssql.sync-full-table-test
-  (:import  [microsoft.sql.DateTimeOffset])
   (:require [tap-mssql.catalog :as catalog]
             [tap-mssql.config :as config]
             [clojure.test :refer [is deftest]]
@@ -12,7 +11,8 @@
             [tap-mssql.test-utils :refer [with-out-and-err-to-dev-null
                                           test-db-config
                                           test-db-configs
-                                          with-matrix-assertions]]))
+                                          with-matrix-assertions]])
+  (:import [microsoft.sql.DateTimeOffset]))
 
 (defn get-destroy-database-command
   [database]
