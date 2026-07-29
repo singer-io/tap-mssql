@@ -13,7 +13,7 @@
                  [com.microsoft.sqlserver/mssql-jdbc "7.2.1.jre8"]
 
                  ;; singer-clojure
-                 [singer-clojure "1.2.1"]
+                 [singer-clojure "1.2.2"]
 
                  ;; repl
                  [nrepl "0.6.0"]              ;; For Lein 2.9.X
